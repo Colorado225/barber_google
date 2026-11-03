@@ -2,7 +2,7 @@ import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
-import { createSalonRepository } from '../server/salon-repository.js';
+import { createSalonRepository } from '../../server/salon-repository.js';
 
 const db = new PGlite();
 const owner = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -33,7 +33,7 @@ const repo = () => createSalonRepository(db, async (fn) => {
     await db.exec('COMMIT');
     return r;
   } catch (e) {
-    try { await db.exec('ROLLBACK'); } catch {}
+    try { await db.exec('ROLLBACK'); } catch { }
     throw e;
   }
 });
