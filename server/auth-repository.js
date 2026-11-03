@@ -1,7 +1,30 @@
 // Chaque opération utilise une transaction et un rôle d'authentification limité.
-export function createAuthRepository(pool) {
+// Accepte un pg.Pool (connect/query) ou un client unique type PGlite (query/exec).
+export function createAuthRepository(db) {
+  if (typeof db.connect !== 'function') {
+    // PGlite : une seule connexion, exécution sérialisée.
+    let queue = Promise.resolve();
+    const transaction = (fn) => {
+      const task = queue.then(async () => {
+        await db.exec('BEGIN');
+        try {
+          await db.exec('SET LOCAL ROLE bc_auth');
+          const result = await fn(db);
+          await db.exec('COMMIT');
+          return result;
+        } catch (error) {
+          try { await db.exec('ROLLBACK'); } catch { /* preserve original error */ }
+          throw error;
+        }
+      });
+      queue = task.catch(() => {});
+      return task;
+    };
+    return buildRepository(transaction);
+  }
+
   async function transaction(fn) {
-    const client = await pool.connect();
+    const client = await db.connect();
     try {
       await client.query('BEGIN');
       await client.query('SET LOCAL ROLE bc_auth');
@@ -13,6 +36,10 @@ export function createAuthRepository(pool) {
       throw error;
     } finally { client.release(); }
   }
+  return buildRepository(transaction);
+}
+
+function buildRepository(transaction) {
   return {
     createAccount: data => transaction(async client => {
       const user = await client.query('INSERT INTO public.bc_users DEFAULT VALUES RETURNING id');
