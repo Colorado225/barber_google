@@ -1,8 +1,9 @@
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import App from './App';
 import { MarketplaceHome } from './components/marketplace/MarketplaceHome';
-import { ErpLayoutNew } from './components/erp/ErpLayoutNew';
+import { ErpLayout } from './components/erp/ErpLayout';
 import { SalonProvider } from './context/SalonContext';
+import { DashboardView } from './components/erp/DashboardView';
 import { TodayView } from './components/erp/TodayView';
 import { PlanningView } from './components/erp/PlanningView';
 import { ClientsView } from './components/erp/ClientsView';
@@ -46,62 +47,10 @@ const router = createBrowserRouter([
         element: <SignupPage />,
       },
       {
-        path: 'app',
-        element: <ErpLayoutNew />,
-        children: [
-          {
-            index: true,
-            element: <TodayView />,
-          },
-          {
-            path: 'aujourdhui',
-            element: <TodayView />,
-          },
-          {
-            path: 'planning',
-            element: <PlanningView />,
-          },
-          {
-            path: 'clients',
-            element: <ClientsView />,
-          },
-          {
-            path: 'prestations',
-            element: <ServicesView />,
-          },
-          {
-            path: 'equipe',
-            element: <StaffView />,
-          },
-          {
-            path: 'caisse',
-            element: <CashRegisterView />,
-          },
-          {
-            path: 'stocks',
-            element: <InventoryView />,
-          },
-          {
-            path: 'depenses',
-            element: <ExpensesView />,
-          },
-          {
-            path: 'rapports',
-            element: <ReportsView />,
-          },
-          {
-            path: 'fidelite',
-            element: <LoyaltyView />,
-          },
-          {
-            path: 'vitrine',
-            element: <ShopView />,
-          },
-          {
-            path: 'qr-code',
-            element: <SalonQrCodeView />,
-          },
-        ],
+        // ErpLayout is a self-contained shell: it renders its own sidebar and
+        // panels, and reads the active view from the URL segment.
+        path: 'app/*',
+        element: <ErpLayout />,
       },
     ],
   },

@@ -29,15 +29,27 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({ salon, onClo
     reviews,
     formatPrice,
     checkSlotAvailability,
-    bookAppointment
+    bookAppointment,
+    addReview
   } = useApp();
 
   const salonServices = services.filter((s) => s.salonId === salon.id);
   const salonStaff = staff.filter((s) => s.salonId === salon.id);
   const salonReviews = reviews.filter((r) => r.salonId === salon.id);
 
+  // Rating shown publicly is computed from real reviews (no invented value).
+  const averageRating = salonReviews.length
+    ? Math.round((salonReviews.reduce((acc, r) => acc + r.rating, 0) / salonReviews.length) * 10) / 10
+    : null;
+
   // Active sub-tab
   const [activeTab, setActiveTab] = useState<'prestations' | 'equipe' | 'avis' | 'infos'>('prestations');
+
+  // Review form state (real reviews, persisted in the store).
+  const [isReviewFormOpen, setIsReviewFormOpen] = useState(false);
+  const [reviewAuthor, setReviewAuthor] = useState('');
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState('');
 
   // Selected gallery image
   const [activeImage, setActiveImage] = useState<string>(salon.coverImage);
@@ -250,8 +262,10 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({ salon, onClo
                 <div className="flex flex-wrap items-center gap-4 text-sm text-stone-300">
                   <div className="flex items-center gap-1.5 font-semibold text-amber-300">
                     <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
-                    <span>{salon.rating.toFixed(1)}</span>
-                    <span className="text-stone-400 font-normal">({salon.reviewCount} avis)</span>
+                    <span>{averageRating === null ? '—' : averageRating.toFixed(1)}</span>
+                    <span className="text-stone-400 font-normal">
+                      ({salonReviews.length} avis)
+                    </span>
                   </div>
                   <div className="flex items-center gap-1 text-stone-400">
                     <MapPin className="w-4 h-4 text-stone-500" />
@@ -423,6 +437,94 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({ salon, onClo
               {/* Tab: AVIS */}
               {activeTab === 'avis' && (
                 <div className="space-y-3">
+                  {/* Add review */}
+                  <div className="p-4 rounded-xl bg-[#18181b] border border-[#27272c]">
+                    {!isReviewFormOpen ? (
+                      <button
+                        onClick={() => setIsReviewFormOpen(true)}
+                        className="w-full text-xs font-semibold text-[#C9A45C] hover:text-[#E5C378] transition-colors flex items-center justify-center gap-1.5 py-1 cursor-pointer"
+                      >
+                        <Star className="w-3.5 h-3.5" />
+                        Laisser un avis
+                      </button>
+                    ) : (
+                      <form
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          if (!reviewAuthor.trim() || !reviewComment.trim()) return;
+                          addReview({
+                            salonId: salon.id,
+                            author: reviewAuthor.trim(),
+                            rating: reviewRating,
+                            comment: reviewComment.trim()
+                          });
+                          setReviewAuthor('');
+                          setReviewComment('');
+                          setReviewRating(5);
+                          setIsReviewFormOpen(false);
+                        }}
+                        className="space-y-3"
+                      >
+                        <input
+                          type="text"
+                          required
+                          value={reviewAuthor}
+                          onChange={(e) => setReviewAuthor(e.target.value)}
+                          placeholder="Votre nom"
+                          className="w-full bg-[#111113] border border-[#29292e] rounded-xl px-3 py-2 text-xs text-white placeholder-stone-500 focus:outline-none focus:border-[#C9A45C]"
+                        />
+                        <div className="flex items-center gap-1">
+                          {[1, 2, 3, 4, 5].map((n) => (
+                            <button
+                              key={n}
+                              type="button"
+                              onClick={() => setReviewRating(n)}
+                              aria-label={`${n} étoile${n > 1 ? 's' : ''}`}
+                              className="cursor-pointer"
+                            >
+                              <Star
+                                className={`w-5 h-5 ${
+                                  n <= reviewRating
+                                    ? 'fill-amber-400 text-amber-400'
+                                    : 'text-stone-600'
+                                }`}
+                              />
+                            </button>
+                          ))}
+                        </div>
+                        <textarea
+                          required
+                          rows={3}
+                          value={reviewComment}
+                          onChange={(e) => setReviewComment(e.target.value)}
+                          placeholder="Votre expérience dans ce salon…"
+                          className="w-full bg-[#111113] border border-[#29292e] rounded-xl px-3 py-2 text-xs text-white placeholder-stone-500 focus:outline-none focus:border-[#C9A45C]"
+                        />
+                        <div className="flex justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setIsReviewFormOpen(false)}
+                            className="px-3 py-1.5 rounded-lg bg-[#232328] text-stone-400 hover:text-white text-xs font-semibold cursor-pointer"
+                          >
+                            Annuler
+                          </button>
+                          <button
+                            type="submit"
+                            className="px-4 py-1.5 rounded-lg bg-[#C9A45C] hover:bg-[#d8b56d] text-[#101010] text-xs font-bold cursor-pointer"
+                          >
+                            Publier
+                          </button>
+                        </div>
+                      </form>
+                    )}
+                  </div>
+
+                  {salonReviews.length === 0 && (
+                    <p className="text-center text-xs text-stone-500 py-6">
+                      Aucun avis pour ce salon. Soyez le premier à partager votre expérience.
+                    </p>
+                  )}
+
                   {salonReviews.map((rev) => (
                     <div key={rev.id} className="p-4 rounded-xl bg-[#18181b] border border-[#27272c]">
                       <div className="flex items-center justify-between mb-1.5">

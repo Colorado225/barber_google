@@ -36,7 +36,15 @@ export const INITIAL_SALONS: Salon[] = [
     phone: '+225 07 00 00 00 00',
     whatsapp: '+225 07 00 00 00 00',
     email: 'contact@leroidudegrade.ci',
-    openingHours: [],
+    openingHours: [
+      { day: 'Lundi', open: '09:00', close: '20:00', isOpen: true },
+      { day: 'Mardi', open: '09:00', close: '20:00', isOpen: true },
+      { day: 'Mercredi', open: '09:00', close: '20:00', isOpen: true },
+      { day: 'Jeudi', open: '09:00', close: '20:00', isOpen: true },
+      { day: 'Vendredi', open: '09:00', close: '21:00', isOpen: true },
+      { day: 'Samedi', open: '08:30', close: '21:00', isOpen: true },
+      { day: 'Dimanche', open: '00:00', close: '00:00', isOpen: false }
+    ],
     paymentMethods: ['wave', 'orange_money', 'mtn_momo', 'cash'],
     minPrice: 5000,
     currency: 'FCFA',
@@ -49,9 +57,73 @@ export const INITIAL_SALONS: Salon[] = [
   }
 ];
 
-export const INITIAL_SERVICES: Service[] = [];
+export const INITIAL_SERVICES: Service[] = [
+  {
+    id: 'srv-1',
+    salonId: 'salon-1',
+    name: 'Coupe classique aux ciseaux',
+    category: 'coupe',
+    description: 'Coupe soignée ciseaux et tondeuse, finitions au rasoir.',
+    price: 3000,
+    durationMinutes: 30,
+    popular: true
+  },
+  {
+    id: 'srv-2',
+    salonId: 'salon-1',
+    name: 'Dégradé américain',
+    category: 'coupe',
+    description: 'Dégradé net à la tondeuse et finitions précises.',
+    price: 4000,
+    durationMinutes: 40,
+    popular: true
+  },
+  {
+    id: 'srv-3',
+    salonId: 'salon-1',
+    name: 'Taille de barbe serviette chaude',
+    category: 'barbe',
+    description: 'Taille, dessin et serviette chaude.',
+    price: 2500,
+    durationMinutes: 25
+  },
+  {
+    id: 'srv-4',
+    salonId: 'salon-1',
+    name: 'Formule Coupe + Barbe + Soin',
+    category: 'combo',
+    description: 'La formule complète : coupe, barbe et soin du visage.',
+    price: 7000,
+    durationMinutes: 60
+  }
+];
 
-export const INITIAL_STAFF: StaffMember[] = [];
+export const INITIAL_STAFF: StaffMember[] = [
+  {
+    id: 'staff-1',
+    salonId: 'salon-1',
+    name: 'Ibrahim Ouattara',
+    role: 'master_barber',
+    avatar: '',
+    specialties: ['Dégradé américain', 'Barbe'],
+    rating: 0,
+    commissionRate: 30,
+    phone: '+225 07 00 00 00 01',
+    isAvailable: true
+  },
+  {
+    id: 'staff-2',
+    salonId: 'salon-1',
+    name: 'Kevin Yao',
+    role: 'barber',
+    avatar: '',
+    specialties: ['Coupe classique'],
+    rating: 0,
+    commissionRate: 25,
+    phone: '+225 07 00 00 00 02',
+    isAvailable: true
+  }
+];
 
 export const INITIAL_APPOINTMENTS: Appointment[] = [];
 

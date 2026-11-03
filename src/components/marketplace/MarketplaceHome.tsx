@@ -85,46 +85,12 @@ export const MarketplaceHome: React.FC = () => {
   }, [filteredSalons]);
 
   // Testimonials: dedicated testimonials + top client reviews
+  // Testimonials are built from real client reviews only.
   const testimonials = useMemo(() => {
-    const pro: { id: string; name: string; role: string; quote: string; rating: number; initials: string }[] = [
-      {
-        id: 't1',
-        name: 'Amadou Koné',
-        role: "Gérant · King's Cut, Cocody",
-        quote: 'Depuis Barber Cuts Business, mes réservations en ligne ont doublé et les no-shows ont chuté de 40 %. Le planning en direct a changé ma façon de gérer le salon.',
-        rating: 5,
-        initials: 'AK'
-      },
-      {
-        id: 't2',
-        name: 'Aïcha Traoré',
-        role: 'Cliente fidèle · Plateau',
-        quote: 'Je réserve en 30 secondes depuis mon téléphone et je paie par Wave. Plus besoin d’appeler ni d’attendre au salon, c’est un vrai soulagement.',
-        rating: 5,
-        initials: 'AT'
-      },
-      {
-        id: 't3',
-        name: 'Serge Bamba',
-        role: 'Propriétaire · 3 salons à Marcory',
-        quote: 'La caisse, les stocks et la fidélisation sont reliés. Je pilote mes trois succursales depuis un seul tableau de bord, à tout moment.',
-        rating: 5,
-        initials: 'SB'
-      },
-      {
-        id: 't4',
-        name: 'Fatou Diomandé',
-        role: 'Cliente · Yopougon',
-        quote: 'Les avis vérifiés et les photos réelles m’aident à choisir sans mauvaise surprise. Les rappels WhatsApp évitent les oublis de rendez-vous.',
-        rating: 4,
-        initials: 'FD'
-      }
-    ];
-
-    const fromReviews = reviews.slice(0, 2).map((rev) => ({
-      id: `rev-${rev.id}`,
+    return reviews.slice(0, 4).map((rev) => ({
+      id: rev.id,
       name: rev.author,
-      role: 'Client vérifié',
+      role: rev.verified ? 'Client vérifié' : 'Client',
       quote: rev.comment,
       rating: rev.rating,
       initials: rev.author
@@ -134,11 +100,11 @@ export const MarketplaceHome: React.FC = () => {
         .slice(0, 2)
         .toUpperCase()
     }));
-
-    return [...pro, ...fromReviews].slice(0, 4);
   }, [reviews]);
 
-  const activeTestimonyData = testimonials[activeTestimony % testimonials.length];
+  const activeTestimonyData = testimonials.length
+    ? testimonials[activeTestimony % testimonials.length]
+    : null;
 
   const plans = [
     {
@@ -465,30 +431,40 @@ export const MarketplaceHome: React.FC = () => {
             </h2>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {reviews.map((rev) => (
-              <div
-                key={rev.id}
-                className="bg-[#161619] border border-[#27272c] rounded-2xl p-6 flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex items-center gap-1 mb-3">
-                    {Array.from({ length: rev.rating }).map((_, i) => (
-                      <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />
-                    ))}
+          {reviews.length === 0 ? (
+            <div className="text-center py-12 bg-[#161619] rounded-2xl border border-[#27272c]">
+              <Star className="w-10 h-10 mx-auto mb-3 text-stone-600" />
+              <p className="text-sm text-stone-400">Aucun avis pour le moment.</p>
+              <p className="text-xs text-stone-500 mt-1">
+                Les avis apparaîtront ici dès que des clients auront noté leur rendez-vous.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {reviews.slice(0, 6).map((rev) => (
+                <div
+                  key={rev.id}
+                  className="bg-[#161619] border border-[#27272c] rounded-2xl p-6 flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="flex items-center gap-1 mb-3">
+                      {Array.from({ length: rev.rating }).map((_, i) => (
+                        <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />
+                      ))}
+                    </div>
+                    <p className="text-sm text-stone-200 leading-relaxed italic mb-4">
+                      « {rev.comment} »
+                    </p>
                   </div>
-                  <p className="text-sm text-stone-200 leading-relaxed italic mb-4">
-                    « {rev.comment} »
-                  </p>
-                </div>
 
-                <div className="flex items-center justify-between text-xs pt-3 border-t border-[#242429]">
-                  <span className="font-bold text-white">{rev.author}</span>
-                  <span className="text-stone-500">• {rev.date}</span>
+                  <div className="flex items-center justify-between text-xs pt-3 border-t border-[#242429]">
+                    <span className="font-bold text-white">{rev.author}</span>
+                    <span className="text-stone-500">• {rev.date}</span>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -528,29 +504,46 @@ export const MarketplaceHome: React.FC = () => {
           {/* Grand témoignage actif */}
           <div className="lg:col-span-1 bg-gradient-to-b from-[#1b1913] to-[#151518] border border-[#C9A45C]/30 rounded-3xl p-7 flex flex-col justify-between relative overflow-hidden">
             <Quote className="absolute -top-3 -right-3 w-24 h-24 text-[#C9A45C]/10" />
-            <div>
-              <div className="flex items-center gap-1 mb-4">
-                {Array.from({ length: activeTestimonyData.rating }).map((_, i) => (
-                  <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />
-                ))}
+            {activeTestimonyData ? (
+              <>
+                <div>
+                  <div className="flex items-center gap-1 mb-4">
+                    {Array.from({ length: activeTestimonyData.rating }).map((_, i) => (
+                      <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />
+                    ))}
+                  </div>
+                  <p className="text-sm text-stone-100 leading-relaxed italic">
+                    « {activeTestimonyData.quote} »
+                  </p>
+                </div>
+                <div className="flex items-center gap-3 pt-6 mt-6 border-t border-[#2a2820]">
+                  <div className="w-10 h-10 rounded-full bg-[#C9A45C] text-[#101010] font-bold text-xs flex items-center justify-center shrink-0">
+                    {activeTestimonyData.initials}
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-white">{activeTestimonyData.name}</h4>
+                    <p className="text-[11px] text-[#C9A45C]">{activeTestimonyData.role}</p>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="relative z-10 text-left py-4">
+                <Quote className="w-6 h-6 text-[#C9A45C] mb-3" />
+                <h4 className="text-sm font-bold text-white">Aucun témoignage pour l’instant</h4>
+                <p className="text-xs text-stone-400 mt-2 leading-relaxed">
+                  Les avis de vos clients s’afficheront ici dès le premier retour.
+                </p>
               </div>
-              <p className="text-sm text-stone-100 leading-relaxed italic">
-                « {activeTestimonyData.quote} »
-              </p>
-            </div>
-            <div className="flex items-center gap-3 pt-6 mt-6 border-t border-[#2a2820]">
-              <div className="w-10 h-10 rounded-full bg-[#C9A45C] text-[#101010] font-bold text-xs flex items-center justify-center shrink-0">
-                {activeTestimonyData.initials}
-              </div>
-              <div>
-                <h4 className="text-sm font-bold text-white">{activeTestimonyData.name}</h4>
-                <p className="text-[11px] text-[#C9A45C]">{activeTestimonyData.role}</p>
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Liste compacte des témoignages */}
           <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {testimonials.length === 0 && (
+              <div className="sm:col-span-2 flex items-center justify-center rounded-2xl border border-dashed border-[#2a2a2e] p-8 text-center text-xs text-stone-500">
+                Aucun avis client enregistré pour le moment.
+              </div>
+            )}
             {testimonials.map((testimony, index) => (
               <button
                 key={testimony.id}

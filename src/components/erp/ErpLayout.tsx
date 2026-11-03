@@ -14,6 +14,10 @@ import { SalonProfileSettingsView } from './SalonProfileSettingsView';
 import { MarketplaceShowcaseView } from './MarketplaceShowcaseView';
 import { SaaSPlanView } from './SaaSPlanView';
 import { SalonQrCodeView } from './SalonQrCodeView';
+import { ReportsView } from './ReportsView';
+import { ClientsView } from './ClientsView';
+import { PlanningView } from './PlanningView';
+import { LoyaltyView } from './LoyaltyView';
 import { NewAppointmentModal } from './NewAppointmentModal';
 import { NewPaymentModal } from './NewPaymentModal';
 import {
@@ -35,7 +39,9 @@ import {
   Unlock,
   Bell,
   Globe,
-  QrCode
+  QrCode,
+  BarChart3,
+  Heart
 } from 'lucide-react';
 
 export type ErpTab =
@@ -48,6 +54,8 @@ export type ErpTab =
   | 'expenses'
   | 'inventory'
   | 'marketplace_showcase'
+  | 'reports'
+  | 'loyalty'
   | 'qr_code'
   | 'storefront'
   | 'saas';
@@ -63,6 +71,8 @@ const TAB_PATHS: Record<ErpTab, string> = {
   expenses: 'depenses',
   inventory: 'stocks',
   marketplace_showcase: 'vitrine',
+  reports: 'rapports',
+  loyalty: 'fidelite',
   qr_code: 'qr-code',
   storefront: 'parametres',
   saas: 'abonnement'
@@ -103,9 +113,11 @@ export const ErpLayout: React.FC = () => {
     { id: 'crm', label: 'CRM Clients', icon: Users },
     { id: 'services', label: 'Prestations & Tarifs', icon: Scissors },
     { id: 'staff', label: 'Équipe & Commissions', icon: UserCheck },
+    { id: 'loyalty', label: 'Fidélité', icon: Heart },
     { id: 'expenses', label: 'Dépenses & Bilan', icon: TrendingDown },
     { id: 'inventory', label: 'Stocks & Produits', icon: Package },
     { id: 'marketplace_showcase', label: 'Vitrine Marketplace', icon: Globe },
+    { id: 'reports', label: 'Rapports', icon: BarChart3 },
     { id: 'qr_code', label: 'QR Code Réservation', icon: QrCode },
     { id: 'storefront', label: 'Personnalisation Salon', icon: Store },
     { id: 'saas', label: 'Abonnement SaaS', icon: Sparkles }
@@ -273,33 +285,13 @@ export const ErpLayout: React.FC = () => {
             />
           ))}
 
-          {activeTab === 'calendar' && (
-            <AppointmentsCalendarView
-              onOpenNewAppointment={(prefill) => {
-                if (prefill) {
-                  setNewAppointmentSlot(prefill);
-                } else {
-                  setNewAppointmentSlot({});
-                }
-                setIsNewAppointmentOpen(true);
-              }}
-              onOpenNewPaymentForAppointment={(apt) => {
-                setPreselectedAppointment(apt);
-                setIsNewPaymentOpen(true);
-              }}
-            />
-          )}
+          {activeTab === 'calendar' && <PlanningView />}
 
-          {activeTab === 'cash' && (
-            <CashRegisterView
-              onOpenNewPayment={() => {
-                setPreselectedAppointment(null);
-                setIsNewPaymentOpen(true);
-              }}
-            />
-          )}
+          {activeTab === 'cash' && <CashRegisterView />}
 
-          {activeTab === 'crm' && <CrmClientsView />}
+          {activeTab === 'loyalty' && <LoyaltyView />}
+
+          {activeTab === 'crm' && <ClientsView />}
 
           {activeTab === 'services' && <ServicesView />}
 
@@ -310,6 +302,8 @@ export const ErpLayout: React.FC = () => {
           {activeTab === 'inventory' && <InventoryView />}
 
           {activeTab === 'marketplace_showcase' && <MarketplaceShowcaseView />}
+
+          {activeTab === 'reports' && <ReportsView />}
 
           {activeTab === 'qr_code' && <SalonQrCodeView />}
 

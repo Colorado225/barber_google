@@ -59,6 +59,7 @@ interface AppContextType {
   expenses: Expense[];
   stocks: StockItem[];
   reviews: Review[];
+  addReview: (review: Omit<Review, 'id' | 'date' | 'verified'>) => Review;
   toasts: Toast[];
   addToast: (message: string, type?: 'success' | 'error' | 'info') => void;
   removeToast: (id: string) => void;
@@ -116,6 +117,10 @@ interface AppContextType {
   // CRM CRUD
   addClient: (client: Omit<Client, 'id' | 'totalSpent' | 'visitsCount' | 'lastVisit'>) => void;
   updateClientNotes: (clientId: string, notes: string) => void;
+  updateClient: (clientId: string, updates: Partial<Client>) => void;
+  deleteClient: (clientId: string) => void;
+  updateAppointment: (appointmentId: string, updates: Partial<Appointment>) => void;
+  deleteAppointment: (appointmentId: string) => void;
 
   // Finance CRUD
   addExpense: (expense: Omit<Expense, 'id'>) => void;
@@ -209,7 +214,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : INITIAL_STOCKS;
   });
 
-  const [reviews] = useState<Review[]>(INITIAL_REVIEWS);
+  const [reviews, setReviews] = useState<Review[]>(() => {
+    const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_reviews`);
+    return saved ? JSON.parse(saved) : INITIAL_REVIEWS;
+  });
 
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [selectedSalonForModal, setSelectedSalonForModal] = useState<Salon | null>(null);
@@ -252,6 +260,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(`${LOCAL_STORAGE_KEY}_cashSession`, JSON.stringify(cashSession));
     localStorage.setItem(`${LOCAL_STORAGE_KEY}_expenses`, JSON.stringify(expenses));
     localStorage.setItem(`${LOCAL_STORAGE_KEY}_stocks`, JSON.stringify(stocks));
+    localStorage.setItem(`${LOCAL_STORAGE_KEY}_reviews`, JSON.stringify(reviews));
     localStorage.setItem(`${LOCAL_STORAGE_KEY}_isRegisteredInErp`, JSON.stringify(isRegisteredInErp));
     localStorage.setItem(`${LOCAL_STORAGE_KEY}_loyaltyRewards`, JSON.stringify(loyaltyRewards));
     localStorage.setItem(`${LOCAL_STORAGE_KEY}_loyaltyTransactions`, JSON.stringify(loyaltyTransactions));
@@ -267,6 +276,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     cashSession,
     expenses,
     stocks,
+    reviews,
     isRegisteredInErp,
     loyaltyRewards,
     loyaltyTransactions,
@@ -283,6 +293,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const removeToast = (id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
+  };
+
+  const addReview = (review: Omit<Review, 'id' | 'date' | 'verified'>): Review => {
+    const created: Review = {
+      ...review,
+      id: `rev-${Date.now()}`,
+      date: new Date().toISOString().slice(0, 10),
+      verified: false
+    };
+    setReviews((prev) => [created, ...prev]);
+    return created;
   };
 
   const activeSalon = salons.find((s) => s.id === activeSalonId) || salons[0];
@@ -853,6 +874,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addToast('Fiche client mise à jour.', 'info');
   };
 
+  const updateClient = (clientId: string, updates: Partial<Client>) => {
+    setClients((prev) => prev.map((c) => (c.id === clientId ? { ...c, ...updates } : c)));
+    addToast('Client mis à jour.', 'success');
+  };
+
+  const deleteClient = (clientId: string) => {
+    setClients((prev) => prev.filter((c) => c.id !== clientId));
+    addToast('Client supprimé.', 'info');
+  };
+
+  const updateAppointment = (appointmentId: string, updates: Partial<Appointment>) => {
+    setAppointments((prev) =>
+      prev.map((a) => (a.id === appointmentId ? { ...a, ...updates } : a))
+    );
+    addToast('Rendez-vous modifié.', 'success');
+  };
+
+  const deleteAppointment = (appointmentId: string) => {
+    setAppointments((prev) => prev.filter((a) => a.id !== appointmentId));
+    addToast('Rendez-vous supprimé.', 'info');
+  };
+
   const addExpense = (data: Omit<Expense, 'id'>) => {
     const newExp: Expense = { ...data, id: `exp-${Date.now()}` };
     setExpenses((prev) => [newExp, ...prev]);
@@ -1008,6 +1051,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         expenses,
         stocks,
         reviews,
+        addReview,
         toasts,
         addToast,
         removeToast,
@@ -1047,6 +1091,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteStaff,
         addClient,
         updateClientNotes,
+        updateClient,
+        deleteClient,
+        updateAppointment,
+        deleteAppointment,
         addExpense,
         deleteExpense,
         addStockItem,

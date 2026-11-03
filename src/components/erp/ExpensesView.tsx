@@ -1,27 +1,42 @@
 import React from 'react';
-import { Receipt, Plus } from 'lucide-react';
+import { useApp } from '../../context/AppContext';
+import { DataTableCard } from './DataTableCard';
+import { Receipt } from 'lucide-react';
+import { Expense } from '../../types';
 
 export const ExpensesView: React.FC = () => {
-  return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-[#f7f6f2]">Dépenses</h1>
-          <p className="text-[#a9a9a9] mt-1">Suivi des dépenses</p>
-        </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-[#C9A45C] text-[#101010] rounded-lg font-semibold hover:bg-[#d4b26a]">
-          <Plus className="w-4 h-4" />
-          Nouvelle dépense
-        </button>
-      </div>
+  const { activeSalon, expenses, formatPrice } = useApp();
 
-      <div className="bg-[#151516] rounded-xl border border-[#2a2a2b]">
-        <div className="p-6 text-center py-12 text-[#a9a9a9]">
-          <Receipt className="w-12 h-12 mx-auto mb-4 opacity-50" />
-          <p>Aucune dépense enregistrée</p>
-          <p className="text-sm mt-1">Enregistrez vos dépenses</p>
-        </div>
-      </div>
-    </div>
+  const rows = expenses
+    .filter((e) => e.salonId === activeSalon.id)
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  const total = rows.reduce((acc, e) => acc + e.amount, 0);
+
+  return (
+    <DataTableCard<Expense>
+      title="Dépenses"
+      description="Suivi des dépenses"
+      icon={Receipt}
+      rows={rows}
+      getRowKey={(row) => row.id}
+      emptyMessage="Aucune dépense enregistrée"
+      emptyHint="Enregistrez vos dépenses"
+      action={
+        <span className="text-sm text-[#a9a9a9]">
+          Total : <strong className="text-[#E5C378]">{formatPrice(total)}</strong>
+        </span>
+      }
+      columns={[
+        { header: 'Libellé', render: (r) => <span className="font-semibold">{r.title}</span> },
+        { header: 'Catégorie', render: (r) => r.category, className: 'text-[#a9a9a9]' },
+        { header: 'Date', render: (r) => r.date, className: 'text-[#a9a9a9]' },
+        {
+          header: 'Montant',
+          render: (r) => formatPrice(r.amount),
+          className: 'text-[#E5C378] font-semibold'
+        }
+      ]}
+    />
   );
 };

@@ -2,6 +2,13 @@ import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { AppointmentStatus, Service } from '../../types';
 import {
+  buildHourlySeries,
+  buildRevenueSeries,
+  buildServicePerformance,
+  computeAverageBasket,
+  PeriodKey
+} from '../../lib/analytics';
+import {
   TrendingUp,
   Calendar,
   Users,
@@ -46,7 +53,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   } = useApp();
 
   // Filters for interactive charts
-  const [revenuePeriod, setRevenuePeriod] = useState<'6m' | '12m' | 'month_weeks'>('6m');
+  const [revenuePeriod, setRevenuePeriod] = useState<PeriodKey>('6m');
   const [revenueMetric, setRevenueMetric] = useState<'revenue' | 'appointments' | 'margin'>('revenue');
   const [hoveredMonthIndex, setHoveredMonthIndex] = useState<number | null>(null);
 
@@ -99,6 +106,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const estimatedMargin = totalRevenue - totalExpenses;
 
+  // Real month-over-month variation of collected revenue.
+  const revenueGrowth = useMemo(() => {
+    const series = buildRevenueSeries('6m', salonTransactions, salonAppointments, salonExpenses);
+    return series.length < 2 ? null : series[series.length - 1].growth;
+  }, [salonTransactions, salonAppointments, salonExpenses]);
+
   // Today's stats
   const todayStr = new Date().toISOString().slice(0, 10);
   const todayAppointments = salonAppointments.filter((a) => a.date === todayStr);
@@ -107,8 +120,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const inProgressToday = todayAppointments.filter((a) => a.status === 'in_progress').length;
   const confirmedToday = todayAppointments.filter((a) => a.status === 'confirmed').length;
 
-  const averageBasket =
-    salonTransactions.length > 0 ? Math.round(totalRevenue / salonTransactions.length) : 3800;
+  const averageBasket = computeAverageBasket(salonTransactions);
 
   // Breakdown by payment method
   const mobileMoneyTotal = salonTransactions
@@ -122,43 +134,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const lowStockItems = salonStocks.filter((item) => item.quantity <= item.minThreshold);
 
   // ==========================================
-  // 1. DATA FOR MONTHLY REVENUE CHART
+  // 1. DATA FOR MONTHLY REVENUE CHART (real data)
   // ==========================================
-  const monthlyData = useMemo(() => {
-    if (revenuePeriod === 'month_weeks') {
-      return [
-        { label: 'Semaine 1 (1-7 Nov)', shortLabel: 'Sem 1', revenue: 420000, appointments: 84, expenses: 110000, margin: 310000, growth: '+8.4%' },
-        { label: 'Semaine 2 (8-14 Nov)', shortLabel: 'Sem 2', revenue: 485000, appointments: 96, expenses: 125000, margin: 360000, growth: '+15.5%' },
-        { label: 'Semaine 3 (15-21 Nov)', shortLabel: 'Sem 3', revenue: 530000, appointments: 104, expenses: 140000, margin: 390000, growth: '+9.3%' },
-        { label: 'Semaine 4 (22-28 Nov)', shortLabel: 'Sem 4', revenue: 610000, appointments: 118, expenses: 155000, margin: 455000, growth: '+15.1%' }
-      ];
-    } else if (revenuePeriod === '12m') {
-      return [
-        { label: 'Décembre 2025', shortLabel: 'Déc', revenue: 2450000, appointments: 480, expenses: 780000, margin: 1670000, growth: '+22.5%' },
-        { label: 'Janvier 2026', shortLabel: 'Jan', revenue: 1680000, appointments: 340, expenses: 620000, margin: 1060000, growth: '-31.4%' },
-        { label: 'Février 2026', shortLabel: 'Fév', revenue: 1820000, appointments: 365, expenses: 640000, margin: 1180000, growth: '+8.3%' },
-        { label: 'Mars 2026', shortLabel: 'Mar', revenue: 1950000, appointments: 390, expenses: 660000, margin: 1290000, growth: '+7.1%' },
-        { label: 'Avril 2026', shortLabel: 'Avr', revenue: 2050000, appointments: 410, expenses: 690000, margin: 1360000, growth: '+5.1%' },
-        { label: 'Mai 2026', shortLabel: 'Mai', revenue: 2180000, appointments: 435, expenses: 710000, margin: 1470000, growth: '+6.3%' },
-        { label: 'Juin 2026', shortLabel: 'Juin', revenue: 2120000, appointments: 420, expenses: 700000, margin: 1420000, growth: '-2.7%' },
-        { label: 'Juillet 2026', shortLabel: 'Juil', revenue: 2290000, appointments: 455, expenses: 730000, margin: 1560000, growth: '+8.0%' },
-        { label: 'Août 2026', shortLabel: 'Août', revenue: 2380000, appointments: 470, expenses: 750000, margin: 1630000, growth: '+3.9%' },
-        { label: 'Septembre 2026', shortLabel: 'Sept', revenue: 2210000, appointments: 440, expenses: 720000, margin: 1490000, growth: '-7.1%' },
-        { label: 'Octobre 2026', shortLabel: 'Oct', revenue: 2490000, appointments: 495, expenses: 770000, margin: 1720000, growth: '+12.6%' },
-        { label: 'Novembre 2026 (En cours)', shortLabel: 'Nov', revenue: 2650000, appointments: 520, expenses: 810000, margin: 1840000, growth: '+6.4%' }
-      ];
-    } else {
-      // Default: Last 6 months
-      return [
-        { label: 'Juin 2026', shortLabel: 'Juin', revenue: 2120000, appointments: 420, expenses: 700000, margin: 1420000, growth: '+4.2%' },
-        { label: 'Juillet 2026', shortLabel: 'Juil', revenue: 2290000, appointments: 455, expenses: 730000, margin: 1560000, growth: '+8.0%' },
-        { label: 'Août 2026', shortLabel: 'Août', revenue: 2380000, appointments: 470, expenses: 750000, margin: 1630000, growth: '+3.9%' },
-        { label: 'Septembre 2026', shortLabel: 'Sept', revenue: 2210000, appointments: 440, expenses: 720000, margin: 1490000, growth: '-7.1%' },
-        { label: 'Octobre 2026', shortLabel: 'Oct', revenue: 2490000, appointments: 495, expenses: 770000, margin: 1720000, growth: '+12.6%' },
-        { label: 'Novembre 2026 (En cours)', shortLabel: 'Nov', revenue: 2650000, appointments: 520, expenses: 810000, margin: 1840000, growth: '+6.4%' }
-      ];
-    }
-  }, [revenuePeriod]);
+  const monthlyData = useMemo(
+    () =>
+      buildRevenueSeries(
+        revenuePeriod,
+        salonTransactions,
+        salonAppointments,
+        salonExpenses
+      ),
+    [revenuePeriod, salonTransactions, salonAppointments, salonExpenses]
+  );
 
   // Max value for revenue scaling
   const maxRevenueVal = useMemo(() => {
@@ -169,122 +156,24 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   }, [monthlyData, revenueMetric]);
 
   // ==========================================
-  // 2. DATA FOR BUSY HOURS (Affluence horaire)
+  // 2. DATA FOR BUSY HOURS (real appointments)
   // ==========================================
-  const hourlyData = useMemo(() => {
-    // Base hourly slots from 08:30 to 20:00
-    const rawHours = [
-      { hour: '08:30', all: 4, saturday: 7, friday: 5, weekday: 3 },
-      { hour: '09:00', all: 7, saturday: 12, friday: 8, weekday: 6 },
-      { hour: '09:30', all: 9, saturday: 14, friday: 10, weekday: 8 },
-      { hour: '10:00', all: 13, saturday: 21, friday: 14, weekday: 11 },
-      { hour: '10:30', all: 16, saturday: 25, friday: 17, weekday: 13 },
-      { hour: '11:00', all: 19, saturday: 28, friday: 20, weekday: 15 },
-      { hour: '11:30', all: 21, saturday: 30, friday: 23, weekday: 17 },
-      { hour: '12:00', all: 22, saturday: 31, friday: 25, weekday: 19 },
-      { hour: '12:30', all: 18, saturday: 26, friday: 20, weekday: 15 },
-      { hour: '13:00', all: 14, saturday: 22, friday: 16, weekday: 11 },
-      { hour: '13:30', all: 12, saturday: 20, friday: 14, weekday: 10 },
-      { hour: '14:00', all: 15, saturday: 24, friday: 17, weekday: 12 },
-      { hour: '14:30', all: 17, saturday: 27, friday: 19, weekday: 14 },
-      { hour: '15:00', all: 19, saturday: 30, friday: 21, weekday: 16 },
-      { hour: '15:30', all: 22, saturday: 33, friday: 25, weekday: 18 },
-      { hour: '16:00', all: 25, saturday: 36, friday: 29, weekday: 21 },
-      { hour: '16:30', all: 28, saturday: 39, friday: 32, weekday: 24 },
-      { hour: '17:00', all: 32, saturday: 42, friday: 38, weekday: 28 }, // Peak Rush
-      { hour: '17:30', all: 35, saturday: 45, friday: 42, weekday: 31 }, // Peak Rush
-      { hour: '18:00', all: 34, saturday: 44, friday: 40, weekday: 30 }, // Peak Rush
-      { hour: '18:30', all: 30, saturday: 38, friday: 36, weekday: 26 },
-      { hour: '19:00', all: 24, saturday: 32, friday: 29, weekday: 20 },
-      { hour: '19:30', all: 16, saturday: 24, friday: 20, weekday: 14 },
-      { hour: '20:00', all: 9, saturday: 15, friday: 12, weekday: 7 }
-    ];
-
-    return rawHours.map((h) => {
-      const count =
-        busyHoursDayFilter === 'saturday'
-          ? h.saturday
-          : busyHoursDayFilter === 'friday'
-          ? h.friday
-          : busyHoursDayFilter === 'weekday'
-          ? h.weekday
-          : h.all;
-
-      // Occupancy percentage based on 3 active chairs (max ~45 clients in interval)
-      const maxCapacity = busyHoursDayFilter === 'saturday' ? 48 : 36;
-      const occupancyRate = Math.min(100, Math.round((count / maxCapacity) * 100));
-
-      let intensity: 'calm' | 'moderate' | 'peak' = 'calm';
-      if (occupancyRate >= 75) intensity = 'peak';
-      else if (occupancyRate >= 45) intensity = 'moderate';
-
-      return {
-        ...h,
-        count,
-        occupancyRate,
-        intensity
-      };
-    });
-  }, [busyHoursDayFilter]);
+  const hourlyData = useMemo(
+    () => buildHourlySeries(salonAppointments, busyHoursDayFilter),
+    [salonAppointments, busyHoursDayFilter]
+  );
 
   const maxHourlyCount = useMemo(() => {
     return Math.max(...hourlyData.map((d) => d.count), 1);
   }, [hourlyData]);
 
   // ==========================================
-  // 3. DATA FOR TOP-SELLING SERVICES
+  // 3. DATA FOR TOP-SELLING SERVICES (real appointments)
   // ==========================================
-  const topServicesData = useMemo(() => {
-    // Generate ranking based on actual services catalog + simulated historical numbers
-    const baseServices = salonServices.length > 0 ? salonServices : [
-      { id: 'srv-1', name: 'Coupe classique aux ciseaux', price: 3000, category: 'coupe', durationMinutes: 30 },
-      { id: 'srv-2', name: 'Dégradé américain (Fade)', price: 4000, category: 'coupe', durationMinutes: 40 },
-      { id: 'srv-3', name: 'Taille & traçage de barbe serviette chaude', price: 2500, category: 'barbe', durationMinutes: 25 },
-      { id: 'srv-4', name: 'Formule VIP Gentleman (Coupe + Barbe + Soin)', price: 7000, category: 'combo', durationMinutes: 60 },
-      { id: 'srv-5', name: 'Soin du visage purifiant au charbon', price: 5000, category: 'visage', durationMinutes: 35 },
-      { id: 'srv-6', name: 'Coloration barbe / Bigen Black', price: 3500, category: 'coloration', durationMinutes: 30 }
-    ];
-
-    // Multipliers for realistic distribution in Abidjan
-    const weightMap: Record<string, { volume: number; factor: number }> = {
-      'Dégradé américain (Fade)': { volume: 142, factor: 1.15 },
-      'Formule VIP Gentleman (Coupe + Barbe + Soin)': { volume: 98, factor: 1.4 },
-      'Taille & traçage de barbe serviette chaude': { volume: 112, factor: 1.0 },
-      'Coupe classique aux ciseaux': { volume: 85, factor: 0.9 },
-      'Soin du visage purifiant au charbon': { volume: 46, factor: 1.2 },
-      'Coloration barbe / Bigen Black': { volume: 38, factor: 1.05 }
-    };
-
-    const calculated = baseServices.map((srv, idx) => {
-      const match = weightMap[srv.name] || { volume: Math.max(25, 120 - idx * 18), factor: 1.0 };
-      const volume = match.volume;
-      const totalGeneratedRevenue = volume * srv.price;
-      return {
-        id: srv.id,
-        name: srv.name,
-        category: srv.category,
-        price: srv.price,
-        durationMinutes: srv.durationMinutes,
-        volume,
-        totalGeneratedRevenue
-      };
-    });
-
-    const grandTotalRevenue = calculated.reduce((acc, s) => acc + s.totalGeneratedRevenue, 0);
-    const grandTotalVolume = calculated.reduce((acc, s) => acc + s.volume, 0);
-
-    const enriched = calculated.map((s) => ({
-      ...s,
-      revenueShare: Math.round((s.totalGeneratedRevenue / grandTotalRevenue) * 100),
-      volumeShare: Math.round((s.volume / grandTotalVolume) * 100)
-    }));
-
-    if (serviceMetricSort === 'revenue') {
-      return enriched.sort((a, b) => b.totalGeneratedRevenue - a.totalGeneratedRevenue);
-    } else {
-      return enriched.sort((a, b) => b.volume - a.volume);
-    }
-  }, [salonServices, serviceMetricSort]);
+  const topServicesData = useMemo(
+    () => buildServicePerformance(salonAppointments, salonServices, serviceMetricSort),
+    [salonAppointments, salonServices, serviceMetricSort]
+  );
 
   // Key Peak Hour
   const peakHourItem = useMemo(() => {
@@ -326,9 +215,24 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="text-2xl font-extrabold text-white">
             {formatPrice(totalRevenue)}
           </div>
-          <div className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-semibold mt-2">
-            <TrendingUp className="w-3.5 h-3.5" />
-            <span>+14.8% vs mois précédent</span>
+          <div className={`flex items-center gap-1.5 text-[11px] font-semibold mt-2 ${
+            revenueGrowth === null ? 'text-stone-500' : revenueGrowth >= 0 ? 'text-emerald-400' : 'text-red-400'
+          }`}>
+            {revenueGrowth === null ? (
+              <span>Pas encore de mois précédent comparable</span>
+            ) : (
+              <>
+                {revenueGrowth >= 0 ? (
+                  <TrendingUp className="w-3.5 h-3.5" />
+                ) : (
+                  <ArrowDownRight className="w-3.5 h-3.5" />
+                )}
+                <span>
+                  {revenueGrowth >= 0 ? '+' : ''}
+                  {revenueGrowth}% vs mois précédent
+                </span>
+              </>
+            )}
           </div>
         </div>
 
@@ -359,10 +263,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           </div>
           <div className="text-2xl font-extrabold text-[#E5C378]">
-            {formatPrice(averageBasket)}
+            {averageBasket === null ? '—' : formatPrice(averageBasket)}
           </div>
           <div className="text-[11px] text-stone-400 mt-2">
-            Combo Coupe & Soins très demandés
+            {averageBasket === null
+              ? 'Aucun encaissement enregistré'
+              : `Sur ${salonTransactions.length} encaissement(s)`}
           </div>
         </div>
 
@@ -517,7 +423,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <div className="text-[10px] text-stone-400 mt-1 flex items-center gap-2">
                 <span>RDV : <strong className="text-white">{monthlyData[hoveredMonthIndex].appointments}</strong></span>
                 <span>•</span>
-                <span className="text-emerald-400 font-semibold">{monthlyData[hoveredMonthIndex].growth}</span>
+                <span className={monthlyData[hoveredMonthIndex].growth !== null && monthlyData[hoveredMonthIndex].growth! >= 0 ? 'text-emerald-400 font-semibold' : 'text-red-400 font-semibold'}>
+                  {monthlyData[hoveredMonthIndex].growth === null
+                    ? '—'
+                    : `${monthlyData[hoveredMonthIndex].growth! >= 0 ? '+' : ''}${monthlyData[hoveredMonthIndex].growth}%`}
+                </span>
               </div>
             </div>
           )}
@@ -634,13 +544,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           {/* Busy hour recommendation callout */}
           <div className="p-3.5 rounded-2xl bg-[#1d1912] border border-[#C9A45C]/30 flex items-start gap-3 text-xs">
             <Clock className="w-4 h-4 text-[#C9A45C] shrink-0 mt-0.5" />
-            <div>
-              <span className="font-extrabold text-white">Créneau le plus chargé : </span>
-              <span className="text-[#E5C378] font-bold">{peakHourItem.hour} - {peakHourItem.hour.split(':')[0]}:55</span>
-              <p className="text-stone-400 text-[11px] mt-0.5">
-                Pic d'occupation à <strong className="text-white">{peakHourItem.occupancyRate}%</strong>. Il est conseillé d'avoir l'équipe au complet au salon.
-              </p>
-            </div>
+            {peakHourItem ? (
+              <div>
+                <span className="font-extrabold text-white">Créneau le plus chargé : </span>
+                <span className="text-[#E5C378] font-bold">{peakHourItem.hour}</span>
+                <span className="text-stone-400"> ({peakHourItem.count} RDV)</span>
+                <p className="text-stone-400 text-[11px] mt-0.5">
+                  Pic d'occupation à <strong className="text-white">{peakHourItem.occupancyRate}%</strong>. Il est conseillé d'avoir l'équipe au complet au salon.
+                </p>
+              </div>
+            ) : (
+              <div>
+                <span className="font-extrabold text-white">Aucune donnée d'affluence</span>
+                <p className="text-stone-400 text-[11px] mt-0.5">
+                  Créez des rendez-vous pour voir les créneaux les plus chargés.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Hourly Visual Distribution Grid */}
@@ -830,11 +750,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
           {/* Service Insight Footer */}
           <div className="p-3 rounded-2xl bg-[#131316] border border-[#222226] text-[11px] text-stone-400 flex items-center justify-between mt-2">
-            <span className="flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-[#C9A45C]" />
-              <span>Prestation n°1 : <strong className="text-white">{starService?.name}</strong></span>
-            </span>
-            <span className="text-[#E5C378] font-bold">Top Rentabilité</span>
+            {starService ? (
+              <>
+                <span className="flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-[#C9A45C]" />
+                  <span>Prestation n°1 : <strong className="text-white">{starService.name}</strong></span>
+                </span>
+                <span className="text-[#E5C378] font-bold">Top Rentabilité</span>
+              </>
+            ) : (
+              <span className="flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-[#C9A45C]" />
+                <span>Aucune prestation enregistrée pour l'instant.</span>
+              </span>
+            )}
           </div>
         </div>
       </div>
