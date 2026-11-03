@@ -61,9 +61,18 @@ test('un compte connecté crée son salon', async () => {
 
   // Le compte doit exister dans bc_users pour créer un salon.
   const account = await db.query("select user_id from public.bc_auth_accounts where email='owner@example.test'");
-  salonId = (await db.query('select public.bc_create_salon($1,$2,$3)', ['Org QA', 'Salon QA', 'Cocody'])).rows[0].salon_id;
-  assert.ok(salonId);
   assert.ok(account.rows[0].user_id);
+
+  // On se place en tant que ce compte, puis on crée le salon (rôle owner).
+  // Le repository sérialise ses transactions : on attend qu'elles soient finies.
+  await new Promise((r) => setTimeout(r, 50));
+  await db.exec('reset role');
+  await db.query("select set_config('barber.user_id',$1,false)", [account.rows[0].user_id]);
+  await db.exec('set role bc_app');
+  const created = await db.query('select * from public.bc_create_salon($1,$2,$3)', ['Org QA', 'Salon QA', 'Cocody']);
+  salonId = created.rows[0]?.salon_id;
+  await db.exec('reset role');
+  assert.ok(salonId, `salon non créé: ${JSON.stringify(created.rows)}`);
 });
 
 test('CRUD client complet via HTTP, persistant en base', async () => {

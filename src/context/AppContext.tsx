@@ -16,6 +16,7 @@ import {
   LoyaltyTransaction,
   LoyaltySettings
 } from '../types';
+import { salonApi, ApiError } from '../lib/api';
 import {
   INITIAL_SALONS,
   INITIAL_SERVICES,
@@ -295,7 +296,62 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
+  /**
+   * Exécute une mutation serveur et remonte l'erreur réelle dans l'UI.
+   * Aucune confirmation optimiste trompeuse : le toast de succès n'est affiché
+   * que dans le callback, après réponse de l'API.
+   */
+  const remote = async (action: () => Promise<void>, fallbackMessage: string) => {
+    try {
+      await action();
+    } catch (error) {
+      const message =
+        error instanceof ApiError ? error.message : fallbackMessage;
+      addToast(message, 'error');
+    }
+  };
+
+  // ----- Chargement initial depuis l'API -----
+  const [isSyncing, setIsSyncing] = useState(true);
+  const [syncError, setSyncError] = useState<string | null>(null);
+
+  const reloadWorkspace = async (salonId: string) => {
+    setIsSyncing(true);
+    setSyncError(null);
+    try {
+      const data = await salonApi(salonId).workspace();
+      setSalons((prev) =>
+        prev.some((s) => s.id === salonId)
+          ? prev
+          : [
+              ...prev,
+              {
+                ...INITIAL_SALONS[0],
+                id: data.salon.id,
+                name: data.salon.name,
+                slug: data.salon.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+              }
+            ]
+      );
+      setClients(data.clients);
+      setServices(data.services);
+      setStaff(data.staff);
+      setExpenses(data.expenses);
+      setStocks(data.stock);
+      setLoyaltyRewards(data.rewards);
+      setReviews(data.reviews);
+    } catch (error) {
+      // 401 = pas de session : l'utilisateur voit la marketplace, pas une erreur.
+      if (error instanceof ApiError && error.status !== 401) {
+        setSyncError(error.message);
+      }
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const addReview = (review: Omit<Review, 'id' | 'date' | 'verified'>): Review => {
+    // Retour immédiat pour l'UI, puis confirmation serveur.
     const created: Review = {
       ...review,
       id: `rev-${Date.now()}`,
@@ -303,6 +359,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       verified: false
     };
     setReviews((prev) => [created, ...prev]);
+
+    void remote(async () => {
+      const saved = await salonApi(activeSalon.id).reviews.create({
+        author: review.author,
+        rating: review.rating,
+        comment: review.comment
+      });
+      setReviews((prev) => prev.map((r) => (r.id === created.id ? saved : r)));
+    }, "Enregistrement de l'avis impossible");
+
     return created;
   };
 
@@ -602,24 +668,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Loyalty Program Handlers
   const addLoyaltyReward = (reward: Omit<LoyaltyReward, 'id' | 'timesRedeemed' | 'createdAt'>) => {
-    const newReward: LoyaltyReward = {
-      ...reward,
-      id: `rew-${Date.now()}`,
-      timesRedeemed: 0,
-      createdAt: new Date().toISOString()
-    };
-    setLoyaltyRewards((prev) => [newReward, ...prev]);
-    addToast(`Récompense "${newReward.name}" ajoutée au catalogue !`, 'success');
+    void remote(async () => {
+      const created = await salonApi(activeSalon.id).rewards.create({
+        name: reward.name,
+        description: reward.description,
+        pointsCost: reward.pointsCost,
+        category: reward.category,
+        discountPercentage: reward.discountPercentage,
+        freeServiceName: reward.freeServiceName,
+        isActive: reward.isActive
+      });
+      setLoyaltyRewards((prev) => [created, ...prev]);
+      addToast(`Récompense "${created.name}" ajoutée au catalogue !`, 'success');
+    }, "Ajout de la récompense impossible");
   };
 
   const updateLoyaltyReward = (id: string, updates: Partial<LoyaltyReward>) => {
-    setLoyaltyRewards((prev) => prev.map((r) => (r.id === id ? { ...r, ...updates } : r)));
-    addToast('Récompense mise à jour.', 'success');
+    void remote(async () => {
+      const current = loyaltyRewards.find((r) => r.id === id);
+      if (!current) return;
+      const merged = { ...current, ...updates };
+      const saved = await salonApi(activeSalon.id).rewards.update(id, {
+        name: merged.name,
+        description: merged.description,
+        pointsCost: merged.pointsCost,
+        category: merged.category,
+        discountPercentage: merged.discountPercentage,
+        freeServiceName: merged.freeServiceName,
+        isActive: merged.isActive
+      });
+      setLoyaltyRewards((prev) => prev.map((r) => (r.id === id ? saved : r)));
+      addToast('Récompense mise à jour.', 'success');
+    }, 'Modification de la récompense impossible');
   };
 
   const deleteLoyaltyReward = (id: string) => {
-    setLoyaltyRewards((prev) => prev.filter((r) => r.id !== id));
-    addToast('Récompense supprimée.', 'info');
+    void remote(async () => {
+      await salonApi(activeSalon.id).rewards.remove(id);
+      setLoyaltyRewards((prev) => prev.filter((r) => r.id !== id));
+      addToast('Récompense supprimée.', 'info');
+    }, 'Suppression de la récompense impossible');
   };
 
   const updateLoyaltySettings = (updates: Partial<LoyaltySettings>) => {
@@ -825,31 +913,80 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addToast(`Nouvelle session ouverte avec ${formatPrice(openingBalance)} en fond de caisse`, 'success');
   };
 
+  // ----- Prestations (persistées côté serveur) -----
   const addService = (data: Omit<Service, 'id'>) => {
-    const newService: Service = { ...data, id: `srv-${Date.now()}` };
-    setServices((prev) => [...prev, newService]);
-    addToast('Prestation ajoutée au catalogue !', 'success');
+    void remote(async () => {
+      const created = await salonApi(activeSalon.id).services.create({
+        name: data.name,
+        category: data.category,
+        description: data.description,
+        price: data.price,
+        durationMinutes: data.durationMinutes,
+        popular: Boolean(data.popular)
+      });
+      setServices((prev) => [...prev, created]);
+      addToast('Prestation ajoutée au catalogue !', 'success');
+    }, 'Ajout de la prestation impossible');
   };
 
   const updateService = (id: string, updates: Partial<Service>) => {
-    setServices((prev) => prev.map((s) => (s.id === id ? { ...s, ...updates } : s)));
-    addToast('Prestation mise à jour.', 'info');
+    void remote(async () => {
+      const current = services.find((s) => s.id === id);
+      if (!current) return;
+      const merged = { ...current, ...updates };
+      const saved = await salonApi(activeSalon.id).services.update(id, {
+        name: merged.name,
+        category: merged.category,
+        description: merged.description,
+        price: merged.price,
+        durationMinutes: merged.durationMinutes,
+        popular: Boolean(merged.popular)
+      });
+      setServices((prev) => prev.map((s) => (s.id === id ? saved : s)));
+      addToast('Prestation mise à jour.', 'success');
+    }, 'Modification de la prestation impossible');
   };
 
   const deleteService = (id: string) => {
-    setServices((prev) => prev.filter((s) => s.id !== id));
-    addToast('Prestation supprimée.', 'info');
+    void remote(async () => {
+      await salonApi(activeSalon.id).services.remove(id);
+      setServices((prev) => prev.filter((s) => s.id !== id));
+      addToast('Prestation supprimée.', 'info');
+    }, 'Suppression de la prestation impossible');
   };
 
+  // ----- Équipe -----
   const addStaff = (data: Omit<StaffMember, 'id'>) => {
-    const newMember: StaffMember = { ...data, id: `staff-${Date.now()}` };
-    setStaff((prev) => [...prev, newMember]);
-    addToast(`${newMember.name} a été ajouté à l'équipe !`, 'success');
+    void remote(async () => {
+      const created = await salonApi(activeSalon.id).staff.create({
+        name: data.name,
+        role: data.role,
+        phone: data.phone,
+        specialties: data.specialties,
+        commissionRate: data.commissionRate,
+        isAvailable: data.isAvailable
+      });
+      setStaff((prev) => [...prev, created]);
+      addToast(`${created.name} a été ajouté à l'équipe !`, 'success');
+    }, 'Ajout du collaborateur impossible');
   };
 
   const updateStaff = (id: string, updates: Partial<StaffMember>) => {
-    setStaff((prev) => prev.map((m) => (m.id === id ? { ...m, ...updates } : m)));
-    addToast('Collaborateur mis à jour.', 'info');
+    void remote(async () => {
+      const current = staff.find((m) => m.id === id);
+      if (!current) return;
+      const merged = { ...current, ...updates };
+      const saved = await salonApi(activeSalon.id).staff.update(id, {
+        name: merged.name,
+        role: merged.role,
+        phone: merged.phone,
+        specialties: merged.specialties,
+        commissionRate: merged.commissionRate,
+        isAvailable: merged.isAvailable
+      });
+      setStaff((prev) => prev.map((m) => (m.id === id ? saved : m)));
+      addToast('Collaborateur mis à jour.', 'success');
+    }, 'Modification du collaborateur impossible');
   };
 
   const deleteStaff = (id: string) => {
@@ -857,31 +994,63 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addToast('Collaborateur retiré.', 'info');
   };
 
+  // ----- Clients -----
   const addClient = (data: Omit<Client, 'id' | 'totalSpent' | 'visitsCount' | 'lastVisit'>) => {
-    const newClient: Client = {
-      ...data,
-      id: `client-${Date.now()}`,
-      totalSpent: 0,
-      visitsCount: 0,
-      lastVisit: new Date().toISOString().slice(0, 10)
-    };
-    setClients((prev) => [newClient, ...prev]);
-    addToast(`Client ${newClient.name} ajouté au CRM !`, 'success');
+    void remote(async () => {
+      const created = await salonApi(activeSalon.id).clients.create({
+        name: data.name,
+        phone: data.phone,
+        email: data.email || '',
+        segment: data.segment,
+        favoriteService: data.favoriteService,
+        notes: data.notes
+      });
+      setClients((prev) => [created, ...prev]);
+      addToast(`Client ${created.name} ajouté au CRM !`, 'success');
+    }, 'Ajout du client impossible');
   };
 
   const updateClientNotes = (clientId: string, notes: string) => {
     setClients((prev) => prev.map((c) => (c.id === clientId ? { ...c, notes } : c)));
-    addToast('Fiche client mise à jour.', 'info');
+    const client = clients.find((c) => c.id === clientId);
+    if (!client) return;
+    void remote(async () => {
+      await salonApi(activeSalon.id).clients.update(clientId, {
+        name: client.name,
+        phone: client.phone,
+        email: client.email || '',
+        segment: client.segment,
+        favoriteService: client.favoriteService,
+        notes
+      });
+      addToast('Fiche client mise à jour.', 'success');
+    }, 'Mise à jour de la note impossible');
   };
 
   const updateClient = (clientId: string, updates: Partial<Client>) => {
-    setClients((prev) => prev.map((c) => (c.id === clientId ? { ...c, ...updates } : c)));
-    addToast('Client mis à jour.', 'success');
+    void remote(async () => {
+      const current = clients.find((c) => c.id === clientId);
+      if (!current) return;
+      const merged = { ...current, ...updates };
+      const saved = await salonApi(activeSalon.id).clients.update(clientId, {
+        name: merged.name,
+        phone: merged.phone,
+        email: merged.email || '',
+        segment: merged.segment,
+        favoriteService: merged.favoriteService,
+        notes: merged.notes
+      });
+      setClients((prev) => prev.map((c) => (c.id === clientId ? saved : c)));
+      addToast('Client mis à jour.', 'success');
+    }, 'Modification du client impossible');
   };
 
   const deleteClient = (clientId: string) => {
-    setClients((prev) => prev.filter((c) => c.id !== clientId));
-    addToast('Client supprimé.', 'info');
+    void remote(async () => {
+      await salonApi(activeSalon.id).clients.remove(clientId);
+      setClients((prev) => prev.filter((c) => c.id !== clientId));
+      addToast('Client supprimé.', 'info');
+    }, 'Suppression du client impossible');
   };
 
   const updateAppointment = (appointmentId: string, updates: Partial<Appointment>) => {
@@ -897,20 +1066,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addExpense = (data: Omit<Expense, 'id'>) => {
-    const newExp: Expense = { ...data, id: `exp-${Date.now()}` };
-    setExpenses((prev) => [newExp, ...prev]);
-    addToast(`Dépense de ${formatPrice(data.amount)} enregistrée`, 'info');
+    void remote(async () => {
+      const created = await salonApi(activeSalon.id).expenses.create({
+        title: data.title,
+        category: data.category,
+        amount: data.amount,
+        date: data.date,
+        notes: data.notes || ''
+      });
+      setExpenses((prev) => [created, ...prev]);
+      addToast(`Dépense de ${formatPrice(created.amount)} enregistrée`, 'success');
+    }, 'Enregistrement de la dépense impossible');
   };
 
+  // L'API n'expose pas de suppression de dépense (journal financier) : reste local
+  // et signale clairement que l'opération n'est pas persistée.
   const deleteExpense = (id: string) => {
     setExpenses((prev) => prev.filter((e) => e.id !== id));
-    addToast('Dépense supprimée.', 'info');
+    addToast("Supprimée localement — l'API ne permet pas encore la suppression d'une dépense.", 'info');
   };
 
   const addStockItem = (data: Omit<StockItem, 'id'>) => {
-    const newItem: StockItem = { ...data, id: `stk-${Date.now()}` };
-    setStocks((prev) => [...prev, newItem]);
-    addToast(`Produit ${newItem.name} ajouté au stock`, 'success');
+    void remote(async () => {
+      const created = await salonApi(activeSalon.id).stock.create({
+        name: data.name,
+        category: data.category,
+        quantity: data.quantity,
+        minThreshold: data.minThreshold,
+        unitCost: data.unitCost,
+        supplier: data.supplier
+      });
+      setStocks((prev) => [...prev, created]);
+      addToast(`Produit ${created.name} ajouté au stock`, 'success');
+    }, 'Ajout du produit impossible');
   };
 
   const adjustStockQuantity = (id: string, delta: number) => {
