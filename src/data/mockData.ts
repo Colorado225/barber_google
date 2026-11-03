@@ -156,8 +156,7 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     tagline: 'Idéal pour démarrer',
     priceMonth: 15000,
     priceYear: 150000,
-    maxStaff: 3,
-    maxAppointmentsPerMonth: 500,
+    limits: { staff: 3, branches: 1, appointmentsPerMonth: 500, inventory: false, whatsappAutomations: false },
     features: ['Agenda en ligne', 'Gestion clients', 'Caisse basique', 'Rapports essentiels']
   },
   {
@@ -166,8 +165,7 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     tagline: 'Pour les salons en croissance',
     priceMonth: 35000,
     priceYear: 350000,
-    maxStaff: 10,
-    maxAppointmentsPerMonth: 2000,
+    limits: { staff: 10, branches: 2, appointmentsPerMonth: 2000, inventory: true, whatsappAutomations: true },
     features: ['Tout Starter', 'Fidelité & points', 'Stocks avancés', 'Commissions', 'Multi-caisses']
   },
   {
@@ -176,8 +174,7 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
     tagline: 'Multi-salons & équipes',
     priceMonth: 75000,
     priceYear: 750000,
-    maxStaff: 50,
-    maxAppointmentsPerMonth: -1,
+    limits: { staff: 50, branches: 10, appointmentsPerMonth: -1, inventory: true, whatsappAutomations: true },
     features: ['Tout Pro', 'Multi-salons', 'API & intégrations', 'Support prioritaire', 'Rapports avancés']
   }
 ];
@@ -187,13 +184,11 @@ export const INITIAL_LOYALTY_REWARDS: LoyaltyReward[] = [];
 export const INITIAL_LOYALTY_TRANSACTIONS: LoyaltyTransaction[] = [];
 
 export const INITIAL_LOYALTY_SETTINGS: LoyaltySettings = {
-  pointsPerCurrency: 1,
-  currencyPerPoint: 100,
-  pointsExpiryDays: 365,
-  tiers: [
-    { id: 'bronze', name: 'Bronze', minPoints: 0, discountPercent: 0, benefits: [] },
-    { id: 'silver', name: 'Argent', minPoints: 1000, discountPercent: 5, benefits: ['Réduction 5%'] },
-    { id: 'gold', name: 'Or', minPoints: 5000, discountPercent: 10, benefits: ['Réduction 10%'] },
-    { id: 'vip', name: 'VIP', minPoints: 10000, discountPercent: 15, benefits: ['Réduction 15%', 'Accès prioritaire'] }
-  ]
+  salonId: 'salon-1',
+  pointsPer100Fcfa: 1,
+  welcomeBonus: 25,
+  silverThreshold: 1000,
+  goldThreshold: 5000,
+  vipThreshold: 10000,
+  programEnabled: true
 };

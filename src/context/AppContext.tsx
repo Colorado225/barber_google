@@ -133,6 +133,11 @@ interface AppContextType {
 
   // Salon Onboarding / Settings
   createSalon: (salonData: Partial<Salon>, options?: { seedDemoData?: boolean }) => Salon;
+  /**
+   * Écrit localement une prestation dans un parcours de démonstration.
+   * Les parcours sans compte ni session réelle n'appellent jamais l'API.
+   */
+  addServiceLocal: (service: Omit<Service, 'id'>) => void;
   updateSalonDetails: (salonId: string, updates: Partial<Salon>) => void;
 
   // SaaS Subscription
@@ -156,6 +161,11 @@ interface AppContextType {
   // Helpers
   formatPrice: (amount: number) => string;
   checkSlotAvailability: (salonId: string, staffId: string, date: string, time: string) => boolean;
+
+  // Synchronisation serveur
+  isSyncing: boolean;
+  syncError: string | null;
+  reloadWorkspace: (salonId: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -371,6 +381,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     return created;
   };
+
+  // Charge les données du salon à l'entrée dans l'ERP (ou dès que l'id change).
+  useEffect(() => {
+    if (mode !== 'erp' || !activeSalonId) return;
+    void reloadWorkspace(activeSalonId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, activeSalonId]);
 
   const activeSalon = salons.find((s) => s.id === activeSalonId) || salons[0];
 
@@ -1114,6 +1131,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addToast('Stock ajusté.', 'info');
   };
 
+  const addServiceLocal = (data: Omit<Service, 'id'>) => {
+    const newService: Service = { ...data, id: `srv-${Date.now()}-${Math.random().toString(36).slice(2, 6)}` };
+    setServices((prev) => [...prev, newService]);
+  };
+
   const createSalon = (salonData: Partial<Salon>, options?: { seedDemoData?: boolean }): Salon => {
     const newSalon: Salon = {
       name: salonData.name || 'Mon Nouveau Salon',
@@ -1163,7 +1185,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       role: 'master_barber',
       avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80',
       specialties: ['Dégradés', 'Barbe sculptée'],
-      rating: 5.0,
+      rating: 0,
       commissionRate: 35,
       phone: newSalon.phone,
       isAvailable: true
@@ -1288,10 +1310,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addStockItem,
         adjustStockQuantity,
         createSalon,
+        addServiceLocal,
         updateSalonDetails,
         upgradePlan,
         formatPrice,
-        checkSlotAvailability
+        checkSlotAvailability,
+        isSyncing,
+        syncError,
+        reloadWorkspace
       }}
     >
       {children}

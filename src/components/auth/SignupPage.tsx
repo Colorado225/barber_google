@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, User, ArrowRight, Scissors } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 export const SignupPage: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -11,22 +12,27 @@ export const SignupPage: React.FC = () => {
     accountType: 'client' as 'client' | 'professional',
   });
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { signUp } = useAuth();
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.password !== formData.confirmPassword) {
-      alert('Les mots de passe ne correspondent pas');
+      setError('Les mots de passe ne correspondent pas.');
       return;
     }
     if (formData.password.length < 12) {
-      alert('Le mot de passe doit contenir au moins 12 caractères');
+      setError('Le mot de passe doit contenir au moins 12 caractères.');
       return;
     }
     setLoading(true);
+    setError(null);
     try {
-      // TODO: Connect to auth
-    } catch (error) {
-      console.error(error);
+      await signUp(formData.name, formData.email, formData.password);
+      navigate('/app');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Inscription impossible.');
     } finally {
       setLoading(false);
     }

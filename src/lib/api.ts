@@ -4,15 +4,18 @@
  */
 
 export class ApiError extends Error {
-  constructor(message, status, code) {
+  status: number;
+  code?: string;
+
+  constructor(message: string, status: number, code?: string) {
     super(message);
-    this.name = 'ApiError';
+    this.name = "ApiError";
     this.status = status;
     this.code = code;
   }
 }
 
-async function parseError(res) {
+async function parseError(res: Response): Promise<ApiError> {
   const fallback = `Erreur ${res.status}`;
   try {
     const data = await res.json();
@@ -22,12 +25,17 @@ async function parseError(res) {
   }
 }
 
-export async function apiRequest(path, { method = 'GET', body } = {}) {
+export async function apiRequest(
+  path: string,
+  options: { method?: string; body?: unknown } = {},
+): Promise<any> {
+  const { method = "GET", body } = options;
   const res = await fetch(path, {
     method,
-    credentials: 'same-origin',
-    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
-    body: body === undefined ? undefined : JSON.stringify(body)
+    credentials: "same-origin",
+    headers:
+      body === undefined ? undefined : { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
   });
 
   if (!res.ok) throw await parseError(res);
@@ -39,58 +47,70 @@ export async function apiRequest(path, { method = 'GET', body } = {}) {
 
 // ----- Authentification -----
 export const authApi = {
-  session: () => apiRequest('/api/auth/session'),
-  login: (email, password) =>
-    apiRequest('/api/auth/login', { method: 'POST', body: { email, password } }),
-  signup: (name, email, password) =>
-    apiRequest('/api/auth/signup', { method: 'POST', body: { name, email, password } }),
-  logout: () => apiRequest('/api/auth/logout', { method: 'POST' })
+  session: () => apiRequest("/api/auth/session"),
+  login: (email: string, password: string) =>
+    apiRequest("/api/auth/login", {
+      method: "POST",
+      body: { email, password },
+    }),
+  signup: (name: string, email: string, password: string) =>
+    apiRequest("/api/auth/signup", {
+      method: "POST",
+      body: { name, email, password },
+    }),
+  logout: () => apiRequest("/api/auth/logout", { method: "POST" }),
 };
 
 // ----- Ressources d'un salon -----
-export function salonApi(salonId) {
+export function salonApi(salonId: string) {
   const base = `/api/salons/${salonId}`;
+  const post = (p: string, data: unknown) =>
+    apiRequest(p, { method: "POST", body: data });
+  const put = (p: string, data: unknown) =>
+    apiRequest(p, { method: "PUT", body: data });
+  const del = (p: string) => apiRequest(p, { method: "DELETE" });
   return {
     workspace: () => apiRequest(`${base}/workspace`),
 
     clients: {
       list: () => apiRequest(`${base}/clients`),
-      create: (data) => apiRequest(`${base}/clients`, { method: 'POST', body: data }),
-      update: (id, data) => apiRequest(`${base}/clients/${id}`, { method: 'PUT', body: data }),
-      remove: (id) => apiRequest(`${base}/clients/${id}`, { method: 'DELETE' })
+      create: (data: unknown) => post(`${base}/clients`, data),
+      update: (id: string, data: unknown) => put(`${base}/clients/${id}`, data),
+      remove: (id: string) => del(`${base}/clients/${id}`),
     },
     services: {
       list: () => apiRequest(`${base}/services`),
-      create: (data) => apiRequest(`${base}/services`, { method: 'POST', body: data }),
-      update: (id, data) => apiRequest(`${base}/services/${id}`, { method: 'PUT', body: data }),
-      remove: (id) => apiRequest(`${base}/services/${id}`, { method: 'DELETE' })
+      create: (data: unknown) => post(`${base}/services`, data),
+      update: (id: string, data: unknown) =>
+        put(`${base}/services/${id}`, data),
+      remove: (id: string) => del(`${base}/services/${id}`),
     },
     staff: {
       list: () => apiRequest(`${base}/staff`),
-      create: (data) => apiRequest(`${base}/staff`, { method: 'POST', body: data }),
-      update: (id, data) => apiRequest(`${base}/staff/${id}`, { method: 'PUT', body: data }),
-      remove: (id) => apiRequest(`${base}/staff/${id}`, { method: 'DELETE' })
+      create: (data: unknown) => post(`${base}/staff`, data),
+      update: (id: string, data: unknown) => put(`${base}/staff/${id}`, data),
+      remove: (id: string) => del(`${base}/staff/${id}`),
     },
     expenses: {
       list: () => apiRequest(`${base}/expenses`),
-      create: (data) => apiRequest(`${base}/expenses`, { method: 'POST', body: data })
+      create: (data: unknown) => post(`${base}/expenses`, data),
     },
     stock: {
       list: () => apiRequest(`${base}/stock`),
-      create: (data) => apiRequest(`${base}/stock`, { method: 'POST', body: data }),
-      update: (id, data) => apiRequest(`${base}/stock/${id}`, { method: 'PUT', body: data }),
-      remove: (id) => apiRequest(`${base}/stock/${id}`, { method: 'DELETE' })
+      create: (data: unknown) => post(`${base}/stock`, data),
+      update: (id: string, data: unknown) => put(`${base}/stock/${id}`, data),
+      remove: (id: string) => del(`${base}/stock/${id}`),
     },
     rewards: {
       list: () => apiRequest(`${base}/rewards`),
-      create: (data) => apiRequest(`${base}/rewards`, { method: 'POST', body: data }),
-      update: (id, data) => apiRequest(`${base}/rewards/${id}`, { method: 'PUT', body: data }),
-      remove: (id) => apiRequest(`${base}/rewards/${id}`, { method: 'DELETE' })
+      create: (data: unknown) => post(`${base}/rewards`, data),
+      update: (id: string, data: unknown) => put(`${base}/rewards/${id}`, data),
+      remove: (id: string) => del(`${base}/rewards/${id}`),
     },
     reviews: {
       list: () => apiRequest(`${base}/reviews`),
-      create: (data) => apiRequest(`${base}/reviews`, { method: 'POST', body: data }),
-      remove: (id) => apiRequest(`${base}/reviews/${id}`, { method: 'DELETE' })
-    }
+      create: (data: unknown) => post(`${base}/reviews`, data),
+      remove: (id: string) => del(`${base}/reviews/${id}`),
+    },
   };
 }

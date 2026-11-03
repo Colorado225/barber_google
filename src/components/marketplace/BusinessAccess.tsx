@@ -8,7 +8,7 @@ const input = 'w-full rounded-xl border border-[#303035] bg-[#111113] px-4 py-3 
 const label = 'block text-xs font-semibold text-stone-300 mb-2';
 
 export function BusinessAccess() {
-  const { authStartView, setIsRegisterSalonOpen, createSalon, addService, addStaff, setMode, setUserRole } = useApp();
+  const { authStartView, setIsRegisterSalonOpen, createSalon, addServiceLocal, addStaff, setMode, setUserRole } = useApp();
   const [page, setPage] = useState<Page>(authStartView);
   const [step, setStep] = useState(0);
   const [owner, setOwner] = useState('');
@@ -46,7 +46,7 @@ export function BusinessAccess() {
       minPrice: Number(price), openingHours, paymentMethods: ['cash'], isPublishedOnMarketplace: false,
       isRecommended: false, isPopular: false, isVerified: false, rating: 0, reviewCount: 0, demoOnboarding: true,
     }, { seedDemoData: false });
-    addService({ salonId: salon.id, name: service.trim(), category, description: '', price: Number(price), durationMinutes: Number(duration) });
+    addServiceLocal({ salonId: salon.id, name: service.trim(), category, description: '', price: Number(price), durationMinutes: Number(duration) });
     addStaff({ salonId: salon.id, name: owner.trim(), role: 'manager', avatar: '', specialties: [], rating: 0, commissionRate: 0, phone: phone.trim(), isAvailable: true });
     setPage('success');
   }

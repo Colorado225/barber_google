@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { SalonType, PaymentMethod, OpeningHour } from '../../types';
+import { SalonType, PaymentMethod, OpeningHour, ServiceCategory } from '../../types';
 import {
   Scissors,
   Building2,
@@ -26,7 +26,7 @@ export const OnboardingWizardPage: React.FC = () => {
     activeSalon,
     updateSalonDetails,
     addStaff,
-    addService,
+    addServiceLocal,
     setIsOnboardingOpen,
     formatPrice,
     addToast
@@ -117,7 +117,21 @@ export const OnboardingWizardPage: React.FC = () => {
       isRecommended: activeSalon.isRecommended ?? false
     });
 
-    // 2. Add extra barber if specified
+    // 2. Persister les prestations sélectionnées (sinon le salon reste sans catalogue).
+    servicesConfig
+      .filter((srv) => srv.selected)
+      .forEach((srv) => {
+        addServiceLocal({
+          salonId: activeSalon.id,
+          name: srv.name,
+          category: srv.category as ServiceCategory,
+          description: '',
+          price: srv.price,
+          durationMinutes: srv.duration
+        });
+      });
+
+    // 3. Add extra barber if specified
     if (hasExtraBarber && barberName.trim()) {
       addStaff({
         salonId: activeSalon.id,
@@ -125,7 +139,8 @@ export const OnboardingWizardPage: React.FC = () => {
         role: 'barber',
         avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&q=80',
         specialties: ['Dégradés laser', 'Barbe sculptée'],
-        rating: 4.9,
+        // Aucun avis réel n'existe à la création : la note reste neutre (§1.5).
+        rating: 0,
         commissionRate: Number(barberCommission),
         phone: barberPhone.trim(),
         isAvailable: true
