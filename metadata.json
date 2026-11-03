@@ -1,0 +1,6 @@
+{
+  "name": "Barber Cuts — ERP & Marketplace Barbershops",
+  "description": "Plateforme SaaS ERP & CRM de gestion de salon de coiffure et marketplace de réservation pour les professionnels de la beauté.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

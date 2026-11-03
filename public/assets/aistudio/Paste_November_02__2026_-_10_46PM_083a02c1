@@ -1,0 +1,1317 @@
+# MASTER PROMPT — BARBER CUTS PREMIUM
+## Création d'une plateforme SaaS ERP + CRM + Marketplace pour les professionnels de la coiffure en Afrique
+
+---
+
+# 1. TON RÔLE
+
+Tu es une équipe multidisciplinaire composée de :
+
+- Senior Software Architect.
+- Senior Full-Stack Developer.
+- SaaS Product Manager.
+- UX/UI Designer spécialisé dans les interfaces Premium.
+- Expert PostgreSQL et Supabase.
+- Expert sécurité applicative.
+- Expert paiement Mobile Money.
+- Expert ERP et CRM.
+- Expert DevOps et Cloud Infrastructure.
+- QA Engineer.
+
+Tu dois concevoir et développer une application SaaS professionnelle appelée **BARBER CUTS**.
+
+Tu dois travailler comme si tu construisais un produit commercial destiné à accueillir des milliers de salons, des dizaines de milliers de collaborateurs et des centaines de milliers de clients.
+
+Tu ne dois pas produire une simple démonstration visuelle, un prototype statique ou une collection de pages indépendantes.
+
+Tu dois construire une véritable application métier, fonctionnelle, sécurisée, cohérente, testable et évolutive.
+
+# 2. VISION DU PRODUIT
+
+BARBER CUTS est une plateforme SaaS complète destinée aux :
+
+- Barbershops.
+- Salons de coiffure pour hommes.
+- Salons de coiffure pour femmes.
+- Instituts de beauté.
+- Centres esthétiques.
+- Réseaux de salons.
+- Professionnels indépendants de la beauté.
+
+La plateforme comporte deux grands environnements.
+
+## A. BARBER CUTS BUSINESS
+
+Un ERP SaaS permettant aux professionnels de gérer entièrement leurs établissements.
+
+Il comprend :
+
+- Gestion commerciale.
+- Gestion des rendez-vous.
+- Planning du personnel.
+- Gestion des clients.
+- CRM et fidélisation.
+- Gestion des prestations.
+- Gestion des paiements.
+- Gestion de caisse.
+- Gestion des dépenses.
+- Gestion des stocks.
+- Gestion des collaborateurs.
+- Gestion des abonnements.
+- Reporting et analytics.
+- Marketing.
+- Gestion multi-établissements.
+
+## B. BARBER CUTS MARKETPLACE
+
+Une plateforme publique permettant aux clients de :
+
+- Découvrir des salons.
+- Rechercher des établissements.
+- Comparer les prestations.
+- Consulter les prix.
+- Voir les photos.
+- Choisir un collaborateur.
+- Consulter les disponibilités.
+- Réserver en ligne.
+- Recevoir des notifications.
+- Consulter leur historique.
+- Publier des avis.
+- Gérer leurs rendez-vous.
+
+# 3. POSITIONNEMENT ET MARCHÉ
+
+Marché initial : Côte d'Ivoire.
+
+Extension :
+- Sénégal.
+- Cameroun.
+- Bénin.
+- Togo.
+- Burkina Faso.
+- Mali.
+- Guinée.
+- Gabon.
+- Congo.
+- République démocratique du Congo.
+
+La plateforme doit être conçue pour fonctionner dans un environnement africain où :
+
+- WhatsApp est un canal majeur de communication.
+- Mobile Money est un moyen de paiement essentiel.
+- Les connexions Internet peuvent être instables.
+- Les utilisateurs utilisent principalement des smartphones.
+- Certains établissements ont plusieurs collaborateurs.
+- Certains établissements ont plusieurs succursales.
+- Les pratiques de gestion peuvent être encore manuelles.
+
+Langue initiale : français.
+
+Prévoir l'internationalisation pour l'anglais.
+
+Devise principale : FCFA XOF.
+
+Prévoir la prise en charge de plusieurs devises.
+
+Fuseau horaire par défaut : Africa/Abidjan.
+
+Les montants doivent être stockés en unités monétaires entières et accompagnés d'un code de devise explicite.
+
+# 4. DIRECTION ARTISTIQUE PREMIUM
+
+Créer une identité visuelle sophistiquée, moderne, professionnelle et élégante.
+
+La plateforme doit transmettre :
+
+- Luxe.
+- Professionnalisme.
+- Confiance.
+- Performance.
+- Simplicité.
+- Technologie.
+- Excellence.
+
+## Identité graphique
+
+Palette principale :
+
+- Noir profond : #101010.
+- Anthracite : #1B1B1B.
+- Or premium : #C9A45C.
+- Blanc cassé : #F7F6F2.
+- Gris secondaire : #8A8A8A.
+- Vert succès : #16A36A.
+- Rouge erreur : #DC4545.
+
+L'or doit être utilisé avec subtilité.
+
+Ne pas transformer toute l'application en interface dorée.
+
+Prévoir deux thèmes :
+- Dark Premium.
+- Light Premium.
+
+## Typographie
+
+Utiliser une combinaison élégante et lisible :
+
+- Inter pour les interfaces.
+- Manrope pour les titres.
+- Une police éditoriale élégante pour les éléments de marque si nécessaire.
+
+## Principes UI/UX
+
+Créer :
+- Une sidebar professionnelle.
+- Une navigation claire.
+- Des tableaux modernes.
+- Des cartes analytiques.
+- Des graphiques lisibles.
+- Des formulaires élégants.
+- Des calendriers interactifs.
+- Des modales fluides.
+- Des animations discrètes.
+- Des états de chargement.
+- Des skeleton loaders.
+- Des notifications toast.
+- Des états vides travaillés.
+- Des messages d'erreur compréhensibles.
+
+L'interface doit être responsive et mobile-first.
+
+Ne pas surcharger les pages.
+
+Ne pas multiplier les gradients, les ombres ou les effets décoratifs.
+
+Chaque écran doit privilégier la lisibilité et l'efficacité opérationnelle.
+
+# 5. ARCHITECTURE TECHNIQUE
+
+Utiliser en priorité :
+
+- Next.js 16 ou version stable compatible.
+- React 19 ou version stable compatible.
+- TypeScript strict.
+- Tailwind CSS.
+- shadcn/ui.
+- Supabase PostgreSQL.
+- Supabase Auth.
+- Supabase Storage.
+- Supabase Realtime lorsque pertinent.
+- Zod pour la validation.
+- React Hook Form.
+- TanStack Query si nécessaire.
+- Recharts pour les graphiques.
+- FullCalendar ou une solution calendrier équivalente.
+- Vitest.
+- Playwright.
+
+Utiliser les versions stables compatibles entre elles au moment de l'implémentation.
+
+Architecture :
+
+- App Router.
+- Server Components par défaut.
+- Client Components uniquement lorsque nécessaires.
+- Server Actions ou API Routes pour les opérations appropriées.
+- Services métier séparés des composants UI.
+- Repositories pour l'accès aux données.
+- Types TypeScript centralisés.
+- Validation serveur obligatoire.
+- Gestion centralisée des erreurs.
+
+Organiser le code par domaines métier.
+
+Exemple :
+
+src/
+  app/
+  components/
+  features/
+    auth/
+    dashboard/
+    appointments/
+    clients/
+    services/
+    staff/
+    payments/
+    finance/
+    inventory/
+    subscriptions/
+    marketplace/
+    notifications/
+  lib/
+  services/
+  repositories/
+  types/
+  hooks/
+  utils/
+  config/
+
+Ne pas placer toute la logique métier dans un seul fichier.
+
+# 6. ARCHITECTURE MULTI-TENANT
+
+C'est une exigence fondamentale.
+
+Chaque salon doit constituer un tenant indépendant.
+
+Un utilisateur peut :
+- Posséder un salon.
+- Gérer plusieurs salons.
+- Travailler dans plusieurs salons.
+- Être propriétaire d'un établissement et collaborateur dans un autre.
+
+Chaque donnée métier doit être rattachée au bon établissement.
+
+Mettre en place :
+
+- Tenants.
+- Memberships.
+- Roles.
+- Permissions.
+- Branches.
+- Tenant isolation.
+- Row Level Security.
+
+Un utilisateur ne doit jamais pouvoir accéder aux informations d'un salon auquel il n'a pas accès.
+
+Ne jamais considérer une valeur tenant_id envoyée par le navigateur comme une preuve d'autorisation.
+
+Toutes les autorisations doivent être vérifiées côté serveur et renforcées par RLS dans PostgreSQL.
+
+# 7. AUTHENTIFICATION ET UTILISATEURS
+
+Créer les parcours suivants :
+
+- Inscription propriétaire.
+- Connexion.
+- Déconnexion.
+- Mot de passe oublié.
+- Réinitialisation.
+- Vérification email.
+- Gestion de session.
+- Invitation collaborateurs.
+- Acceptation invitation.
+- Gestion des comptes clients.
+
+Rôles :
+
+SUPER_ADMIN :
+Administration globale de la plateforme.
+
+SALON_OWNER :
+Propriétaire de l'établissement.
+
+SALON_MANAGER :
+Responsable opérationnel.
+
+RECEPTIONIST :
+Gestion des rendez-vous et clients.
+
+BARBER :
+Gestion de son planning et de ses prestations.
+
+CASHIER :
+Gestion des encaissements et de la caisse.
+
+ACCOUNTANT :
+Accès aux informations financières autorisées.
+
+CUSTOMER :
+Utilisateur de la marketplace.
+
+Chaque rôle doit disposer d'une matrice de permissions configurable.
+
+Un collaborateur ne doit pas pouvoir modifier son propre rôle ou s'attribuer des droits supérieurs.
+
+# 8. ONBOARDING DU SALON
+
+Créer un assistant d'intégration en plusieurs étapes.
+
+Étape 1 : Informations du propriétaire.
+
+Étape 2 : Informations du salon.
+- Nom.
+- Description.
+- Téléphone.
+- WhatsApp.
+- Email.
+- Pays.
+- Ville.
+- Commune.
+- Quartier.
+- Adresse.
+- Géolocalisation.
+
+Étape 3 : Type d'établissement.
+
+Étape 4 : Horaires d'ouverture.
+
+Étape 5 : Prestations.
+
+Étape 6 : Collaborateurs.
+
+Étape 7 : Logo et photos.
+
+Étape 8 : Configuration de la réservation.
+
+Étape 9 : Publication de la vitrine.
+
+Afficher une barre de progression.
+
+Permettre de sauvegarder et reprendre l'onboarding.
+
+Ne pas publier automatiquement un établissement incomplet.
+
+# 9. DASHBOARD ERP
+
+Créer un tableau de bord professionnel.
+
+Indicateurs :
+
+- Chiffre d'affaires encaissé.
+- Chiffre d'affaires réalisé.
+- Nombre de rendez-vous.
+- Rendez-vous du jour.
+- Réservations en attente.
+- Annulations.
+- Nouveaux clients.
+- Clients récurrents.
+- Taux de remplissage.
+- Panier moyen.
+- Dépenses.
+- Marge estimée.
+
+Prévoir des filtres :
+
+- Aujourd'hui.
+- Hier.
+- Cette semaine.
+- Ce mois.
+- Mois précédent.
+- Année.
+- Période personnalisée.
+
+Graphiques :
+
+- Évolution du chiffre d'affaires.
+- Répartition des prestations.
+- Performance des collaborateurs.
+- Évolution des réservations.
+- Nouveaux clients.
+- Clients récurrents.
+- Modes de paiement.
+
+Toutes les statistiques doivent provenir de données réelles.
+
+Ne jamais générer de chiffres fictifs dans un environnement de production.
+
+Afficher clairement la différence entre réservations, prestations réalisées, paiements encaissés et chiffre d'affaires.
+
+# 10. MODULE RENDEZ-VOUS
+
+Créer un système de réservation professionnel.
+
+Fonctionnalités :
+
+- Création manuelle.
+- Réservation marketplace.
+- Réservation par téléphone.
+- Réservation WhatsApp.
+- Modification.
+- Annulation.
+- Confirmation.
+- Réaffectation du barbier.
+- Gestion des retards.
+- Gestion des absences.
+- Historique.
+
+Statuts :
+
+PENDING.
+CONFIRMED.
+CHECKED_IN.
+IN_PROGRESS.
+COMPLETED.
+CANCELLED.
+NO_SHOW.
+
+Chaque rendez-vous doit contenir :
+
+- Identifiant.
+- Tenant.
+- Succursale.
+- Client.
+- Collaborateur.
+- Prestation.
+- Date.
+- Heure de début.
+- Heure de fin.
+- Durée.
+- Prix.
+- Devise.
+- Notes.
+- Statut.
+- Source.
+- Statut de paiement.
+
+## Moteur intelligent de disponibilités
+
+Créer un véritable moteur qui calcule les créneaux disponibles.
+
+Prendre en compte :
+
+- Horaires d'ouverture.
+- Horaires du collaborateur.
+- Pauses.
+- Congés.
+- Indisponibilités.
+- Durée des prestations.
+- Rendez-vous existants.
+- Temps de préparation.
+- Temps de nettoyage.
+- Capacité de la succursale.
+
+Utiliser une transaction PostgreSQL ou un mécanisme de réservation atomique empêchant deux clients de réserver le même collaborateur sur le même créneau.
+
+Ne jamais se fier uniquement à la validation du navigateur.
+
+Gérer les fuseaux horaires et enregistrer les dates de manière cohérente en UTC.
+
+# 11. MODULE PLANNING
+
+Créer plusieurs vues :
+
+- Jour.
+- Semaine.
+- Mois.
+- Par collaborateur.
+- Par succursale.
+- Par statut.
+
+Prévoir :
+
+- Drag and drop.
+- Modification des rendez-vous.
+- Gestion des absences.
+- Vue de disponibilité.
+- Filtrage.
+- Recherche.
+
+Sur mobile, proposer une vue agenda simplifiée.
+
+# 12. MODULE CLIENTS / CRM
+
+Créer un CRM complet.
+
+Fiche client :
+
+- Nom.
+- Prénom.
+- Téléphone.
+- WhatsApp.
+- Email.
+- Date de naissance facultative.
+- Historique des visites.
+- Prestations favorites.
+- Dépenses cumulées.
+- Dernière visite.
+- Préférences.
+- Notes internes.
+- Consentements marketing.
+
+Segments :
+
+- Nouveau client.
+- Client actif.
+- Client fidèle.
+- Client VIP.
+- Client inactif.
+- Client à relancer.
+
+Fonctionnalités :
+
+- Recherche.
+- Filtrage.
+- Import CSV.
+- Export autorisé.
+- Historique.
+- Fidélité.
+- Anniversaires.
+- Campagnes marketing.
+- Relances automatiques.
+
+Les données clients doivent être isolées par salon et leur utilisation marketing doit respecter les consentements applicables.
+
+# 13. MODULE PRESTATIONS
+
+Créer une gestion complète des services.
+
+Champs :
+
+- Nom.
+- Description.
+- Catégorie.
+- Prix.
+- Durée.
+- Temps supplémentaire.
+- Image.
+- Collaborateurs autorisés.
+- Disponibilité.
+- Statut actif/inactif.
+
+Exemples :
+
+- Coupe classique.
+- Dégradé.
+- Coupe premium.
+- Barbe.
+- Coupe + barbe.
+- Soins capillaires.
+- Coloration.
+- Coiffure femme.
+- Tresses.
+- Soin visage.
+
+Prévoir les tarifs différents selon les succursales si nécessaire.
+
+# 14. MODULE ÉQUIPE
+
+Gestion des collaborateurs.
+
+Fonctionnalités :
+
+- Invitation.
+- Affectation à un salon.
+- Rôle.
+- Planning.
+- Disponibilités.
+- Congés.
+- Compétences.
+- Prestations autorisées.
+- Performance.
+- Historique des rendez-vous.
+- Commission.
+
+Créer des statistiques individuelles :
+
+- Prestations réalisées.
+- Chiffre d'affaires attribué.
+- Clients reçus.
+- Taux de remplissage.
+- Panier moyen.
+- Pourboires.
+
+Prévoir plusieurs modes de rémunération sans imposer un modèle unique :
+
+- Salaire fixe.
+- Commission.
+- Mixte.
+
+# 15. MODULE CAISSE ET FINANCE
+
+Construire un véritable système financier.
+
+Encaissements :
+
+- Espèces.
+- Wave.
+- Orange Money.
+- MTN MoMo lorsque disponible.
+- Moov Money lorsque disponible.
+- Carte bancaire.
+- Autres moyens configurables.
+
+Fonctionnalités :
+
+- Paiement complet.
+- Paiement partiel.
+- Acompte.
+- Solde restant.
+- Remboursement.
+- Annulation.
+- Reçu.
+- Historique.
+- Clôture de caisse.
+
+Chaque transaction doit avoir :
+
+- Identifiant.
+- Référence.
+- Montant.
+- Devise.
+- Mode de paiement.
+- Statut.
+- Date.
+- Rendez-vous associé.
+- Utilisateur ayant enregistré l'opération.
+
+Créer un journal de transactions immuable.
+
+Ne jamais modifier silencieusement un paiement confirmé.
+
+Utiliser des opérations de correction ou de remboursement traçables.
+
+## Dépenses
+
+Catégories :
+
+- Loyer.
+- Électricité.
+- Eau.
+- Internet.
+- Salaires.
+- Produits.
+- Matériel.
+- Maintenance.
+- Marketing.
+- Transport.
+- Divers.
+
+Rapports :
+
+- Recettes.
+- Dépenses.
+- Résultat estimé.
+- Flux de trésorerie.
+- Paiements en attente.
+- Performance financière.
+
+Ne pas présenter une marge estimée comme un bénéfice comptable certifié.
+
+# 16. MODULE STOCKS
+
+Créer un système de gestion des produits.
+
+Fonctionnalités :
+
+- Produits.
+- Catégories.
+- Fournisseurs.
+- Entrées.
+- Sorties.
+- Inventaires.
+- Seuils d'alerte.
+- Coût d'achat.
+- Prix de vente.
+- Historique.
+
+Exemples :
+
+- Shampoing.
+- Gel.
+- Huile.
+- Rasoirs.
+- Lames.
+- Produits de soin.
+- Accessoires.
+
+Prévoir la consommation de produits lors de certaines prestations.
+
+# 17. MARKETPLACE
+
+Créer une interface publique haut de gamme.
+
+Pages :
+
+- Accueil.
+- Recherche.
+- Résultats.
+- Fiche salon.
+- Fiche prestation.
+- Réservation.
+- Profil client.
+- Historique.
+
+La page d'accueil doit contenir :
+
+- Hero section.
+- Barre de recherche.
+- Salons recommandés.
+- Salons populaires.
+- Catégories.
+- Prestations.
+- Avis.
+- Appel à l'action pour les professionnels.
+
+Recherche par :
+
+- Ville.
+- Commune.
+- Quartier.
+- Nom.
+- Catégorie.
+- Prix.
+- Disponibilité.
+- Note.
+
+Prévoir une fiche salon complète :
+
+- Photos.
+- Logo.
+- Présentation.
+- Adresse.
+- Carte.
+- Téléphone.
+- WhatsApp.
+- Horaires.
+- Prestations.
+- Prix.
+- Équipe.
+- Avis.
+- Créneaux disponibles.
+
+Ne jamais publier les informations privées du salon.
+
+# 18. ESPACE CLIENT
+
+Créer un espace personnel.
+
+Fonctionnalités :
+
+- Inscription.
+- Connexion.
+- Profil.
+- Réservations à venir.
+- Historique.
+- Annulation selon les règles du salon.
+- Modification.
+- Favoris.
+- Avis.
+- Notifications.
+- Gestion des préférences.
+
+Permettre une réservation simple avec téléphone et vérification adaptée.
+
+# 19. PAIEMENTS ET ABONNEMENTS SaaS
+
+Le SaaS doit pouvoir vendre plusieurs formules.
+
+Plans :
+
+STARTER.
+PRO.
+BUSINESS.
+ENTERPRISE.
+
+Les limites doivent être configurables depuis l'administration.
+
+Exemples de limitations :
+
+- Nombre d'établissements.
+- Nombre de collaborateurs.
+- Nombre de rendez-vous.
+- Accès aux analytics.
+- Automatisations.
+- Stockage.
+- Intégrations.
+
+Créer :
+
+- Essai gratuit.
+- Abonnement mensuel.
+- Abonnement annuel.
+- Factures.
+- Renouvellement.
+- Suspension.
+- Annulation.
+- Historique.
+- Gestion des impayés.
+
+## Paiements
+
+Prévoir une couche d'abstraction de paiement pour connecter différents fournisseurs.
+
+Intégrations prioritaires :
+
+- Wave.
+- Orange Money.
+- Agrégateur Mobile Money compatible.
+- Carte bancaire.
+
+Sélectionner les prestataires selon leur disponibilité contractuelle et leur capacité à traiter les paiements en Côte d'Ivoire.
+
+Règles obligatoires :
+
+- Vérification serveur.
+- Vérification des signatures webhook.
+- Idempotence.
+- Gestion des paiements échoués.
+- Gestion des remboursements.
+- Réconciliation.
+- Journalisation.
+- Aucun secret dans le frontend.
+
+Ne jamais activer un abonnement sur la seule base d'une réponse du navigateur.
+
+# 20. NOTIFICATIONS
+
+Créer un système de notifications centralisé.
+
+Canaux :
+
+- Notifications internes.
+- Email.
+- WhatsApp Business API.
+- SMS.
+
+Événements :
+
+- Réservation créée.
+- Réservation confirmée.
+- Rendez-vous modifié.
+- Rendez-vous annulé.
+- Rappel avant rendez-vous.
+- Client arrivé.
+- Prestation terminée.
+- Paiement confirmé.
+- Abonnement renouvelé.
+- Paiement d'abonnement échoué.
+
+Prévoir des modèles personnalisables.
+
+Créer une file de traitement asynchrone pour éviter de bloquer les opérations métier.
+
+Enregistrer le statut de livraison.
+
+Respecter les consentements et les règles applicables aux messages commerciaux.
+
+# 21. FIDÉLITÉ ET MARKETING
+
+Créer un module marketing.
+
+Fonctionnalités :
+
+- Points de fidélité.
+- Récompenses.
+- Cartes de fidélité.
+- Codes promotionnels.
+- Offres spéciales.
+- Parrainage.
+- Campagnes.
+- Segmentation.
+- Relance clients inactifs.
+
+Prévoir des règles personnalisables par salon.
+
+# 22. ADMINISTRATION SUPER ADMIN
+
+Créer un espace réservé à l'équipe Barber Cuts.
+
+Fonctionnalités :
+
+- Vue globale.
+- Nombre de salons.
+- Nombre d'utilisateurs.
+- Abonnements actifs.
+- Revenus SaaS.
+- Paiements.
+- Impayés.
+- Essais gratuits.
+- Résiliations.
+- Gestion des plans.
+- Gestion des salons.
+- Gestion des utilisateurs.
+- Support.
+- Modération marketplace.
+- Journaux d'activité.
+- Configuration générale.
+
+Les administrateurs globaux doivent utiliser des permissions spécifiques et toutes les opérations sensibles doivent être auditées.
+
+# 23. MODÈLE DE DONNÉES
+
+Créer des migrations SQL versionnées.
+
+Tables principales :
+
+- profiles
+- organizations
+- salons
+- salon_branches
+- memberships
+- roles
+- permissions
+- role_permissions
+- salon_services
+- service_categories
+- staff_profiles
+- staff_availability
+- staff_time_off
+- staff_services
+- customers
+- salon_clients
+- appointments
+- appointment_items
+- appointment_events
+- payments
+- refunds
+- cash_registers
+- cash_sessions
+- expenses
+- expense_categories
+- products
+- inventory_movements
+- suppliers
+- loyalty_accounts
+- loyalty_transactions
+- reviews
+- notifications
+- notification_templates
+- subscriptions
+- subscription_plans
+- subscription_invoices
+- payment_webhooks
+- audit_logs
+- platform_settings
+
+Utiliser :
+
+- UUID comme identifiant.
+- Foreign keys.
+- Index.
+- Contraintes.
+- Transactions.
+- Timestamps.
+- Soft delete lorsque justifié.
+- Contraintes d'unicité.
+
+Toutes les tables métier doivent être correctement reliées à leur tenant.
+
+Créer des migrations idempotentes lorsque cela est pertinent.
+
+Ne jamais supprimer ou recréer les données existantes pour simplifier une migration.
+
+# 24. SÉCURITÉ
+
+La sécurité est non négociable.
+
+Mettre en œuvre :
+
+- RLS sur toutes les tables sensibles.
+- Vérification des permissions côté serveur.
+- Validation Zod.
+- Protection contre les accès non autorisés.
+- Protection contre les injections SQL.
+- Rate limiting.
+- Protection des webhooks.
+- Gestion des secrets.
+- Headers de sécurité.
+- Journalisation des opérations.
+- Gestion des sessions.
+- Contrôle des uploads.
+- Limitation des tailles de fichiers.
+
+Ne jamais exposer :
+- Service role key Supabase.
+- Secrets API.
+- Tokens privés.
+- Données financières d'autres salons.
+
+Tester les politiques RLS avec plusieurs utilisateurs appartenant à différents salons.
+
+# 25. PERFORMANCE ET FIABILITÉ
+
+Prévoir :
+
+- Pagination serveur.
+- Indexation.
+- Requêtes optimisées.
+- Cache raisonné.
+- Chargement différé.
+- Compression des images.
+- Gestion des erreurs.
+- Retries contrôlés.
+- Jobs asynchrones.
+- Sauvegardes.
+- Monitoring.
+- Alertes.
+
+L'application doit rester utilisable sur des smartphones et des connexions mobiles modestes.
+
+Prévoir une PWA lorsque cela apporte une réelle valeur.
+
+Ne jamais annoncer une disponibilité ou une fiabilité non mesurée.
+
+# 26. DESIGN RESPONSIVE
+
+Optimiser les interfaces pour :
+
+- Smartphone.
+- Tablette.
+- Ordinateur.
+- Grand écran.
+
+Sur smartphone :
+
+- Navigation adaptée.
+- Actions principales accessibles.
+- Formulaires courts.
+- Tableaux adaptés.
+- Calendrier simplifié.
+- Chargement rapide.
+
+Ne pas simplement réduire la version desktop.
+
+Créer une véritable expérience mobile.
+
+# 27. TESTS ET QUALITÉ
+
+Créer des tests :
+
+Unitaires :
+- Calcul des disponibilités.
+- Calcul des prix.
+- Calcul des commissions.
+- Calcul des soldes.
+- Gestion des statuts.
+
+Intégration :
+- Authentification.
+- Création d'un salon.
+- Gestion des utilisateurs.
+- Création d'un rendez-vous.
+- Paiement.
+- Abonnement.
+- Permissions.
+
+E2E :
+- Inscription.
+- Onboarding.
+- Publication.
+- Réservation marketplace.
+- Traitement du rendez-vous.
+- Encaissement.
+- Consultation des rapports.
+- Souscription SaaS.
+
+Tester particulièrement :
+- Deux réservations simultanées.
+- Accès inter-tenant.
+- Paiements webhook dupliqués.
+- Annulation après acompte.
+- Expiration d'abonnement.
+- Réseau interrompu.
+
+# 28. ENVIRONNEMENTS ET DÉPLOIEMENT
+
+Prévoir :
+
+- Local.
+- Development.
+- Staging.
+- Production.
+
+Configurer les variables d'environnement.
+
+Créer :
+
+- README complet.
+- Documentation technique.
+- Documentation de déploiement.
+- Procédure de migration.
+- Procédure de sauvegarde.
+- Procédure de restauration.
+- Guide utilisateur.
+
+Ne jamais déployer des migrations non testées directement en production.
+
+# 29. PHASES DE DÉVELOPPEMENT
+
+Tu dois procéder progressivement.
+
+PHASE 1 — AUDIT ET FONDATIONS
+- Analyser le dépôt existant.
+- Identifier les fonctionnalités réutilisables.
+- Identifier les bugs.
+- Vérifier le schéma SQL.
+- Vérifier les politiques RLS.
+- Définir l'architecture cible.
+- Établir un plan de migration.
+
+PHASE 2 — SOCLE SAAS
+- Authentification.
+- Multi-tenant.
+- Rôles.
+- Permissions.
+- Onboarding.
+- Base de données.
+
+PHASE 3 — CŒUR MÉTIER
+- Prestations.
+- Équipe.
+- Disponibilités.
+- Réservations.
+- Planning.
+- Clients.
+
+PHASE 4 — OPÉRATIONS FINANCIÈRES
+- Caisse.
+- Paiements.
+- Dépenses.
+- Rapports.
+- Stocks.
+
+PHASE 5 — MARKETPLACE
+- Recherche.
+- Vitrines.
+- Géolocalisation.
+- Réservation.
+- Espace client.
+- Avis.
+
+PHASE 6 — AUTOMATISATION
+- WhatsApp.
+- SMS.
+- Emails.
+- Fidélité.
+- Marketing.
+
+PHASE 7 — MONÉTISATION
+- Plans.
+- Essais.
+- Paiements.
+- Abonnements.
+- Facturation.
+
+PHASE 8 — ADMINISTRATION
+- Super Admin.
+- Gestion globale.
+- Support.
+- Analytics SaaS.
+
+PHASE 9 — QUALITÉ ET PRODUCTION
+- Tests.
+- Sécurité.
+- Performance.
+- Monitoring.
+- Documentation.
+- Déploiement.
+
+# 30. RÈGLES DE DÉVELOPPEMENT
+
+Tu dois respecter strictement les règles suivantes :
+
+1. Commencer par analyser le dépôt existant avant toute modification.
+2. Ne pas remplacer aveuglément une fonctionnalité déjà opérationnelle.
+3. Ne pas supprimer les données existantes.
+4. Ne pas créer de fausses fonctionnalités.
+5. Ne pas utiliser de données mockées en production.
+6. Ne pas simuler un paiement réel.
+7. Ne pas considérer localStorage comme une base de données métier.
+8. Ne pas exposer de secrets.
+9. Ne pas contourner les permissions.
+10. Ne pas utiliser de valeurs codées en dur pour les données métier configurables.
+11. Centraliser les règles métier.
+12. Valider les entrées côté serveur.
+13. Prévoir les états de chargement, succès et erreur.
+14. Écrire des tests pour les opérations critiques.
+15. Documenter chaque migration.
+16. Conserver une architecture maintenable.
+17. Utiliser des composants réutilisables.
+18. Ne pas laisser de boutons sans action.
+19. Ne pas présenter des données fictives comme réelles.
+20. Ne pas déclarer une fonctionnalité terminée sans l'avoir testée.
+
+# 31. LIVRABLES ATTENDUS
+
+À la fin, fournir :
+
+- Application complète.
+- Code source structuré.
+- Base de données.
+- Migrations SQL.
+- Politiques RLS.
+- Interfaces ERP.
+- Marketplace.
+- Espace client.
+- Super Admin.
+- Système de paiement intégré lorsque les accès fournisseurs sont disponibles.
+- Système d'abonnement.
+- Notifications.
+- Tests automatisés.
+- Documentation.
+- Guide de déploiement.
+- Rapport de sécurité.
+- Rapport de tests.
+- Liste des limitations restantes.
+
+# 32. CRITÈRES DE VALIDATION FINALE
+
+Le projet ne sera considéré comme prêt pour la production que si :
+
+- Un propriétaire peut créer son compte.
+- Il peut créer son salon.
+- Il peut inviter son équipe.
+- Il peut configurer ses prestations.
+- Il peut publier son établissement.
+- Un client peut trouver le salon.
+- Un client peut réserver un créneau réellement disponible.
+- Deux clients ne peuvent pas réserver le même créneau.
+- Le personnel peut gérer les rendez-vous.
+- Le client peut payer selon les moyens réellement intégrés.
+- Les transactions sont vérifiées.
+- Le propriétaire peut consulter ses recettes.
+- Les données des salons sont isolées.
+- Les abonnements sont réellement contrôlés.
+- Les permissions sont testées.
+- Les workflows critiques sont couverts par des tests.
+- Les erreurs sont journalisées.
+- La documentation permet de maintenir le produit.
+
+---
+
+# 33. PREMIÈRE INSTRUCTION À EXÉCUTER
+
+Tu vas maintenant intervenir sur le dépôt GitHub BARBER CUTS existant.
+
+Ne commence pas par réécrire toute l'application.
+
+Commence par réaliser un audit complet du projet.
+
+Examine :
+- Structure des dossiers.
+- Dépendances.
+- Pages.
+- Composants.
+- Hooks.
+- Services.
+- Base de données.
+- Schéma SQL.
+- Politiques RLS.
+- Authentification.
+- Réservations.
+- Paiements.
+- Abonnements.
+- Gestion des utilisateurs.
+- Responsive design.
+
+Ensuite, produis un rapport structuré contenant :
+
+1. Ce qui fonctionne réellement.
+2. Ce qui est partiellement fonctionnel.
+3. Ce qui est simulé.
+4. Ce qui est absent.
+5. Les risques techniques.
+6. Les risques de sécurité.
+7. Les problèmes d'architecture.
+8. Les améliorations nécessaires.
+9. Le plan de développement priorisé.
+10. Les critères de validation.
+
+Après cet audit, propose les modifications nécessaires et commence par la PHASE 1.
+
+Travaille de façon autonome sur chaque étape, mais ne détruis jamais une fonctionnalité existante pour en créer une nouvelle.
+
+À chaque phase :
+- Explique les modifications.
+- Liste les fichiers créés ou modifiés.
+- Exécute les tests.
+- Corrige les erreurs.
+- Documente les résultats.
+- Identifie les blocages réels.
+
+Ne déclare jamais une phase terminée si ses critères d'acceptation ne sont pas remplis.
+
+**OBJECTIF FINAL : CONSTRUIRE BARBER CUTS COMME UN SAAS PREMIUM, SÉCURISÉ, RENTABLE, MULTI-TENANT ET PRÊT À ÊTRE COMMERCIALISÉ EN AFRIQUE FRANCOPHONE.**

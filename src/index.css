@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    background-color: #0d0d0e;
+    color: #f7f6f2;
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+.font-serif-luxury {
+  font-family: 'Playfair Display', Georgia, serif;
+}
+
+/* Custom scrollbars for tables and views */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #141416;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a2a2f;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3e3e46;
+}
+
+.confetti-container { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.confetti-container span { position: absolute; top: -12px; width: 7px; height: 12px; border-radius: 2px; opacity: 0; animation: confetti-fall 2.8s ease-in forwards; }
+@keyframes confetti-fall { 0% { transform: translateY(-15px) rotate(0); opacity: 1; } 100% { transform: translateY(380px) rotate(650deg); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .confetti-container { display: none; } }
