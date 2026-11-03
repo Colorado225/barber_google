@@ -113,8 +113,8 @@ export const OnboardingWizardPage: React.FC = () => {
       openingHours,
       paymentMethods,
       minPrice: Math.min(...servicesConfig.filter(s => s.selected).map(s => s.price)),
-      isPublishedOnMarketplace: true,
-      isRecommended: true
+      isPublishedOnMarketplace: activeSalon.isPublishedOnMarketplace ?? false,
+      isRecommended: activeSalon.isRecommended ?? false
     });
 
     // 2. Add extra barber if specified

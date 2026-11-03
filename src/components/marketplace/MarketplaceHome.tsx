@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 
 export const MarketplaceHome: React.FC = () => {
-  const { salons, setMode, setIsRegisterSalonOpen, reviews } = useApp();
+  const { salons, setMode, setIsRegisterSalonOpen, reviews, isRegisteredInErp, setAuthStartView } = useApp();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCommune, setSelectedCommune] = useState('all');
@@ -36,6 +36,7 @@ export const MarketplaceHome: React.FC = () => {
 
   const filteredSalons = useMemo(() => {
     return salons.filter((salon) => {
+      if (salon.isPublishedOnMarketplace === false) return false;
       const matchQuery =
         !searchQuery.trim() ||
         salon.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -373,19 +374,19 @@ export const MarketplaceHome: React.FC = () => {
 
             <div className="flex flex-wrap items-center gap-4 pt-3">
               <button
-                onClick={() => setIsRegisterSalonOpen(true)}
+                onClick={() => { setAuthStartView('signup'); setIsRegisterSalonOpen(true); }}
                 className="bg-[#C9A45C] hover:bg-[#d8b56d] text-[#101010] font-bold text-sm px-6 py-3 rounded-xl transition-all shadow-lg hover:shadow-[0_0_20px_rgba(201,164,92,0.3)] cursor-pointer"
               >
                 Inscrire mon salon
               </button>
 
-              <button
+              {isRegisteredInErp && <button
                 onClick={() => setMode('erp')}
                 className="bg-[#242429] hover:bg-[#2d2d34] text-white border border-[#3b3b42] font-semibold text-sm px-6 py-3 rounded-xl transition-colors flex items-center gap-2 cursor-pointer"
               >
                 <span>Accéder à l'ERP Pro</span>
                 <ArrowRight className="w-4 h-4 text-[#C9A45C]" />
-              </button>
+              </button>}
             </div>
           </div>
         </div>
@@ -426,21 +427,21 @@ export const MarketplaceHome: React.FC = () => {
                 PROFESSIONNELS
               </h4>
               <ul className="space-y-2">
-                <li>
+                {isRegisteredInErp && <li>
                   <button onClick={() => setMode('erp')} className="hover:text-white transition-colors">
                     Barber Cuts Business ERP
                   </button>
-                </li>
+                </li>}
                 <li>
-                  <button onClick={() => setIsRegisterSalonOpen(true)} className="hover:text-white transition-colors">
+                  <button onClick={() => { setAuthStartView('signup'); setIsRegisterSalonOpen(true); }} className="hover:text-white transition-colors">
                     Inscrire un établissement
                   </button>
                 </li>
-                <li>
+                {isRegisteredInErp && <li>
                   <button onClick={() => setMode('erp')} className="hover:text-white transition-colors">
                     Tarifs & Formules SaaS
                   </button>
-                </li>
+                </li>}
               </ul>
             </div>
 

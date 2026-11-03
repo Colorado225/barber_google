@@ -4,7 +4,7 @@ import { Navbar } from './components/common/Navbar';
 import { ToastContainer } from './components/common/ToastContainer';
 import { MarketplaceHome } from './components/marketplace/MarketplaceHome';
 import { SalonDetailModal } from './components/marketplace/SalonDetailModal';
-import { RegisterSalonModal } from './components/marketplace/RegisterSalonModal';
+import { BusinessAccess } from './components/marketplace/BusinessAccess';
 import { ClientBookingsModal } from './components/marketplace/ClientBookingsModal';
 import { ErpLayout } from './components/erp/ErpLayout';
 
@@ -15,7 +15,8 @@ const AppContent: React.FC = () => {
     mode,
     selectedSalonForModal,
     setSelectedSalonForModal,
-    isOnboardingOpen
+    isOnboardingOpen,
+    isRegisterSalonOpen
   } = useApp();
 
   return (
@@ -39,7 +40,7 @@ const AppContent: React.FC = () => {
       {/* Onboarding Flow for Salon Owners */}
       {isOnboardingOpen && <OnboardingWizardPage />}
 
-      <RegisterSalonModal />
+      {isRegisterSalonOpen && <BusinessAccess />}
       <ClientBookingsModal />
       <ToastContainer />
     </div>

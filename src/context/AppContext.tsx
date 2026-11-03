@@ -68,6 +68,8 @@ interface AppContextType {
   setSelectedSalonForModal: (salon: Salon | null) => void;
   isRegisterSalonOpen: boolean;
   setIsRegisterSalonOpen: (open: boolean) => void;
+  authStartView: 'login' | 'signup';
+  setAuthStartView: (view: 'login' | 'signup') => void;
   isClientAppointmentsOpen: boolean;
   setIsClientAppointmentsOpen: (open: boolean) => void;
   isOnboardingOpen: boolean;
@@ -124,7 +126,7 @@ interface AppContextType {
   adjustStockQuantity: (id: string, delta: number) => void;
 
   // Salon Onboarding / Settings
-  createSalon: (salonData: Partial<Salon>) => Salon;
+  createSalon: (salonData: Partial<Salon>, options?: { seedDemoData?: boolean }) => Salon;
   updateSalonDetails: (salonId: string, updates: Partial<Salon>) => void;
 
   // SaaS Subscription
@@ -157,7 +159,7 @@ const LOCAL_STORAGE_KEY = 'barber_cuts_state_v1';
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [mode, setMode] = useState<AppMode>('marketplace');
   const [userRole, setUserRole] = useState<UserRole>('owner');
-  const [activeSalonId, setActiveSalonId] = useState<string>('salon-1');
+  const [activeSalonId, setActiveSalonId] = useState<string>(() => localStorage.getItem(`${LOCAL_STORAGE_KEY}_activeSalonId`) || 'salon-1');
 
   const [salons, setSalons] = useState<Salon[]>(() => {
     const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_salons`);
@@ -209,13 +211,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [selectedSalonForModal, setSelectedSalonForModal] = useState<Salon | null>(null);
   const [isRegisterSalonOpen, setIsRegisterSalonOpen] = useState(false);
+  const [authStartView, setAuthStartView] = useState<'login' | 'signup'>('signup');
   const [isClientAppointmentsOpen, setIsClientAppointmentsOpen] = useState(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
 
   // User registration in ERP (used to conditionally show 'Admin Total')
   const [isRegisteredInErp, setIsRegisteredInErp] = useState<boolean>(() => {
     const saved = localStorage.getItem(`${LOCAL_STORAGE_KEY}_isRegisteredInErp`);
-    return saved !== null ? JSON.parse(saved) : true;
+    return saved !== null ? JSON.parse(saved) === true : false;
   });
 
   // Loyalty Program State
@@ -236,6 +239,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Sync state to LocalStorage
   useEffect(() => {
+    localStorage.setItem(`${LOCAL_STORAGE_KEY}_activeSalonId`, activeSalonId);
     localStorage.setItem(`${LOCAL_STORAGE_KEY}_salons`, JSON.stringify(salons));
     localStorage.setItem(`${LOCAL_STORAGE_KEY}_services`, JSON.stringify(services));
     localStorage.setItem(`${LOCAL_STORAGE_KEY}_staff`, JSON.stringify(staff));
@@ -250,6 +254,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(`${LOCAL_STORAGE_KEY}_loyaltyTransactions`, JSON.stringify(loyaltyTransactions));
     localStorage.setItem(`${LOCAL_STORAGE_KEY}_loyaltySettings`, JSON.stringify(loyaltySettings));
   }, [
+    activeSalonId,
     salons,
     services,
     staff,
@@ -875,9 +880,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addToast('Stock ajusté.', 'info');
   };
 
-  const createSalon = (salonData: Partial<Salon>): Salon => {
+  const createSalon = (salonData: Partial<Salon>, options?: { seedDemoData?: boolean }): Salon => {
     const newSalon: Salon = {
-      id: `salon-${Date.now()}`,
       name: salonData.name || 'Mon Nouveau Salon',
       slug: (salonData.name || 'nouveau-salon').toLowerCase().replace(/\s+/g, '-'),
       tagline: salonData.tagline || 'Barbershop & Coiffure de prestige',
@@ -908,12 +912,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       isRecommended: true,
       isPopular: true,
       isVerified: true,
-      subscriptionPlanId: 'plan-pro'
+      subscriptionPlanId: 'plan-pro',
+      ...salonData,
+      id: `salon-${Date.now()}`,
     };
 
     setSalons((prev) => [newSalon, ...prev]);
     setActiveSalonId(newSalon.id);
 
+    if (options?.seedDemoData !== false) {
     // Create a default staff member for this salon
     const defaultBarber: StaffMember = {
       id: `staff-${Date.now()}`,
@@ -951,9 +958,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       popular: true
     };
     setServices((prev) => [...prev, defaultSrv1, defaultSrv2]);
+    }
     setIsRegisteredInErp(true);
 
-    addToast(`Félicitations ! Le salon "${newSalon.name}" est créé et disponible dans votre ERP et sur la Marketplace !`, 'success');
+    addToast(`Salon « ${newSalon.name} » configuré dans cette démonstration.`, 'success');
     return newSalon;
   };
 
@@ -1004,6 +1012,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setSelectedSalonForModal,
         isRegisterSalonOpen,
         setIsRegisterSalonOpen,
+        authStartView,
+        setAuthStartView,
         isClientAppointmentsOpen,
         setIsClientAppointmentsOpen,
         isOnboardingOpen,

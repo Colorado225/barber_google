@@ -19,6 +19,7 @@ export const Navbar: React.FC = () => {
     setUserRole,
     activeSalon,
     setIsRegisterSalonOpen,
+    setAuthStartView,
     setIsClientAppointmentsOpen,
     isRegisteredInErp,
     setIsRegisteredInErp
@@ -37,13 +38,10 @@ export const Navbar: React.FC = () => {
 
   // Admin Total n'est visible UNIQUEMENT que si l'utilisateur est déjà inscrit dans l'ERP
   const visibleRoles = (Object.keys(roleLabels) as UserRole[]).filter((r) => {
-    if (r === 'owner' && !isRegisteredInErp) {
-      return false; // Masquer le bouton Admin Total
-    }
-    return true;
+    return isRegisteredInErp || r === 'customer';
   });
 
-  const currentDisplayRole = (!isRegisteredInErp && userRole === 'owner') ? 'customer' : userRole;
+  const currentDisplayRole = !isRegisteredInErp ? 'customer' : userRole;
 
   return (
     <header className="sticky top-0 z-40 w-full bg-[#101010]/95 backdrop-blur-md border-b border-[#232326]">
@@ -88,21 +86,21 @@ export const Navbar: React.FC = () => {
                 Explorer
               </button>
 
-              <button
+              {isRegisteredInErp && <button
                 onClick={() => setIsClientAppointmentsOpen(true)}
                 className="text-sm font-medium text-stone-300 hover:text-white transition-colors flex items-center gap-1.5 px-3 py-2"
               >
                 <Calendar className="w-4 h-4 text-[#C9A45C]" />
                 Mes réservations
-              </button>
+              </button>}
 
-              <button
+              {isRegisteredInErp && <button
                 onClick={() => setMode('erp')}
                 className="text-sm font-medium text-stone-300 hover:text-[#C9A45C] transition-colors px-3 py-2 flex items-center gap-1.5"
               >
                 <Store className="w-4 h-4 text-stone-400" />
                 Pour les professionnels
-              </button>
+              </button>}
             </>
           ) : (
             <>
@@ -144,7 +142,7 @@ export const Navbar: React.FC = () => {
                       onClick={() => {
                         const next = !isRegisteredInErp;
                         setIsRegisteredInErp(next);
-                        if (!next && userRole === 'owner') {
+                        if (!next) {
                           setUserRole('customer');
                           setMode('marketplace');
                         }
@@ -198,10 +196,12 @@ export const Navbar: React.FC = () => {
             )}
           </div>
 
+          {mode === 'marketplace' && <button onClick={() => { setAuthStartView('login'); setIsRegisterSalonOpen(true); }} className="text-sm font-medium text-stone-300 hover:text-white">Connexion</button>}
+
           {/* Primary Action Button */}
           {mode === 'marketplace' ? (
             <button
-              onClick={() => setIsRegisterSalonOpen(true)}
+              onClick={() => { setAuthStartView('signup'); setIsRegisterSalonOpen(true); }}
               className="bg-[#C9A45C] hover:bg-[#d6b36a] text-[#101010] font-semibold text-sm px-4 py-2.5 rounded-lg shadow-sm hover:shadow-[0_0_20px_rgba(201,164,92,0.3)] transition-all flex items-center gap-2 cursor-pointer"
             >
               <Store className="w-4 h-4" />
@@ -221,7 +221,7 @@ export const Navbar: React.FC = () => {
         <div className="flex md:hidden items-center gap-2">
           {mode === 'marketplace' ? (
             <button
-              onClick={() => setIsRegisterSalonOpen(true)}
+              onClick={() => { setAuthStartView('signup'); setIsRegisterSalonOpen(true); }}
               className="bg-[#C9A45C] text-[#101010] font-semibold text-xs px-2.5 py-1.5 rounded-lg"
             >
               Inscrire
@@ -248,6 +248,7 @@ export const Navbar: React.FC = () => {
       {mobileMenuOpen && (
         <div className="md:hidden bg-[#141416] border-b border-[#232326] px-4 pt-3 pb-6 space-y-3">
           <div className="flex flex-col gap-2">
+            <button onClick={() => { setAuthStartView('login'); setIsRegisterSalonOpen(true); setMobileMenuOpen(false); }} className="w-full text-left py-2.5 px-3 rounded-lg text-sm text-stone-200 hover:bg-[#1e1e22]">Connexion</button>
             <button
               onClick={() => {
                 setMode('marketplace');
@@ -258,7 +259,7 @@ export const Navbar: React.FC = () => {
               Explorer les salons
             </button>
 
-            <button
+            {isRegisteredInErp && <button
               onClick={() => {
                 setIsClientAppointmentsOpen(true);
                 setMobileMenuOpen(false);
@@ -267,9 +268,9 @@ export const Navbar: React.FC = () => {
             >
               <span>Mes réservations</span>
               <Calendar className="w-4 h-4 text-[#C9A45C]" />
-            </button>
+            </button>}
 
-            <button
+            {isRegisteredInErp && <button
               onClick={() => {
                 setMode('erp');
                 setMobileMenuOpen(false);
@@ -278,7 +279,7 @@ export const Navbar: React.FC = () => {
             >
               <span>Accéder à l'ERP Salon</span>
               <Store className="w-4 h-4" />
-            </button>
+            </button>}
           </div>
 
           <div className="pt-3 border-t border-[#26262a]">

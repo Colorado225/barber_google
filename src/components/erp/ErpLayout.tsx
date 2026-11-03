@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Appointment } from '../../types';
 import { DashboardView } from './DashboardView';
+import { PersonalizedDashboard } from './PersonalizedDashboard';
 import { AppointmentsCalendarView } from './AppointmentsCalendarView';
 import { CashRegisterView } from './CashRegisterView';
 import { CrmClientsView } from './CrmClientsView';
@@ -226,7 +227,9 @@ export const ErpLayout: React.FC = () => {
 
         {/* Dynamic Tab Body */}
         <main className="p-4 sm:p-6 lg:p-8 flex-1">
-          {activeTab === 'dashboard' && (
+          {activeTab === 'dashboard' && (activeSalon.demoOnboarding ? (
+            <PersonalizedDashboard onNavigate={setActiveTab} onNewAppointment={() => { setNewAppointmentSlot({}); setIsNewAppointmentOpen(true); }} />
+          ) : (
             <DashboardView
               onOpenNewAppointment={() => {
                 setNewAppointmentSlot({});
@@ -237,7 +240,7 @@ export const ErpLayout: React.FC = () => {
                 setIsNewPaymentOpen(true);
               }}
             />
-          )}
+          ))}
 
           {activeTab === 'calendar' && (
             <AppointmentsCalendarView

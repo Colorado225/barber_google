@@ -47,6 +47,8 @@ export interface Salon {
   isPopular: boolean;
   isVerified: boolean;
   isPublishedOnMarketplace?: boolean;
+  demoOnboarding?: boolean;
+  ownerName?: string;
   featuredPrestations?: string[];
   publicationDate?: string;
   subscriptionPlanId: string;
