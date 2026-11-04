@@ -7,11 +7,11 @@ services:
       POSTGRES_USER: barber_admin
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Définir POSTGRES_PASSWORD dans .env}
     ports:
-      - "127.0.0.1:5432:5432"
+      - '127.0.0.1:5432:5432'
     volumes:
       - barber_pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U barber_admin -d barber_cuts"]
+      test: ['CMD-SHELL', 'pg_isready -U barber_admin -d barber_cuts']
       interval: 5s
       timeout: 5s
       retries: 12

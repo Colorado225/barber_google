@@ -72,11 +72,7 @@ export function mapBranchHours(rows: readonly BranchHourRecord[]): OpeningHour[]
   });
 }
 
-export function toBranchHoursRows(
-  salonId: string,
-  branchId: string,
-  hours: readonly OpeningHour[],
-) {
+export function toBranchHoursRows(salonId: string, branchId: string, hours: readonly OpeningHour[]) {
   return hours.map((hour) => {
     const weekday = weekdayByDay.get(hour.day);
     if (weekday === undefined) throw new Error(`Jour d’ouverture inconnu : ${hour.day}`);

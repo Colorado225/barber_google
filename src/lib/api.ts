@@ -142,7 +142,9 @@ function mapStaff(row: DbRow): StaffMember {
     name: stringValue(row, 'name'),
     role: stringValue(row, 'role') as StaffMember['role'],
     avatar: optionalString(row, 'avatar'),
-    specialties: Array.isArray(row.specialties) ? row.specialties.filter((value): value is string => typeof value === 'string') : [],
+    specialties: Array.isArray(row.specialties)
+      ? row.specialties.filter((value): value is string => typeof value === 'string')
+      : [],
     rating: optionalNumber(row, 'rating'),
     commissionRate: numberValue(row, 'commission_rate'),
     phone: stringValue(row, 'phone'),
@@ -150,7 +152,9 @@ function mapStaff(row: DbRow): StaffMember {
     branchId: optionalString(row, 'branch_id') ?? null,
     isAvailable: booleanValue(row, 'is_available'),
     isActive: booleanValue(row, 'is_active'),
-    serviceIds: Array.isArray(row.service_ids) ? row.service_ids.filter((value): value is string => typeof value === 'string') : [],
+    serviceIds: Array.isArray(row.service_ids)
+      ? row.service_ids.filter((value): value is string => typeof value === 'string')
+      : [],
     userId: optionalString(row, 'user_id') ?? null,
   };
 }
@@ -173,10 +177,7 @@ function mapAppointment(row: DbRow): Appointment {
     staffName: stringValue(row, 'staff_name'),
     date,
     time,
-    durationMinutes: Math.max(
-      0,
-      (Date.parse(stringValue(row, 'ends_at')) - Date.parse(startsAt)) / 60000,
-    ),
+    durationMinutes: Math.max(0, (Date.parse(stringValue(row, 'ends_at')) - Date.parse(startsAt)) / 60000),
     status: stringValue(row, 'status') as Appointment['status'],
     paymentStatus: stringValue(row, 'payment_status') as Appointment['paymentStatus'],
     source: stringValue(row, 'source') as Appointment['source'],
@@ -209,7 +210,12 @@ function mapPayment(row: DbRow): PaymentTransaction {
     amount,
     method: stringValue(row, 'method') as PaymentMethod,
     kind,
-    type: kind !== 'payment' ? 'balance' : appointmentAmount !== undefined && amount >= appointmentAmount ? 'full' : 'deposit',
+    type:
+      kind !== 'payment'
+        ? 'balance'
+        : appointmentAmount !== undefined && amount >= appointmentAmount
+          ? 'full'
+          : 'deposit',
     reference: providerReference ?? stringValue(row, 'id').slice(0, 8).toUpperCase(),
     providerReference,
     status: status === 'confirmed' ? 'completed' : status === 'pending' ? 'pending' : 'cancelled',
@@ -429,7 +435,12 @@ type ClientInput = Pick<Client, 'name' | 'phone'> &
 type ServiceInput = Pick<Service, 'name' | 'category' | 'price' | 'durationMinutes'> &
   Partial<Pick<Service, 'description' | 'prepMinutes' | 'popular' | 'isActive'>>;
 type StaffInput = Pick<StaffMember, 'name' | 'role' | 'commissionRate'> &
-  Partial<Pick<StaffMember, 'phone' | 'email' | 'specialties' | 'branchId' | 'isAvailable' | 'isActive' | 'serviceIds'>>;
+  Partial<
+    Pick<
+      StaffMember,
+      'phone' | 'email' | 'specialties' | 'branchId' | 'isAvailable' | 'isActive' | 'serviceIds'
+    >
+  >;
 type ExpenseInput = Pick<Expense, 'title' | 'category' | 'amount' | 'date'> &
   Partial<Pick<Expense, 'notes' | 'branchId' | 'receiptRef'>>;
 
@@ -536,7 +547,11 @@ export function salonApi(salonId: string) {
     return (unwrap(result) ?? []).map((row) => mapStaff(row as DbRow));
   };
   const listExpenses = async () => {
-    const result = await supabase.from('expenses').select('*').eq('salon_id', salonId).order('spent_on', { ascending: false });
+    const result = await supabase
+      .from('expenses')
+      .select('*')
+      .eq('salon_id', salonId)
+      .order('spent_on', { ascending: false });
     return (unwrap(result) ?? []).map((row) => mapExpense(row as DbRow));
   };
   const listStock = async () => {
@@ -548,23 +563,28 @@ export function salonApi(salonId: string) {
     return (unwrap(result) ?? []).map((row) => mapReward(row as DbRow));
   };
   const listReviews = async () => {
-    const result = await supabase.from('reviews').select('*').eq('salon_id', salonId).order('created_at', { ascending: false });
+    const result = await supabase
+      .from('reviews')
+      .select('*')
+      .eq('salon_id', salonId)
+      .order('created_at', { ascending: false });
     return (unwrap(result) ?? []).map((row) => mapReview(row as DbRow));
   };
 
   return {
     async workspace() {
-      const [salonResult, branchesResult, clients, services, staff, expenses, stock, rewards, reviews] = await Promise.all([
-        supabase.from('salons').select('*').eq('id', salonId).single(),
-        supabase.from('branches').select('id, name').eq('salon_id', salonId).order('created_at'),
-        listClients(),
-        listServices(true),
-        listStaff(),
-        listExpenses(),
-        listStock(),
-        listRewards(),
-        listReviews(),
-      ]);
+      const [salonResult, branchesResult, clients, services, staff, expenses, stock, rewards, reviews] =
+        await Promise.all([
+          supabase.from('salons').select('*').eq('id', salonId).single(),
+          supabase.from('branches').select('id, name').eq('salon_id', salonId).order('created_at'),
+          listClients(),
+          listServices(true),
+          listStaff(),
+          listExpenses(),
+          listStock(),
+          listRewards(),
+          listReviews(),
+        ]);
       const salon = unwrap(salonResult);
       const branches = (unwrap(branchesResult) ?? []) as { id: string; name: string }[];
       return { salon, branches, clients, services, staff, expenses, stock, rewards, reviews };
@@ -572,26 +592,36 @@ export function salonApi(salonId: string) {
     clients: {
       list: listClients,
       async create(data: ClientInput) {
-        const result = await supabase.from('clients').insert({
-          salon_id: salonId,
-          name: data.name,
-          phone: data.phone,
-          email: data.email?.trim().toLowerCase() || null,
-          segment: data.segment ?? 'new',
-          favorite_service: data.favoriteService ?? '',
-          notes: data.notes ?? '',
-        }).select('*').single();
+        const result = await supabase
+          .from('clients')
+          .insert({
+            salon_id: salonId,
+            name: data.name,
+            phone: data.phone,
+            email: data.email?.trim().toLowerCase() || null,
+            segment: data.segment ?? 'new',
+            favorite_service: data.favoriteService ?? '',
+            notes: data.notes ?? '',
+          })
+          .select('*')
+          .single();
         return mapClient(unwrap(result) as DbRow);
       },
       async update(id: string, data: ClientInput) {
-        const result = await supabase.from('clients').update({
-          name: data.name,
-          phone: data.phone,
-          email: data.email?.trim().toLowerCase() || null,
-          segment: data.segment ?? 'new',
-          favorite_service: data.favoriteService ?? '',
-          notes: data.notes ?? '',
-        }).eq('salon_id', salonId).eq('id', id).select('*').single();
+        const result = await supabase
+          .from('clients')
+          .update({
+            name: data.name,
+            phone: data.phone,
+            email: data.email?.trim().toLowerCase() || null,
+            segment: data.segment ?? 'new',
+            favorite_service: data.favoriteService ?? '',
+            notes: data.notes ?? '',
+          })
+          .eq('salon_id', salonId)
+          .eq('id', id)
+          .select('*')
+          .single();
         return mapClient(unwrap(result) as DbRow);
       },
       async remove(id: string) {
@@ -603,35 +633,48 @@ export function salonApi(salonId: string) {
       list: () => listServices(),
       listAll: () => listServices(true),
       async create(data: ServiceInput) {
-        const result = await supabase.from('services').insert({
-          salon_id: salonId,
-          name: data.name,
-          category: data.category,
-          description: data.description ?? '',
-          price: data.price,
-          duration_minutes: data.durationMinutes,
-          prep_minutes: data.prepMinutes ?? 0,
-          popular: data.popular ?? false,
-          is_active: data.isActive ?? true,
-        }).select('*').single();
+        const result = await supabase
+          .from('services')
+          .insert({
+            salon_id: salonId,
+            name: data.name,
+            category: data.category,
+            description: data.description ?? '',
+            price: data.price,
+            duration_minutes: data.durationMinutes,
+            prep_minutes: data.prepMinutes ?? 0,
+            popular: data.popular ?? false,
+            is_active: data.isActive ?? true,
+          })
+          .select('*')
+          .single();
         return mapService(unwrap(result) as DbRow);
       },
       async update(id: string, data: ServiceInput) {
-        const result = await supabase.from('services').update({
-          name: data.name,
-          category: data.category,
-          description: data.description ?? '',
-          price: data.price,
-          duration_minutes: data.durationMinutes,
-          prep_minutes: data.prepMinutes ?? 0,
-          popular: data.popular ?? false,
-          is_active: data.isActive ?? true,
-        }).eq('salon_id', salonId).eq('id', id).select('*').single();
+        const result = await supabase
+          .from('services')
+          .update({
+            name: data.name,
+            category: data.category,
+            description: data.description ?? '',
+            price: data.price,
+            duration_minutes: data.durationMinutes,
+            prep_minutes: data.prepMinutes ?? 0,
+            popular: data.popular ?? false,
+            is_active: data.isActive ?? true,
+          })
+          .eq('salon_id', salonId)
+          .eq('id', id)
+          .select('*')
+          .single();
         return mapService(unwrap(result) as DbRow);
       },
       async setActive(id: string, isActive: boolean) {
-        const { error } = await supabase.from('services').update({ is_active: isActive })
-          .eq('salon_id', salonId).eq('id', id);
+        const { error } = await supabase
+          .from('services')
+          .update({ is_active: isActive })
+          .eq('salon_id', salonId)
+          .eq('id', id);
         if (error) throwSupabaseError(error);
       },
       async remove(id: string) {
@@ -640,41 +683,55 @@ export function salonApi(salonId: string) {
     },
     branches: {
       async list() {
-        const result = await supabase.from('branches').select('id, name').eq('salon_id', salonId).order('created_at');
+        const result = await supabase
+          .from('branches')
+          .select('id, name')
+          .eq('salon_id', salonId)
+          .order('created_at');
         return unwrap(result) ?? [];
       },
     },
     staff: {
       list: listStaff,
       async create(data: StaffInput) {
-        const result = await supabase.from('staff').insert({
-          salon_id: salonId,
-          name: data.name,
-          role: data.role,
-          phone: data.phone ?? '',
-          email: data.email?.trim().toLowerCase() || null,
-          specialties: data.specialties ?? [],
-          commission_rate: data.commissionRate,
-          branch_id: data.branchId ?? null,
-          is_available: data.isAvailable ?? true,
-          is_active: data.isActive ?? true,
-          service_ids: data.serviceIds ?? [],
-        }).select('*').single();
+        const result = await supabase
+          .from('staff')
+          .insert({
+            salon_id: salonId,
+            name: data.name,
+            role: data.role,
+            phone: data.phone ?? '',
+            email: data.email?.trim().toLowerCase() || null,
+            specialties: data.specialties ?? [],
+            commission_rate: data.commissionRate,
+            branch_id: data.branchId ?? null,
+            is_available: data.isAvailable ?? true,
+            is_active: data.isActive ?? true,
+            service_ids: data.serviceIds ?? [],
+          })
+          .select('*')
+          .single();
         return mapStaff(unwrap(result) as DbRow);
       },
       async update(id: string, data: StaffInput) {
-        const result = await supabase.from('staff').update({
-          name: data.name,
-          role: data.role,
-          phone: data.phone ?? '',
-          email: data.email?.trim().toLowerCase() || null,
-          specialties: data.specialties ?? [],
-          commission_rate: data.commissionRate,
-          branch_id: data.branchId ?? null,
-          is_available: data.isAvailable ?? true,
-          is_active: data.isActive ?? true,
-          service_ids: data.serviceIds ?? [],
-        }).eq('salon_id', salonId).eq('id', id).select('*').single();
+        const result = await supabase
+          .from('staff')
+          .update({
+            name: data.name,
+            role: data.role,
+            phone: data.phone ?? '',
+            email: data.email?.trim().toLowerCase() || null,
+            specialties: data.specialties ?? [],
+            commission_rate: data.commissionRate,
+            branch_id: data.branchId ?? null,
+            is_available: data.isAvailable ?? true,
+            is_active: data.isActive ?? true,
+            service_ids: data.serviceIds ?? [],
+          })
+          .eq('salon_id', salonId)
+          .eq('id', id)
+          .select('*')
+          .single();
         return mapStaff(unwrap(result) as DbRow);
       },
       async remove(id: string) {
@@ -682,32 +739,64 @@ export function salonApi(salonId: string) {
         if (error) throwSupabaseError(error);
       },
       async schedule(staffId: string): Promise<StaffSchedule[]> {
-        const result = await supabase.from('staff_schedules').select('*')
-          .eq('salon_id', salonId).eq('staff_id', staffId)
-          .order('weekday').order('starts_at');
+        const result = await supabase
+          .from('staff_schedules')
+          .select('*')
+          .eq('salon_id', salonId)
+          .eq('staff_id', staffId)
+          .order('weekday')
+          .order('starts_at');
         return (unwrap(result) ?? []).map((row) => mapStaffSchedule(row as DbRow));
       },
-      async addSchedule(staffId: string, data: { weekday: number; startsAt: string; endsAt: string }): Promise<StaffSchedule> {
-        const result = await supabase.from('staff_schedules').insert({
-          salon_id: salonId, staff_id: staffId,
-          weekday: data.weekday, starts_at: data.startsAt, ends_at: data.endsAt,
-        }).select('*').single();
+      async addSchedule(
+        staffId: string,
+        data: { weekday: number; startsAt: string; endsAt: string },
+      ): Promise<StaffSchedule> {
+        const result = await supabase
+          .from('staff_schedules')
+          .insert({
+            salon_id: salonId,
+            staff_id: staffId,
+            weekday: data.weekday,
+            starts_at: data.startsAt,
+            ends_at: data.endsAt,
+          })
+          .select('*')
+          .single();
         return mapStaffSchedule(unwrap(result) as DbRow);
       },
       async removeSchedule(id: string): Promise<void> {
-        const { error } = await supabase.from('staff_schedules').delete().eq('salon_id', salonId).eq('id', id);
+        const { error } = await supabase
+          .from('staff_schedules')
+          .delete()
+          .eq('salon_id', salonId)
+          .eq('id', id);
         if (error) throwSupabaseError(error);
       },
       async absences(staffId: string): Promise<StaffAbsence[]> {
-        const result = await supabase.from('staff_absences').select('*')
-          .eq('salon_id', salonId).eq('staff_id', staffId).order('starts_on');
+        const result = await supabase
+          .from('staff_absences')
+          .select('*')
+          .eq('salon_id', salonId)
+          .eq('staff_id', staffId)
+          .order('starts_on');
         return (unwrap(result) ?? []).map((row) => mapStaffAbsence(row as DbRow));
       },
-      async addAbsence(staffId: string, data: { startsOn: string; endsOn: string; reason?: string }): Promise<StaffAbsence> {
-        const result = await supabase.from('staff_absences').insert({
-          salon_id: salonId, staff_id: staffId,
-          starts_on: data.startsOn, ends_on: data.endsOn, reason: data.reason ?? '',
-        }).select('*').single();
+      async addAbsence(
+        staffId: string,
+        data: { startsOn: string; endsOn: string; reason?: string },
+      ): Promise<StaffAbsence> {
+        const result = await supabase
+          .from('staff_absences')
+          .insert({
+            salon_id: salonId,
+            staff_id: staffId,
+            starts_on: data.startsOn,
+            ends_on: data.endsOn,
+            reason: data.reason ?? '',
+          })
+          .select('*')
+          .single();
         return mapStaffAbsence(unwrap(result) as DbRow);
       },
       async removeAbsence(id: string): Promise<void> {
@@ -798,8 +887,12 @@ export function salonApi(salonId: string) {
         return mapAppointment(unwrap(result) as DbRow);
       },
       async events(id: string): Promise<unknown[]> {
-        const result = await supabase.from('appointment_events').select('*')
-          .eq('salon_id', salonId).eq('appointment_id', id).order('created_at');
+        const result = await supabase
+          .from('appointment_events')
+          .select('*')
+          .eq('salon_id', salonId)
+          .eq('appointment_id', id)
+          .order('created_at');
         return unwrap(result) ?? [];
       },
       async availability(date: string, serviceId?: string): Promise<Availability> {
@@ -899,15 +992,22 @@ export function salonApi(salonId: string) {
         return mapAppointmentBalance(unwrap(result) as DbRow);
       },
       async events(paymentId: string) {
-        const result = await supabase.from('payment_events').select('*')
-          .eq('salon_id', salonId).eq('payment_id', paymentId).order('created_at');
+        const result = await supabase
+          .from('payment_events')
+          .select('*')
+          .eq('salon_id', salonId)
+          .eq('payment_id', paymentId)
+          .order('created_at');
         return (unwrap(result) ?? []) as DbRow[];
       },
     },
     cash: {
       async registers() {
-        const result = await supabase.from('cash_registers').select('*')
-          .eq('salon_id', salonId).order('created_at');
+        const result = await supabase
+          .from('cash_registers')
+          .select('*')
+          .eq('salon_id', salonId)
+          .order('created_at');
         return (unwrap(result) ?? []) as DbRow[];
       },
       async ensureRegister(branchId: string) {
@@ -978,26 +1078,36 @@ export function salonApi(salonId: string) {
     stock: {
       list: listStock,
       async create(data: StockInput) {
-        const result = await supabase.from('stock_items').insert({
-          salon_id: salonId,
-          name: data.name,
-          category: data.category,
-          quantity: data.quantity,
-          min_threshold: data.minThreshold,
-          unit_cost: data.unitCost,
-          supplier: data.supplier ?? '',
-        }).select('*').single();
+        const result = await supabase
+          .from('stock_items')
+          .insert({
+            salon_id: salonId,
+            name: data.name,
+            category: data.category,
+            quantity: data.quantity,
+            min_threshold: data.minThreshold,
+            unit_cost: data.unitCost,
+            supplier: data.supplier ?? '',
+          })
+          .select('*')
+          .single();
         return mapStock(unwrap(result) as DbRow);
       },
       async update(id: string, data: StockInput) {
-        const result = await supabase.from('stock_items').update({
-          name: data.name,
-          category: data.category,
-          quantity: data.quantity,
-          min_threshold: data.minThreshold,
-          unit_cost: data.unitCost,
-          supplier: data.supplier ?? '',
-        }).eq('salon_id', salonId).eq('id', id).select('*').single();
+        const result = await supabase
+          .from('stock_items')
+          .update({
+            name: data.name,
+            category: data.category,
+            quantity: data.quantity,
+            min_threshold: data.minThreshold,
+            unit_cost: data.unitCost,
+            supplier: data.supplier ?? '',
+          })
+          .eq('salon_id', salonId)
+          .eq('id', id)
+          .select('*')
+          .single();
         return mapStock(unwrap(result) as DbRow);
       },
       async remove(id: string) {
@@ -1008,28 +1118,38 @@ export function salonApi(salonId: string) {
     rewards: {
       list: listRewards,
       async create(data: RewardInput) {
-        const result = await supabase.from('rewards').insert({
-          salon_id: salonId,
-          name: data.name,
-          description: data.description ?? '',
-          points_cost: data.pointsCost,
-          category: data.category,
-          discount_percentage: data.discountPercentage ?? null,
-          free_service_name: data.freeServiceName ?? null,
-          is_active: data.isActive ?? true,
-        }).select('*').single();
+        const result = await supabase
+          .from('rewards')
+          .insert({
+            salon_id: salonId,
+            name: data.name,
+            description: data.description ?? '',
+            points_cost: data.pointsCost,
+            category: data.category,
+            discount_percentage: data.discountPercentage ?? null,
+            free_service_name: data.freeServiceName ?? null,
+            is_active: data.isActive ?? true,
+          })
+          .select('*')
+          .single();
         return mapReward(unwrap(result) as DbRow);
       },
       async update(id: string, data: RewardInput) {
-        const result = await supabase.from('rewards').update({
-          name: data.name,
-          description: data.description ?? '',
-          points_cost: data.pointsCost,
-          category: data.category,
-          discount_percentage: data.discountPercentage ?? null,
-          free_service_name: data.freeServiceName ?? null,
-          is_active: data.isActive ?? true,
-        }).eq('salon_id', salonId).eq('id', id).select('*').single();
+        const result = await supabase
+          .from('rewards')
+          .update({
+            name: data.name,
+            description: data.description ?? '',
+            points_cost: data.pointsCost,
+            category: data.category,
+            discount_percentage: data.discountPercentage ?? null,
+            free_service_name: data.freeServiceName ?? null,
+            is_active: data.isActive ?? true,
+          })
+          .eq('salon_id', salonId)
+          .eq('id', id)
+          .select('*')
+          .single();
         return mapReward(unwrap(result) as DbRow);
       },
       async remove(id: string) {
@@ -1039,8 +1159,12 @@ export function salonApi(salonId: string) {
     },
     notifications: {
       async list(limit = 200): Promise<AppointmentNotification[]> {
-        const result = await supabase.from('appointment_notifications').select('*')
-          .eq('salon_id', salonId).order('created_at', { ascending: false }).limit(limit);
+        const result = await supabase
+          .from('appointment_notifications')
+          .select('*')
+          .eq('salon_id', salonId)
+          .order('created_at', { ascending: false })
+          .limit(limit);
         return (unwrap(result) ?? []).map((row) => mapNotification(row as DbRow));
       },
       async retry(id: string): Promise<AppointmentNotification> {
@@ -1060,8 +1184,12 @@ export function salonApi(salonId: string) {
           );
         }
         const payload = (data ?? {}) as {
-          processed?: number; sent?: number; failed?: number; skipped?: number;
-          provider_configured?: boolean; error?: string;
+          processed?: number;
+          sent?: number;
+          failed?: number;
+          skipped?: number;
+          provider_configured?: boolean;
+          error?: string;
         };
         if (payload.error) throw new ApiError(payload.error, 400);
         return {
@@ -1075,7 +1203,11 @@ export function salonApi(salonId: string) {
     },
     loyalty: {
       async program(): Promise<LoyaltySettings> {
-        const result = await supabase.from('loyalty_programs').select('*').eq('salon_id', salonId).maybeSingle();
+        const result = await supabase
+          .from('loyalty_programs')
+          .select('*')
+          .eq('salon_id', salonId)
+          .maybeSingle();
         if (result.error) throwSupabaseError(result.error);
         return mapLoyaltyProgram(salonId, (result.data as DbRow | null) ?? null);
       },
@@ -1087,28 +1219,48 @@ export function salonApi(salonId: string) {
         if (settings.silverThreshold !== undefined) payload.silver_threshold = settings.silverThreshold;
         if (settings.goldThreshold !== undefined) payload.gold_threshold = settings.goldThreshold;
         if (settings.vipThreshold !== undefined) payload.vip_threshold = settings.vipThreshold;
-        const result = await supabase.rpc('set_loyalty_program', { p_salon_id: salonId, p_settings: payload });
+        const result = await supabase.rpc('set_loyalty_program', {
+          p_salon_id: salonId,
+          p_settings: payload,
+        });
         return mapLoyaltyProgram(salonId, unwrap(result) as DbRow);
       },
       async accounts(): Promise<LoyaltyAccount[]> {
-        const result = await supabase.from('loyalty_accounts').select('*')
-          .eq('salon_id', salonId).order('points_balance', { ascending: false });
+        const result = await supabase
+          .from('loyalty_accounts')
+          .select('*')
+          .eq('salon_id', salonId)
+          .order('points_balance', { ascending: false });
         return (unwrap(result) ?? []).map((row) => mapLoyaltyAccount(row as DbRow));
       },
       async ledger(limit = 100): Promise<LoyaltyLedgerEntry[]> {
-        const result = await supabase.from('loyalty_transactions').select('*')
-          .eq('salon_id', salonId).order('created_at', { ascending: false }).limit(limit);
+        const result = await supabase
+          .from('loyalty_transactions')
+          .select('*')
+          .eq('salon_id', salonId)
+          .order('created_at', { ascending: false })
+          .limit(limit);
         return (unwrap(result) ?? []).map((row) => mapLoyaltyLedgerEntry(row as DbRow));
       },
       async redeem(clientId: string, rewardId: string) {
         const result = await supabase.rpc('redeem_loyalty_reward', {
-          p_salon_id: salonId, p_client_id: clientId, p_reward_id: rewardId,
+          p_salon_id: salonId,
+          p_client_id: clientId,
+          p_reward_id: rewardId,
         });
-        return unwrap(result) as { transaction_id: string; points_balance: number; tier: string; reward_name: string };
+        return unwrap(result) as {
+          transaction_id: string;
+          points_balance: number;
+          tier: string;
+          reward_name: string;
+        };
       },
       async adjust(clientId: string, points: number, reason: string) {
         const result = await supabase.rpc('adjust_loyalty_points', {
-          p_salon_id: salonId, p_client_id: clientId, p_points: points, p_reason: reason,
+          p_salon_id: salonId,
+          p_client_id: clientId,
+          p_points: points,
+          p_reason: reason,
         });
         return unwrap(result) as { transaction_id: string; points_balance: number; tier: string };
       },

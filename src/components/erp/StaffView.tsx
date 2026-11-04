@@ -10,7 +10,7 @@ const ROLES: { id: StaffRole; label: string }[] = [
   { id: 'barber', label: 'Barbier' },
   { id: 'colorist', label: 'Coloriste' },
   { id: 'stylist', label: 'Styliste' },
-  { id: 'manager', label: 'Manager' }
+  { id: 'manager', label: 'Manager' },
 ];
 
 const ROLE_LABELS: Record<StaffRole, string> = {
@@ -18,7 +18,7 @@ const ROLE_LABELS: Record<StaffRole, string> = {
   barber: 'Barbier',
   colorist: 'Coloriste',
   stylist: 'Styliste',
-  manager: 'Manager'
+  manager: 'Manager',
 };
 
 type FormState = {
@@ -42,7 +42,7 @@ const emptyForm: FormState = {
   commissionRate: '25',
   isAvailable: true,
   isActive: true,
-  serviceIds: []
+  serviceIds: [],
 };
 
 export const StaffView: React.FC = () => {
@@ -53,10 +53,7 @@ export const StaffView: React.FC = () => {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [scheduleFor, setScheduleFor] = useState<StaffMember | null>(null);
 
-  const rows = useMemo(
-    () => staff.filter((m) => m.salonId === activeSalon.id),
-    [staff, activeSalon.id]
-  );
+  const rows = useMemo(() => staff.filter((m) => m.salonId === activeSalon.id), [staff, activeSalon.id]);
 
   const openCreate = () => {
     setEditing(null);
@@ -75,7 +72,7 @@ export const StaffView: React.FC = () => {
       commissionRate: String(member.commissionRate),
       isAvailable: member.isAvailable,
       isActive: member.isActive ?? true,
-      serviceIds: member.serviceIds ?? []
+      serviceIds: member.serviceIds ?? [],
     });
     setIsFormOpen(true);
   };
@@ -109,7 +106,7 @@ export const StaffView: React.FC = () => {
       isAvailable: form.isAvailable,
       isActive: form.isActive,
       serviceIds: form.serviceIds,
-      branchId: editing?.branchId ?? null
+      branchId: editing?.branchId ?? null,
     };
 
     if (editing) {
@@ -162,31 +159,25 @@ export const StaffView: React.FC = () => {
             </thead>
             <tbody>
               {rows.map((member) => (
-                <tr
-                  key={member.id}
-                  className="border-b border-[#232326] last:border-0 hover:bg-[#18181b]"
-                >
+                <tr key={member.id} className="border-b border-[#232326] last:border-0 hover:bg-[#18181b]">
                   <td className="px-4 py-3">
                     <span className="font-semibold text-[#f7f6f2]">{member.name}</span>
-                    {member.phone && (
-                      <div className="text-[11px] text-[#a9a9a9]">{member.phone}</div>
-                    )}
+                    {member.phone && <div className="text-[11px] text-[#a9a9a9]">{member.phone}</div>}
                   </td>
                   <td className="px-4 py-3 text-[#a9a9a9]">{ROLE_LABELS[member.role]}</td>
                   <td className="px-4 py-3 text-[#a9a9a9] text-xs">
                     {member.specialties.length ? member.specialties.join(', ') : '—'}
                   </td>
-                  <td className="px-4 py-3 text-[#E5C378] font-semibold">
-                    {member.commissionRate} %
-                  </td>
+                  <td className="px-4 py-3 text-[#E5C378] font-semibold">{member.commissionRate} %</td>
                   <td className="px-4 py-3">
                     <span
-                      className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${member.isActive === false
-                        ? 'bg-red-950/80 text-red-400'
-                        : member.isAvailable
-                          ? 'bg-emerald-950/80 text-emerald-400'
-                          : 'bg-stone-800 text-stone-400'
-                        }`}
+                      className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+                        member.isActive === false
+                          ? 'bg-red-950/80 text-red-400'
+                          : member.isAvailable
+                            ? 'bg-emerald-950/80 text-emerald-400'
+                            : 'bg-stone-800 text-stone-400'
+                      }`}
                     >
                       {member.isActive === false
                         ? 'Inactif'
@@ -221,9 +212,7 @@ export const StaffView: React.FC = () => {
         )}
       </div>
 
-      {scheduleFor && (
-        <StaffSchedulePanel member={scheduleFor} onClose={() => setScheduleFor(null)} />
-      )}
+      {scheduleFor && <StaffSchedulePanel member={scheduleFor} onClose={() => setScheduleFor(null)} />}
 
       {isFormOpen && (
         <FormModal
@@ -312,7 +301,7 @@ export const StaffView: React.FC = () => {
                           ...form,
                           serviceIds: e.target.checked
                             ? [...form.serviceIds, s.id]
-                            : form.serviceIds.filter((id) => id !== s.id)
+                            : form.serviceIds.filter((id) => id !== s.id),
                         })
                       }
                     />

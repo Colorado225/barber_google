@@ -42,14 +42,14 @@ colonnes dénormalisées), RLS par `private.has_salon_permission`.
 
 ## RPC (migrations `20261104140000` + durcissement `20261104140100`)
 
-| RPC | Rôle | Accès |
-| --- | --- | --- |
-| `get_marketplace_customizer_config` | Lecture éditeur (crée le défaut : 4 prestations populaires, équipe active) | `salon.read` |
-| `save_marketplace_customizer_draft` | Validation stricte + normalisation, puis persistance du brouillon | `salon.update` |
-| `publish_marketplace_customizer` | Critères de publication existants (≥ 1 prestation active, adresse, téléphone, couverture) puis `published_config = draft`, `salons.is_published = true`, synchro `featured_service_ids` | `salon.update` |
-| `unpublish_marketplace_customizer` | `is_published = false` des deux côtés (config conservée) | `salon.update` |
-| `revert_marketplace_customizer_draft` | Brouillon ← dernière version publiée (ou défaut) | `salon.update` |
-| `marketplace_salon_detail` (étendue) | Fiche publique : config publiée uniquement, personnel filtré par la sélection publiée (liste vide = aucun membre), champs privés jamais exposés | anon |
+| RPC                                   | Rôle                                                                                                                                                                                    | Accès          |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| `get_marketplace_customizer_config`   | Lecture éditeur (crée le défaut : 4 prestations populaires, équipe active)                                                                                                              | `salon.read`   |
+| `save_marketplace_customizer_draft`   | Validation stricte + normalisation, puis persistance du brouillon                                                                                                                       | `salon.update` |
+| `publish_marketplace_customizer`      | Critères de publication existants (≥ 1 prestation active, adresse, téléphone, couverture) puis `published_config = draft`, `salons.is_published = true`, synchro `featured_service_ids` | `salon.update` |
+| `unpublish_marketplace_customizer`    | `is_published = false` des deux côtés (config conservée)                                                                                                                                | `salon.update` |
+| `revert_marketplace_customizer_draft` | Brouillon ← dernière version publiée (ou défaut)                                                                                                                                        | `salon.update` |
+| `marketplace_salon_detail` (étendue)  | Fiche publique : config publiée uniquement, personnel filtré par la sélection publiée (liste vide = aucun membre), champs privés jamais exposés                                         | anon           |
 
 Validation serveur à l'enregistrement : modèle et style en liste
 blanche, couleur hexadécimale stricte (aucune injection CSS), sections

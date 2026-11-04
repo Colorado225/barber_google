@@ -23,9 +23,10 @@ export const FeaturedServicesCard: React.FC<FeaturedServicesCardProps> = ({
 }) => {
   // Prestations mises en avant réelles (issues du catalogue ERP)
   const availableServices = services.filter((s) => s.isActive !== false);
-  const featured = featuredIds.length > 0
-    ? availableServices.filter((s) => featuredIds.includes(s.id))
-    : availableServices.slice(0, 4);
+  const featured =
+    featuredIds.length > 0
+      ? availableServices.filter((s) => featuredIds.includes(s.id))
+      : availableServices.slice(0, 4);
 
   const displayList = featured.length > 0 ? featured : availableServices.slice(0, 4);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -38,7 +39,7 @@ export const FeaturedServicesCard: React.FC<FeaturedServicesCardProps> = ({
       <Card
         className={cn(
           'p-5 border border-stone-800 bg-[#161619] flex items-center justify-center text-center text-stone-400 text-xs min-h-[180px]',
-          cardStyle
+          cardStyle,
         )}
       >
         <p>Aucune prestation disponible dans le catalogue.</p>
@@ -50,14 +51,14 @@ export const FeaturedServicesCard: React.FC<FeaturedServicesCardProps> = ({
     <Card
       className={cn(
         'relative bg-[#161619] border border-stone-800 p-0 overflow-hidden shadow-lg flex flex-col justify-between transition-all duration-300 group',
-        cardStyle
+        cardStyle,
       )}
     >
       {/* Visual Header (inspired by music player card curve) */}
       <div
         className={cn(
           'relative overflow-hidden bg-gradient-to-br from-[#201d18] via-[#17171a] to-[#121214] p-4 transition-all duration-500 border-b border-stone-800/80',
-          isExpanded ? 'h-28 rounded-b-2xl' : 'h-20'
+          isExpanded ? 'h-28 rounded-b-2xl' : 'h-20',
         )}
       >
         <div className="flex items-center justify-between">
@@ -72,9 +73,7 @@ export const FeaturedServicesCard: React.FC<FeaturedServicesCardProps> = ({
               <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400">
                 Prestations en vedette
               </span>
-              <p className="text-sm font-bold text-white line-clamp-1">
-                {activeService.name}
-              </p>
+              <p className="text-sm font-bold text-white line-clamp-1">{activeService.name}</p>
             </div>
           </div>
 
@@ -88,10 +87,7 @@ export const FeaturedServicesCard: React.FC<FeaturedServicesCardProps> = ({
 
         {/* Pricing badge */}
         <div className="mt-3 flex items-baseline gap-2">
-          <span
-            className="text-2xl font-black tracking-tight"
-            style={{ color: accentColor }}
-          >
+          <span className="text-2xl font-black tracking-tight" style={{ color: accentColor }}>
             {formatPrice(activeService.price)}
           </span>
           <span className="text-xs text-stone-400 flex items-center gap-1 font-medium">
@@ -119,7 +115,7 @@ export const FeaturedServicesCard: React.FC<FeaturedServicesCardProps> = ({
                   'px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all shrink-0 cursor-pointer',
                   idx === selectedIndex
                     ? 'bg-white/10 text-white border border-white/20'
-                    : 'bg-[#1b1b1f] text-stone-400 hover:text-white border border-stone-800'
+                    : 'bg-[#1b1b1f] text-stone-400 hover:text-white border border-stone-800',
                 )}
               >
                 {service.name}

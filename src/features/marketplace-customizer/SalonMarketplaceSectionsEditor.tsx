@@ -1,68 +1,53 @@
 import React from 'react';
-import {
-  SalonMarketplaceSection,
-  SalonMarketplaceSectionId,
-  SalonMarketplaceViewConfig
-} from '../../types';
+import { SalonMarketplaceSection, SalonMarketplaceSectionId, SalonMarketplaceViewConfig } from '../../types';
 import { Switch } from '../../components/ui/switch';
 import { cn } from '../../lib/utils';
-import {
-  SlidersHorizontal,
-  ChevronUp,
-  ChevronDown,
-  Eye,
-  EyeOff,
-  GripVertical
-} from 'lucide-react';
+import { SlidersHorizontal, ChevronUp, ChevronDown, Eye, EyeOff, GripVertical } from 'lucide-react';
 
 interface SalonMarketplaceSectionsEditorProps {
   config: SalonMarketplaceViewConfig;
   onChange: (updated: Partial<SalonMarketplaceViewConfig>) => void;
 }
 
-const SECTION_METADATA: Record<
-  SalonMarketplaceSectionId,
-  { label: string; desc: string }
-> = {
+const SECTION_METADATA: Record<SalonMarketplaceSectionId, { label: string; desc: string }> = {
   hero: {
     label: 'En-tête & Présentation',
-    desc: 'Logo, nom du salon, badges de certification et boutons d’appel à l’action.'
+    desc: 'Logo, nom du salon, badges de certification et boutons d’appel à l’action.',
   },
   gallery: {
     label: 'Carrousel & Galerie Photos',
-    desc: 'Grand carrousel interactif des réalisations et ambiance du salon.'
+    desc: 'Grand carrousel interactif des réalisations et ambiance du salon.',
   },
   featured_services: {
     label: 'Prestations en Vedette',
-    desc: 'Carte interactive mettant en valeur les prestations phares du catalogue.'
+    desc: 'Carte interactive mettant en valeur les prestations phares du catalogue.',
   },
   team: {
     label: 'Équipe d’Artisans',
-    desc: 'Présentation des barbiers et coiffeurs avec leurs spécialités.'
+    desc: 'Présentation des barbiers et coiffeurs avec leurs spécialités.',
   },
   trust: {
     label: 'Gage de Confiance',
-    desc: 'Note moyenne certifiée, engagements hygiène et garanties sans attente.'
+    desc: 'Note moyenne certifiée, engagements hygiène et garanties sans attente.',
   },
   location_hours: {
     label: 'Horaires & Localisation',
-    desc: 'Horaires de la semaine, adresse, itinéraire et contact WhatsApp direct.'
+    desc: 'Horaires de la semaine, adresse, itinéraire et contact WhatsApp direct.',
   },
   reviews: {
     label: 'Avis Clients Vérifiés',
-    desc: 'Témoignages authentiques et répartition des étoiles par prestation.'
-  }
+    desc: 'Témoignages authentiques et répartition des étoiles par prestation.',
+  },
 };
 
-export const SalonMarketplaceSectionsEditor: React.FC<
-  SalonMarketplaceSectionsEditorProps
-> = ({ config, onChange }) => {
+export const SalonMarketplaceSectionsEditor: React.FC<SalonMarketplaceSectionsEditorProps> = ({
+  config,
+  onChange,
+}) => {
   const sections = [...config.sections].sort((a, b) => a.position - b.position);
 
   const toggleSection = (id: SalonMarketplaceSectionId) => {
-    const updated = sections.map((s) =>
-      s.id === id ? { ...s, enabled: !s.enabled } : s
-    );
+    const updated = sections.map((s) => (s.id === id ? { ...s, enabled: !s.enabled } : s));
     onChange({ sections: updated });
   };
 
@@ -99,7 +84,7 @@ export const SalonMarketplaceSectionsEditor: React.FC<
         {sections.map((section, idx) => {
           const meta = SECTION_METADATA[section.id] || {
             label: section.id,
-            desc: ''
+            desc: '',
           };
 
           return (
@@ -109,7 +94,7 @@ export const SalonMarketplaceSectionsEditor: React.FC<
                 'p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-3',
                 section.enabled
                   ? 'bg-[#18181c] border-stone-800'
-                  : 'bg-[#141416] border-stone-900 opacity-60'
+                  : 'bg-[#141416] border-stone-900 opacity-60',
               )}
             >
               <div className="flex items-start gap-2.5 min-w-0">
@@ -136,18 +121,14 @@ export const SalonMarketplaceSectionsEditor: React.FC<
 
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-white truncate">
-                      {meta.label}
-                    </span>
+                    <span className="text-xs font-bold text-white truncate">{meta.label}</span>
                     {!section.enabled && (
                       <span className="text-[10px] px-1.5 py-0.2 rounded font-medium bg-stone-800 text-stone-400">
                         Masquée
                       </span>
                     )}
                   </div>
-                  <p className="text-[11px] text-stone-400 mt-0.5 line-clamp-1">
-                    {meta.desc}
-                  </p>
+                  <p className="text-[11px] text-stone-400 mt-0.5 line-clamp-1">{meta.desc}</p>
                 </div>
               </div>
 

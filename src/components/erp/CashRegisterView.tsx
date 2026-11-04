@@ -4,24 +4,49 @@ import { useOptionalAuth } from '../../context/AuthContext';
 import { CashSession, PaymentTransaction } from '../../types';
 import { paymentSignedAmount } from '../../lib/analytics';
 import {
-  Receipt, Plus, Lock, Unlock, CheckCircle2, XCircle, RotateCcw,
-  AlertTriangle, Wallet, Smartphone, Scale,
+  Receipt,
+  Plus,
+  Lock,
+  Unlock,
+  CheckCircle2,
+  XCircle,
+  RotateCcw,
+  AlertTriangle,
+  Wallet,
+  Smartphone,
+  Scale,
 } from 'lucide-react';
 
 const METHOD_LABELS: Record<string, string> = {
-  wave: 'Wave', orange_money: 'Orange Money', mtn_momo: 'MTN MoMo',
-  moov_money: 'Moov Money', cash: 'Espèces', card: 'Carte',
+  wave: 'Wave',
+  orange_money: 'Orange Money',
+  mtn_momo: 'MTN MoMo',
+  moov_money: 'Moov Money',
+  cash: 'Espèces',
+  card: 'Carte',
 };
 const KIND_LABELS: Record<string, string> = {
-  payment: 'Encaissement', refund: 'Remboursement',
-  payment_reversal: 'Annulation paiement', refund_reversal: 'Annulation remboursement',
+  payment: 'Encaissement',
+  refund: 'Remboursement',
+  payment_reversal: 'Annulation paiement',
+  refund_reversal: 'Annulation remboursement',
 };
 
 export const CashRegisterView: React.FC = () => {
   const {
-    activeSalon, cashSession, cashSessions, transactions, branches, formatPrice,
-    openNewCashSession, closeCurrentCashSession, reconcileCashSession,
-    confirmPendingPayment, rejectPendingPayment, recordPaymentCorrection, refreshFinance,
+    activeSalon,
+    cashSession,
+    cashSessions,
+    transactions,
+    branches,
+    formatPrice,
+    openNewCashSession,
+    closeCurrentCashSession,
+    reconcileCashSession,
+    confirmPendingPayment,
+    rejectPendingPayment,
+    recordPaymentCorrection,
+    refreshFinance,
   } = useApp();
   const { hasPermission } = useOptionalAuth();
   const canOpen = hasPermission('cash.open', activeSalon.id);
@@ -46,7 +71,9 @@ export const CashRegisterView: React.FC = () => {
   const [rejectForm, setRejectForm] = useState<PaymentTransaction | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [correctionForm, setCorrectionForm] = useState<PaymentTransaction | null>(null);
-  const [correctionKind, setCorrectionKind] = useState<'refund' | 'payment_reversal' | 'refund_reversal'>('refund');
+  const [correctionKind, setCorrectionKind] = useState<'refund' | 'payment_reversal' | 'refund_reversal'>(
+    'refund',
+  );
   const [correctionAmount, setCorrectionAmount] = useState('');
   const [correctionReason, setCorrectionReason] = useState('');
   const [correctionRef, setCorrectionRef] = useState('');
@@ -54,7 +81,7 @@ export const CashRegisterView: React.FC = () => {
 
   const salonTransactions = useMemo(
     () => transactions.filter((t) => t.salonId === activeSalon.id),
-    [transactions, activeSalon.id]
+    [transactions, activeSalon.id],
   );
   const pending = salonTransactions.filter((t) => t.status === 'pending');
   const journal = salonTransactions.slice(0, 30);
@@ -168,39 +195,75 @@ export const CashRegisterView: React.FC = () => {
         </div>
         <div className="flex gap-2">
           {canOpen && !cashSession && (
-            <button onClick={() => setOpenForm(true)} className="flex items-center gap-2 px-4 py-2 bg-[#C9A45C] text-[#101010] rounded-lg font-semibold hover:bg-[#d4b26a]">
+            <button
+              onClick={() => setOpenForm(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-[#C9A45C] text-[#101010] rounded-lg font-semibold hover:bg-[#d4b26a]"
+            >
               <Plus className="w-4 h-4" /> Ouvrir une session
             </button>
           )}
           {canClose && cashSession && (
-            <button onClick={() => { setCloseForm(cashSession); setCounted(String(cashSession.theoreticalBalance)); }} className="flex items-center gap-2 px-4 py-2 bg-[#222226] text-stone-200 rounded-lg font-semibold hover:bg-[#2b2b30]">
+            <button
+              onClick={() => {
+                setCloseForm(cashSession);
+                setCounted(String(cashSession.theoreticalBalance));
+              }}
+              className="flex items-center gap-2 px-4 py-2 bg-[#222226] text-stone-200 rounded-lg font-semibold hover:bg-[#2b2b30]"
+            >
               <Lock className="w-4 h-4" /> Clôturer
             </button>
           )}
         </div>
       </div>
 
-      {error && <p role="alert" className="text-sm text-red-300 bg-red-950/30 border border-red-500/30 rounded-lg p-3">{error}</p>}
+      {error && (
+        <p
+          role="alert"
+          className="text-sm text-red-300 bg-red-950/30 border border-red-500/30 rounded-lg p-3"
+        >
+          {error}
+        </p>
+      )}
 
       {cashSession ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-[#151516] p-5 rounded-xl border border-[#2a2a2b]">
-            <div className="flex items-center justify-between text-sm text-[#a9a9a9]"><span>Solde théorique</span><Wallet className="w-5 h-5 text-[#C9A45C]" /></div>
-            <p className="text-xl font-bold text-[#E5C378] mt-2">{formatPrice(cashSession.theoreticalBalance)}</p>
-            <p className="text-[11px] text-stone-500 mt-1">Fond {formatPrice(cashSession.openingBalance)} · {cashSession.registerName}</p>
+            <div className="flex items-center justify-between text-sm text-[#a9a9a9]">
+              <span>Solde théorique</span>
+              <Wallet className="w-5 h-5 text-[#C9A45C]" />
+            </div>
+            <p className="text-xl font-bold text-[#E5C378] mt-2">
+              {formatPrice(cashSession.theoreticalBalance)}
+            </p>
+            <p className="text-[11px] text-stone-500 mt-1">
+              Fond {formatPrice(cashSession.openingBalance)} · {cashSession.registerName}
+            </p>
           </div>
           <div className="bg-[#151516] p-5 rounded-xl border border-[#2a2a2b]">
-            <div className="flex items-center justify-between text-sm text-[#a9a9a9]"><span>Espèces entrées</span><Unlock className="w-5 h-5 text-emerald-400" /></div>
+            <div className="flex items-center justify-between text-sm text-[#a9a9a9]">
+              <span>Espèces entrées</span>
+              <Unlock className="w-5 h-5 text-emerald-400" />
+            </div>
             <p className="text-xl font-bold text-emerald-400 mt-2">+{formatPrice(cashSession.totalCashIn)}</p>
             <p className="text-[11px] text-stone-500 mt-1">Sorties {formatPrice(cashSession.totalCashOut)}</p>
           </div>
           <div className="bg-[#151516] p-5 rounded-xl border border-[#2a2a2b]">
-            <div className="flex items-center justify-between text-sm text-[#a9a9a9]"><span>Mobile / carte</span><Smartphone className="w-5 h-5 text-sky-400" /></div>
-            <p className="text-xl font-bold text-sky-400 mt-2">+{formatPrice(cashSession.totalMobileMoneyIn)}</p>
-            <p className="text-[11px] text-stone-500 mt-1">Sorties {formatPrice(cashSession.totalMobileMoneyOut)}</p>
+            <div className="flex items-center justify-between text-sm text-[#a9a9a9]">
+              <span>Mobile / carte</span>
+              <Smartphone className="w-5 h-5 text-sky-400" />
+            </div>
+            <p className="text-xl font-bold text-sky-400 mt-2">
+              +{formatPrice(cashSession.totalMobileMoneyIn)}
+            </p>
+            <p className="text-[11px] text-stone-500 mt-1">
+              Sorties {formatPrice(cashSession.totalMobileMoneyOut)}
+            </p>
           </div>
           <div className="bg-[#151516] p-5 rounded-xl border border-[#2a2a2b]">
-            <div className="flex items-center justify-between text-sm text-[#a9a9a9]"><span>En attente</span><AlertTriangle className="w-5 h-5 text-amber-400" /></div>
+            <div className="flex items-center justify-between text-sm text-[#a9a9a9]">
+              <span>En attente</span>
+              <AlertTriangle className="w-5 h-5 text-amber-400" />
+            </div>
             <p className="text-xl font-bold text-amber-400 mt-2">{pending.length}</p>
             <p className="text-[11px] text-stone-500 mt-1">Paiements à vérifier</p>
           </div>
@@ -215,17 +278,39 @@ export const CashRegisterView: React.FC = () => {
 
       {pending.length > 0 && (
         <div className="bg-[#151516] rounded-xl border border-amber-500/30 p-5 space-y-3">
-          <h2 className="text-lg font-semibold text-amber-300 flex items-center gap-2"><AlertTriangle className="w-5 h-5" /> Paiements en attente de vérification</h2>
+          <h2 className="text-lg font-semibold text-amber-300 flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5" /> Paiements en attente de vérification
+          </h2>
           {pending.map((t) => (
-            <div key={t.id} className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-lg bg-[#18181b] border border-[#2a2a2b]">
+            <div
+              key={t.id}
+              className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-lg bg-[#18181b] border border-[#2a2a2b]"
+            >
               <div className="min-w-0">
-                <p className="text-sm text-white font-semibold">{t.clientName} · {formatPrice(t.amount)}</p>
-                <p className="text-[11px] text-stone-400">{METHOD_LABELS[t.method]} · Réf {t.providerReference} · {t.date} {t.time}</p>
+                <p className="text-sm text-white font-semibold">
+                  {t.clientName} · {formatPrice(t.amount)}
+                </p>
+                <p className="text-[11px] text-stone-400">
+                  {METHOD_LABELS[t.method]} · Réf {t.providerReference} · {t.date} {t.time}
+                </p>
               </div>
               {canCorrect && (
                 <div className="flex gap-2">
-                  <button onClick={() => { setConfirmForm(t); setConfirmRef(t.providerReference ?? ''); }} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-900/40 text-emerald-300 text-xs font-semibold hover:bg-emerald-900/60"><CheckCircle2 className="w-3.5 h-3.5" /> Confirmer</button>
-                  <button onClick={() => setRejectForm(t)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-900/30 text-red-300 text-xs font-semibold hover:bg-red-900/50"><XCircle className="w-3.5 h-3.5" /> Rejeter</button>
+                  <button
+                    onClick={() => {
+                      setConfirmForm(t);
+                      setConfirmRef(t.providerReference ?? '');
+                    }}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-900/40 text-emerald-300 text-xs font-semibold hover:bg-emerald-900/60"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Confirmer
+                  </button>
+                  <button
+                    onClick={() => setRejectForm(t)}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-900/30 text-red-300 text-xs font-semibold hover:bg-red-900/50"
+                  >
+                    <XCircle className="w-3.5 h-3.5" /> Rejeter
+                  </button>
                 </div>
               )}
             </div>
@@ -241,21 +326,44 @@ export const CashRegisterView: React.FC = () => {
           <div className="space-y-2">
             {journal.map((t) => {
               const signed = paymentSignedAmount(t);
-              const canReverse = canCorrect && t.status === 'completed' && (t.kind === 'payment' || t.kind === 'refund');
+              const canReverse =
+                canCorrect && t.status === 'completed' && (t.kind === 'payment' || t.kind === 'refund');
               return (
-                <div key={t.id} className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-lg bg-[#18181b] border border-[#2a2a2b] text-sm">
+                <div
+                  key={t.id}
+                  className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-lg bg-[#18181b] border border-[#2a2a2b] text-sm"
+                >
                   <div className="min-w-0">
-                    <p className="text-white font-medium">{t.clientName} <span className="text-[11px] text-stone-500">· {KIND_LABELS[t.kind]}</span></p>
-                    <p className="text-[11px] text-stone-400">{METHOD_LABELS[t.method]} · {t.date} {t.time} {t.reason ? `· ${t.reason}` : ''}</p>
+                    <p className="text-white font-medium">
+                      {t.clientName}{' '}
+                      <span className="text-[11px] text-stone-500">· {KIND_LABELS[t.kind]}</span>
+                    </p>
+                    <p className="text-[11px] text-stone-400">
+                      {METHOD_LABELS[t.method]} · {t.date} {t.time} {t.reason ? `· ${t.reason}` : ''}
+                    </p>
                     <p className="text-[10px] text-stone-500">
-                      {t.status === 'pending' ? 'En attente' : t.status === 'cancelled' ? 'Rejeté' : t.settlementMode === 'manual_confirmed' ? 'Vérifié manuellement' : 'Tiroir caisse'}
+                      {t.status === 'pending'
+                        ? 'En attente'
+                        : t.status === 'cancelled'
+                          ? 'Rejeté'
+                          : t.settlementMode === 'manual_confirmed'
+                            ? 'Vérifié manuellement'
+                            : 'Tiroir caisse'}
                       {t.providerReference ? ` · ${t.providerReference}` : ''}
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className={`font-bold ${signed < 0 ? 'text-red-400' : 'text-emerald-400'}`}>{signed < 0 ? '' : '+'}{formatPrice(signed)}</span>
+                    <span className={`font-bold ${signed < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                      {signed < 0 ? '' : '+'}
+                      {formatPrice(signed)}
+                    </span>
                     {canReverse && (
-                      <button onClick={() => openCorrection(t)} className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#222226] text-stone-300 text-[11px] hover:bg-[#2b2b30]"><RotateCcw className="w-3 h-3" /> Corriger</button>
+                      <button
+                        onClick={() => openCorrection(t)}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#222226] text-stone-300 text-[11px] hover:bg-[#2b2b30]"
+                      >
+                        <RotateCcw className="w-3 h-3" /> Corriger
+                      </button>
                     )}
                   </div>
                 </div>
@@ -272,16 +380,35 @@ export const CashRegisterView: React.FC = () => {
         ) : (
           <div className="space-y-2">
             {cashSessions.map((s) => (
-              <div key={s.id} className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-lg bg-[#18181b] border border-[#2a2a2b] text-sm">
+              <div
+                key={s.id}
+                className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-lg bg-[#18181b] border border-[#2a2a2b] text-sm"
+              >
                 <div>
-                  <div className="flex items-center gap-2 text-white">{statusBadge(s.status)} <span className="text-[11px] text-stone-400">{s.openedAt.slice(0, 16).replace('T', ' ')}</span></div>
+                  <div className="flex items-center gap-2 text-white">
+                    {statusBadge(s.status)}{' '}
+                    <span className="text-[11px] text-stone-400">
+                      {s.openedAt.slice(0, 16).replace('T', ' ')}
+                    </span>
+                  </div>
                   <p className="text-[11px] text-stone-400 mt-1">
                     Fond {formatPrice(s.openingBalance)}
-                    {s.expectedBalance !== undefined && <> · Attendu {formatPrice(s.expectedBalance)} · Compté {formatPrice(s.countedBalance ?? 0)} · Écart {formatPrice(s.difference ?? 0)}</>}
+                    {s.expectedBalance !== undefined && (
+                      <>
+                        {' '}
+                        · Attendu {formatPrice(s.expectedBalance)} · Compté{' '}
+                        {formatPrice(s.countedBalance ?? 0)} · Écart {formatPrice(s.difference ?? 0)}
+                      </>
+                    )}
                   </p>
                 </div>
                 {canReconcile && s.status === 'closed' && (
-                  <button onClick={() => setReconcileForm(s)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-sky-900/30 text-sky-300 text-xs font-semibold hover:bg-sky-900/50"><Scale className="w-3.5 h-3.5" /> Rapprocher</button>
+                  <button
+                    onClick={() => setReconcileForm(s)}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-sky-900/30 text-sky-300 text-xs font-semibold hover:bg-sky-900/50"
+                  >
+                    <Scale className="w-3.5 h-3.5" /> Rapprocher
+                  </button>
                 )}
               </div>
             ))}
@@ -294,17 +421,41 @@ export const CashRegisterView: React.FC = () => {
         <Modal title="Ouvrir une session" onClose={() => setOpenForm(false)}>
           <form onSubmit={submitOpen} className="space-y-3">
             <Field label="Succursale">
-              <select value={branchId} onChange={(e) => setBranchId(e.target.value)} required className="input">
-                {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              <select
+                value={branchId}
+                onChange={(e) => setBranchId(e.target.value)}
+                required
+                className="input"
+              >
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
               </select>
             </Field>
             <Field label="Fond de caisse (FCFA)">
-              <input type="number" min="0" step="1" value={openingBalance} onChange={(e) => setOpeningBalance(e.target.value)} required className="input" />
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={openingBalance}
+                onChange={(e) => setOpeningBalance(e.target.value)}
+                required
+                className="input"
+              />
             </Field>
             <Field label="Note">
-              <input type="text" value={openingNote} onChange={(e) => setOpeningNote(e.target.value)} className="input" />
+              <input
+                type="text"
+                value={openingNote}
+                onChange={(e) => setOpeningNote(e.target.value)}
+                className="input"
+              />
             </Field>
-            <button disabled={busy} className="btn-gold w-full">Ouvrir</button>
+            <button disabled={busy} className="btn-gold w-full">
+              Ouvrir
+            </button>
           </form>
         </Modal>
       )}
@@ -312,19 +463,39 @@ export const CashRegisterView: React.FC = () => {
       {closeForm && (
         <Modal title="Clôturer la session" onClose={() => setCloseForm(null)}>
           <form onSubmit={submitClose} className="space-y-3">
-            <p className="text-xs text-stone-400">Solde théorique : <span className="text-[#E5C378] font-bold">{formatPrice(closeForm.theoreticalBalance)}</span></p>
+            <p className="text-xs text-stone-400">
+              Solde théorique :{' '}
+              <span className="text-[#E5C378] font-bold">{formatPrice(closeForm.theoreticalBalance)}</span>
+            </p>
             <Field label="Montant compté (FCFA)">
-              <input type="number" min="0" step="1" value={counted} onChange={(e) => setCounted(e.target.value)} required className="input" />
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={counted}
+                onChange={(e) => setCounted(e.target.value)}
+                required
+                className="input"
+              />
             </Field>
             {counted !== '' && (
-              <p className={`text-xs ${Number(counted) - closeForm.theoreticalBalance === 0 ? 'text-emerald-400' : 'text-amber-300'}`}>
+              <p
+                className={`text-xs ${Number(counted) - closeForm.theoreticalBalance === 0 ? 'text-emerald-400' : 'text-amber-300'}`}
+              >
                 Écart : {formatPrice(Number(counted) - closeForm.theoreticalBalance)}
               </p>
             )}
             <Field label="Note de clôture">
-              <input type="text" value={closeNote} onChange={(e) => setCloseNote(e.target.value)} className="input" />
+              <input
+                type="text"
+                value={closeNote}
+                onChange={(e) => setCloseNote(e.target.value)}
+                className="input"
+              />
             </Field>
-            <button disabled={busy} className="btn-gold w-full">Clôturer</button>
+            <button disabled={busy} className="btn-gold w-full">
+              Clôturer
+            </button>
           </form>
         </Modal>
       )}
@@ -332,11 +503,22 @@ export const CashRegisterView: React.FC = () => {
       {reconcileForm && (
         <Modal title="Rapprocher la session" onClose={() => setReconcileForm(null)}>
           <form onSubmit={submitReconcile} className="space-y-3">
-            <p className="text-xs text-stone-400">Écart constaté : <span className="text-amber-300 font-bold">{formatPrice(reconcileForm.difference ?? 0)}</span></p>
+            <p className="text-xs text-stone-400">
+              Écart constaté :{' '}
+              <span className="text-amber-300 font-bold">{formatPrice(reconcileForm.difference ?? 0)}</span>
+            </p>
             <Field label="Justification (obligatoire)">
-              <textarea value={reconcileNote} onChange={(e) => setReconcileNote(e.target.value)} required minLength={3} className="input min-h-20" />
+              <textarea
+                value={reconcileNote}
+                onChange={(e) => setReconcileNote(e.target.value)}
+                required
+                minLength={3}
+                className="input min-h-20"
+              />
             </Field>
-            <button disabled={busy} className="btn-gold w-full">Rapprocher</button>
+            <button disabled={busy} className="btn-gold w-full">
+              Rapprocher
+            </button>
           </form>
         </Modal>
       )}
@@ -344,14 +526,32 @@ export const CashRegisterView: React.FC = () => {
       {confirmForm && (
         <Modal title="Vérification manuelle" onClose={() => setConfirmForm(null)}>
           <form onSubmit={submitConfirm} className="space-y-3">
-            <p className="text-xs text-stone-400">Confirmez uniquement après avoir vérifié la référence dans le relevé marchand. Cette action n’interroge pas l’opérateur.</p>
+            <p className="text-xs text-stone-400">
+              Confirmez uniquement après avoir vérifié la référence dans le relevé marchand. Cette action
+              n’interroge pas l’opérateur.
+            </p>
             <Field label="Référence opérateur">
-              <input type="text" value={confirmRef} onChange={(e) => setConfirmRef(e.target.value)} required className="input" />
+              <input
+                type="text"
+                value={confirmRef}
+                onChange={(e) => setConfirmRef(e.target.value)}
+                required
+                className="input"
+              />
             </Field>
             <Field label="Note de vérification (min. 10 caractères)">
-              <textarea value={confirmNote} onChange={(e) => setConfirmNote(e.target.value)} required minLength={10} className="input min-h-20" placeholder="Ex: reçu vérifié dans le relevé Wave du 04/11" />
+              <textarea
+                value={confirmNote}
+                onChange={(e) => setConfirmNote(e.target.value)}
+                required
+                minLength={10}
+                className="input min-h-20"
+                placeholder="Ex: reçu vérifié dans le relevé Wave du 04/11"
+              />
             </Field>
-            <button disabled={busy} className="btn-gold w-full">Confirmer le paiement</button>
+            <button disabled={busy} className="btn-gold w-full">
+              Confirmer le paiement
+            </button>
           </form>
         </Modal>
       )}
@@ -360,9 +560,21 @@ export const CashRegisterView: React.FC = () => {
         <Modal title="Rejeter le paiement" onClose={() => setRejectForm(null)}>
           <form onSubmit={submitReject} className="space-y-3">
             <Field label="Motif du rejet">
-              <input type="text" value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} required minLength={3} className="input" />
+              <input
+                type="text"
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                required
+                minLength={3}
+                className="input"
+              />
             </Field>
-            <button disabled={busy} className="w-full py-2.5 rounded-xl bg-red-900/40 text-red-300 font-bold text-xs">Rejeter</button>
+            <button
+              disabled={busy}
+              className="w-full py-2.5 rounded-xl bg-red-900/40 text-red-300 font-bold text-xs"
+            >
+              Rejeter
+            </button>
           </form>
         </Modal>
       )}
@@ -370,34 +582,73 @@ export const CashRegisterView: React.FC = () => {
       {correctionForm && (
         <Modal title="Correction / remboursement" onClose={() => setCorrectionForm(null)}>
           <form onSubmit={submitCorrection} className="space-y-3">
-            <p className="text-xs text-stone-400">Écriture d’origine : {KIND_LABELS[correctionForm.kind]} {formatPrice(correctionForm.amount)} · {METHOD_LABELS[correctionForm.method]}</p>
+            <p className="text-xs text-stone-400">
+              Écriture d’origine : {KIND_LABELS[correctionForm.kind]} {formatPrice(correctionForm.amount)} ·{' '}
+              {METHOD_LABELS[correctionForm.method]}
+            </p>
             <Field label="Type de correction">
-              <select value={correctionKind} onChange={(e) => setCorrectionKind(e.target.value as typeof correctionKind)} className="input">
-                {correctionForm.kind === 'refund'
-                  ? <option value="refund_reversal">Annuler le remboursement</option>
-                  : <>
-                      <option value="refund">Remboursement</option>
-                      <option value="payment_reversal">Annulation du paiement</option>
-                    </>}
+              <select
+                value={correctionKind}
+                onChange={(e) => setCorrectionKind(e.target.value as typeof correctionKind)}
+                className="input"
+              >
+                {correctionForm.kind === 'refund' ? (
+                  <option value="refund_reversal">Annuler le remboursement</option>
+                ) : (
+                  <>
+                    <option value="refund">Remboursement</option>
+                    <option value="payment_reversal">Annulation du paiement</option>
+                  </>
+                )}
               </select>
             </Field>
             <Field label="Montant (FCFA)">
-              <input type="number" min="1" step="1" max={correctionForm.amount} value={correctionAmount} onChange={(e) => setCorrectionAmount(e.target.value)} required className="input" />
+              <input
+                type="number"
+                min="1"
+                step="1"
+                max={correctionForm.amount}
+                value={correctionAmount}
+                onChange={(e) => setCorrectionAmount(e.target.value)}
+                required
+                className="input"
+              />
             </Field>
             <Field label="Motif (obligatoire)">
-              <input type="text" value={correctionReason} onChange={(e) => setCorrectionReason(e.target.value)} required minLength={3} className="input" />
+              <input
+                type="text"
+                value={correctionReason}
+                onChange={(e) => setCorrectionReason(e.target.value)}
+                required
+                minLength={3}
+                className="input"
+              />
             </Field>
             {correctionForm.method !== 'cash' && (
               <>
                 <Field label="Référence opérateur">
-                  <input type="text" value={correctionRef} onChange={(e) => setCorrectionRef(e.target.value)} required className="input" />
+                  <input
+                    type="text"
+                    value={correctionRef}
+                    onChange={(e) => setCorrectionRef(e.target.value)}
+                    required
+                    className="input"
+                  />
                 </Field>
                 <Field label="Note de vérification manuelle (min. 10 caractères)">
-                  <textarea value={correctionNote} onChange={(e) => setCorrectionNote(e.target.value)} required minLength={10} className="input min-h-20" />
+                  <textarea
+                    value={correctionNote}
+                    onChange={(e) => setCorrectionNote(e.target.value)}
+                    required
+                    minLength={10}
+                    className="input min-h-20"
+                  />
                 </Field>
               </>
             )}
-            <button disabled={busy} className="btn-gold w-full">Enregistrer la correction</button>
+            <button disabled={busy} className="btn-gold w-full">
+              Enregistrer la correction
+            </button>
           </form>
         </Modal>
       )}
@@ -413,12 +664,18 @@ export const CashRegisterView: React.FC = () => {
   );
 };
 
-const Modal: React.FC<{ title: string; onClose: () => void; children: React.ReactNode }> = ({ title, onClose, children }) => (
+const Modal: React.FC<{ title: string; onClose: () => void; children: React.ReactNode }> = ({
+  title,
+  onClose,
+  children,
+}) => (
   <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
     <div className="w-full max-w-md bg-[#161619] border border-[#2b2b30] rounded-3xl p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-bold text-white">{title}</h3>
-        <button onClick={onClose} className="text-stone-400 hover:text-white"><XCircle className="w-5 h-5" /></button>
+        <button onClick={onClose} className="text-stone-400 hover:text-white">
+          <XCircle className="w-5 h-5" />
+        </button>
       </div>
       {children}
     </div>

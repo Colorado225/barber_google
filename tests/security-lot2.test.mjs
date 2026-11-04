@@ -33,7 +33,7 @@ const MIGRATIONS = [
   '20261103030000_lot2_account_security.sql',
   '20261103040000_lot3_operations.sql',
   '20261103050000_lot4_finance.sql',
-  '20261103060000_lot3_fitions.sql'
+  '20261103060000_lot3_fitions.sql',
 ];
 
 const cookieOf = (res) => {
@@ -50,7 +50,11 @@ async function createVerifiedAccount(email, name = 'QA User') {
     .set('Origin', ORIGIN)
     .send({ name, email, password: PASSWORD })
     .expect(201);
-  await api().post('/api/auth/verify-email').set('Origin', ORIGIN).send({ token: signup.body.token }).expect(200);
+  await api()
+    .post('/api/auth/verify-email')
+    .set('Origin', ORIGIN)
+    .send({ token: signup.body.token })
+    .expect(200);
   const login = await api()
     .post('/api/auth/login')
     .set('Origin', ORIGIN)
@@ -74,8 +78,8 @@ async function createSalon(cookie, salonName) {
 /** Ajoute un membre avec un rôle donné (opération privilégiée, hors API). */
 async function addMember(salonId, userId, role) {
   const r = await db.query(
-    "insert into public.bc_memberships(salon_id,user_id,role) values ($1,$2,$3) returning id",
-    [salonId, userId, role]
+    'insert into public.bc_memberships(salon_id,user_id,role) values ($1,$2,$3) returning id',
+    [salonId, userId, role],
   );
   return r.rows[0].id;
 }
@@ -89,7 +93,7 @@ before(async () => {
   authRepository = createAuthRepository(db);
   const salonRepository = createSalonRepository(db);
   const operationsRepository = createOperationsRepository(db);
-    const financeRepository = createFinanceRepository(db);
+  const financeRepository = createFinanceRepository(db);
   const sessionRunner = createSessionRunner(db);
 
   app = express();
@@ -103,13 +107,24 @@ before(async () => {
       // Les tests partagent une seule IP (localhost) : limites élargies pour
       // pouvoir vérifier le comportement métier. Le rate limiting dédié est
       // couvert par `tests/rate-limit.test.mjs`.
-      rateLimits: { global: 10000, login: 10000, mail: 10000 }
-    })
+      rateLimits: { global: 10000, login: 10000, mail: 10000 },
+    }),
   );
-  app.use(createResourceApp({ authRepository, salonRepository, operationsRepository, financeRepository, sessionRunner, allowedOrigin: ORIGIN }).app);
+  app.use(
+    createResourceApp({
+      authRepository,
+      salonRepository,
+      operationsRepository,
+      financeRepository,
+      sessionRunner,
+      allowedOrigin: ORIGIN,
+    }).app,
+  );
 });
 
-after(async () => { await db.close(); });
+after(async () => {
+  await db.close();
+});
 
 // ---------------------------------------------------------------------------
 // 2.1 Authentification
@@ -148,10 +163,22 @@ test('vérification e-mail : jeton à usage unique et expiration', async () => {
     .send({ name: 'Vérif', email: 'verify@example.test', password: PASSWORD })
     .expect(201);
 
-  await api().post('/api/auth/verify-email').set('Origin', ORIGIN).send({ token: 'a'.repeat(64) }).expect(400);
-  await api().post('/api/auth/verify-email').set('Origin', ORIGIN).send({ token: signup.body.token }).expect(200);
+  await api()
+    .post('/api/auth/verify-email')
+    .set('Origin', ORIGIN)
+    .send({ token: 'a'.repeat(64) })
+    .expect(400);
+  await api()
+    .post('/api/auth/verify-email')
+    .set('Origin', ORIGIN)
+    .send({ token: signup.body.token })
+    .expect(200);
   // Rejeu : le jeton est déjà consommé.
-  await api().post('/api/auth/verify-email').set('Origin', ORIGIN).send({ token: signup.body.token }).expect(400);
+  await api()
+    .post('/api/auth/verify-email')
+    .set('Origin', ORIGIN)
+    .send({ token: signup.body.token })
+    .expect(400);
 
   await api()
     .post('/api/auth/login')
@@ -160,10 +187,12 @@ test('vérification e-mail : jeton à usage unique et expiration', async () => {
     .expect(200);
 
   // Jeton expiré : refusé.
-  const account = await db.query("select user_id from public.bc_auth_accounts where email = 'verify@example.test'");
+  const account = await db.query(
+    "select user_id from public.bc_auth_accounts where email = 'verify@example.test'",
+  );
   await db.query(
     "insert into public.bc_auth_tokens(token_hash,user_id,purpose,expires_at) values ($1,$2,'reset_password', now() - interval '1 minute')",
-    ['b'.repeat(64), account.rows[0].user_id]
+    ['b'.repeat(64), account.rows[0].user_id],
   );
   await api()
     .post('/api/auth/reset-password')
@@ -260,9 +289,10 @@ test('session expirée ou révoquée rejetée, cookie HttpOnly/Secure/SameSite',
     .send({ email: 'session@example.test', password: PASSWORD })
     .expect(200);
   const cookie2 = cookieOf(again);
-  await db.query('update public.bc_auth_sessions set expires_at = now() - interval \'1 minute\' where token_hash = $1', [
-    hashSessionToken(cookie2.split('=')[1])
-  ]);
+  await db.query(
+    "update public.bc_auth_sessions set expires_at = now() - interval '1 minute' where token_hash = $1",
+    [hashSessionToken(cookie2.split('=')[1])],
+  );
   await api().get('/api/me').set('Origin', ORIGIN).set('Cookie', cookie2).expect(401);
   // GET /api/auth/session renvoie `user: null` et efface le cookie.
   const session = await api().get('/api/auth/session').set('Cookie', cookie2).expect(200);
@@ -295,7 +325,11 @@ test('onboarding : pas d’ERP sans membership, progression persistée', async (
   assert.equal(me.body.onboarding?.setupCompleted, false);
 
   const salonId = await createSalon(account.cookie, 'Salon Newbie');
-  const afterCreate = await api().get('/api/me').set('Origin', ORIGIN).set('Cookie', account.cookie).expect(200);
+  const afterCreate = await api()
+    .get('/api/me')
+    .set('Origin', ORIGIN)
+    .set('Cookie', account.cookie)
+    .expect(200);
   assert.equal(afterCreate.body.memberships.length, 1);
   assert.equal(afterCreate.body.memberships[0].role, 'owner');
   assert.ok(afterCreate.body.memberships[0].permissions.includes('members.manage'));
@@ -321,7 +355,11 @@ test('un utilisateur non authentifié ne peut consulter aucune donnée privée',
   await api().get(`/api/salons/${salonA}/workspace`).expect(401);
   await api().get(`/api/salons/${salonA}/clients`).expect(401);
   await api().get('/api/me').expect(401);
-  await api().post('/api/salons').set('Origin', ORIGIN).send({ organizationName: 'x', salonName: 'y', branchName: 'z' }).expect(401);
+  await api()
+    .post('/api/salons')
+    .set('Origin', ORIGIN)
+    .send({ organizationName: 'x', salonName: 'y', branchName: 'z' })
+    .expect(401);
 });
 
 test('isolation multi-tenant : A ne voit jamais les clients de B, même en changeant l’URL', async () => {
@@ -338,9 +376,17 @@ test('isolation multi-tenant : A ne voit jamais les clients de B, même en chang
     .expect(200);
 
   // A tente d'accéder au salon de B avec l'identifiant transmis librement.
-  const forbidden = await api().get(`/api/salons/${salonB}/clients`).set('Origin', ORIGIN).set('Cookie', ownerA.cookie).expect(403);
+  const forbidden = await api()
+    .get(`/api/salons/${salonB}/clients`)
+    .set('Origin', ORIGIN)
+    .set('Cookie', ownerA.cookie)
+    .expect(403);
   assert.equal(forbidden.body.error, 'Action non autorisée pour ce salon.');
-  await api().get(`/api/salons/${salonB}/workspace`).set('Origin', ORIGIN).set('Cookie', ownerA.cookie).expect(403);
+  await api()
+    .get(`/api/salons/${salonB}/workspace`)
+    .set('Origin', ORIGIN)
+    .set('Cookie', ownerA.cookie)
+    .expect(403);
   await api()
     .post(`/api/salons/${salonB}/clients`)
     .set('Origin', ORIGIN)
@@ -349,11 +395,19 @@ test('isolation multi-tenant : A ne voit jamais les clients de B, même en chang
     .expect(403);
 
   // Et B ne voit pas les données de A.
-  const listA = await api().get(`/api/salons/${salonA}/clients`).set('Origin', ORIGIN).set('Cookie', ownerB.cookie).expect(403);
+  const listA = await api()
+    .get(`/api/salons/${salonA}/clients`)
+    .set('Origin', ORIGIN)
+    .set('Cookie', ownerB.cookie)
+    .expect(403);
   assert.ok(listA.body.error);
 
   // Chacun voit ses propres données.
-  const own = await api().get(`/api/salons/${salonB}/clients`).set('Origin', ORIGIN).set('Cookie', ownerB.cookie).expect(200);
+  const own = await api()
+    .get(`/api/salons/${salonB}/clients`)
+    .set('Origin', ORIGIN)
+    .set('Cookie', ownerB.cookie)
+    .expect(200);
   assert.equal(own.body.length, 1);
 
   // Un identifiant inexistant ne révèle rien de plus qu'un salon existant.
@@ -374,7 +428,11 @@ test('permissions vérifiées côté serveur : un réceptionniste ne gère ni ca
   await addMember(salonId, receptionist.userId, 'receptionist');
   await addMember(salonId, barber.userId, 'barber');
 
-  const meReception = await api().get('/api/me').set('Origin', ORIGIN).set('Cookie', receptionist.cookie).expect(200);
+  const meReception = await api()
+    .get('/api/me')
+    .set('Origin', ORIGIN)
+    .set('Cookie', receptionist.cookie)
+    .expect(200);
   const perms = meReception.body.memberships[0].permissions;
   assert.ok(perms.includes('clients.write'));
   assert.ok(!perms.includes('catalog.write'));
@@ -395,7 +453,11 @@ test('permissions vérifiées côté serveur : un réceptionniste ne gère ni ca
     .expect(403);
 
   // Barbier : lecture clients uniquement, aucune écriture.
-  await api().get(`/api/salons/${salonId}/clients`).set('Origin', ORIGIN).set('Cookie', barber.cookie).expect(200);
+  await api()
+    .get(`/api/salons/${salonId}/clients`)
+    .set('Origin', ORIGIN)
+    .set('Cookie', barber.cookie)
+    .expect(200);
   await api()
     .post(`/api/salons/${salonId}/clients`)
     .set('Origin', ORIGIN)
@@ -419,7 +481,11 @@ test('un employé ne peut pas modifier ses propres permissions ni changer son r�
   const managerMembership = await addMember(salonId, manager.userId, 'manager');
 
   // Un manager peut lister les membres mais pas changer les rôles (owner seulement).
-  await api().get(`/api/salons/${salonId}/members`).set('Origin', ORIGIN).set('Cookie', manager.cookie).expect(200);
+  await api()
+    .get(`/api/salons/${salonId}/members`)
+    .set('Origin', ORIGIN)
+    .set('Cookie', manager.cookie)
+    .expect(200);
   await api()
     .put(`/api/salons/${salonId}/members/${managerMembership}/role`)
     .set('Origin', ORIGIN)
@@ -428,7 +494,11 @@ test('un employé ne peut pas modifier ses propres permissions ni changer son r�
     .expect(403);
 
   // Le propriétaire non plus ne peut pas modifier son propre rôle.
-  const members = await api().get(`/api/salons/${salonId}/members`).set('Origin', ORIGIN).set('Cookie', owner.cookie).expect(200);
+  const members = await api()
+    .get(`/api/salons/${salonId}/members`)
+    .set('Origin', ORIGIN)
+    .set('Cookie', owner.cookie)
+    .expect(200);
   const ownerMembership = members.body.find((m) => m.userId === owner.userId);
   await api()
     .put(`/api/salons/${salonId}/members/${ownerMembership.id}/role`)
@@ -446,7 +516,7 @@ test('un employé ne peut pas modifier ses propres permissions ni changer son r�
     .expect(200);
   const audit = await db.query(
     "select action, actor_id, target_user_id from public.bc_admin_audit where salon_id = $1 and action = 'membership.role_change'",
-    [salonId]
+    [salonId],
   );
   assert.equal(audit.rows.length, 1);
   assert.equal(audit.rows[0].actor_id, owner.userId);
@@ -459,7 +529,11 @@ test('un membre suspendu perd immédiatement l’accès aux opérations métier'
   const cashier = await createVerifiedAccount('susp-cashier@example.test', 'Caissier');
   const membership = await addMember(salonId, cashier.userId, 'cashier');
 
-  await api().get(`/api/salons/${salonId}/clients`).set('Origin', ORIGIN).set('Cookie', cashier.cookie).expect(200);
+  await api()
+    .get(`/api/salons/${salonId}/clients`)
+    .set('Origin', ORIGIN)
+    .set('Cookie', cashier.cookie)
+    .expect(200);
 
   await api()
     .put(`/api/salons/${salonId}/members/${membership}/status`)
@@ -468,7 +542,11 @@ test('un membre suspendu perd immédiatement l’accès aux opérations métier'
     .send({ status: 'suspended', reason: 'Fin de contrat' })
     .expect(200);
 
-  await api().get(`/api/salons/${salonId}/clients`).set('Origin', ORIGIN).set('Cookie', cashier.cookie).expect(403);
+  await api()
+    .get(`/api/salons/${salonId}/clients`)
+    .set('Origin', ORIGIN)
+    .set('Cookie', cashier.cookie)
+    .expect(403);
   const me = await api().get('/api/me').set('Origin', ORIGIN).set('Cookie', cashier.cookie).expect(200);
   assert.deepEqual(me.body.memberships, [], 'un membership suspendu n’apparaît pas dans le contexte');
 });
@@ -476,7 +554,11 @@ test('un membre suspendu perd immédiatement l’accès aux opérations métier'
 test('les routes d’administration SaaS sont refusées même à un propriétaire', async () => {
   const owner = await createVerifiedAccount('admin-check@example.test', 'Owner');
   await createSalon(owner.cookie, 'Salon Admin Check');
-  const res = await api().get('/api/admin/salons').set('Origin', ORIGIN).set('Cookie', owner.cookie).expect(403);
+  const res = await api()
+    .get('/api/admin/salons')
+    .set('Origin', ORIGIN)
+    .set('Cookie', owner.cookie)
+    .expect(403);
   assert.equal(res.body.error, 'Action non autorisée.');
 });
 

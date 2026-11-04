@@ -3,7 +3,7 @@ import {
   PublicSalonDetail,
   SalonMarketplaceSectionId,
   SalonMarketplaceViewConfig,
-  Service
+  Service,
 } from '../../../types';
 import { getOrderedEnabledSections, resolveGalleryImages } from '../../../lib/marketplace-customizer';
 import { SalonHero } from './SalonHero';
@@ -46,8 +46,7 @@ export interface SalonOrderedSectionsProps {
 }
 
 type Block =
-  | { kind: 'single'; id: SalonMarketplaceSectionId }
-  | { kind: 'group'; ids: SalonMarketplaceSectionId[] };
+  { kind: 'single'; id: SalonMarketplaceSectionId } | { kind: 'group'; ids: SalonMarketplaceSectionId[] };
 
 export const SalonOrderedSections: React.FC<SalonOrderedSectionsProps> = ({
   detail,
@@ -62,7 +61,7 @@ export const SalonOrderedSections: React.FC<SalonOrderedSectionsProps> = ({
   galleryInGroupClassName,
   trustInGroupClassName,
   heroWrapperClassName,
-  bentoGallery = false
+  bentoGallery = false,
 }) => {
   const { salon, services, staff, reviews, branches, rating, reviewCount } = detail;
   const accentColor = config.accentColor || '#C9A45C';
@@ -123,11 +122,7 @@ export const SalonOrderedSections: React.FC<SalonOrderedSectionsProps> = ({
             accentColor={accentColor}
           />
         );
-        return inGroup && trustInGroupClassName ? (
-          <div className={trustInGroupClassName}>{card}</div>
-        ) : (
-          card
-        );
+        return inGroup && trustInGroupClassName ? <div className={trustInGroupClassName}>{card}</div> : card;
       }
       case 'location_hours':
         return (
@@ -205,7 +200,7 @@ export const SalonOrderedSections: React.FC<SalonOrderedSectionsProps> = ({
         >
           {renderSection('gallery', false)}
           {renderGroup(group.ids, `bento-group-${i}`)}
-        </MotionPreset>
+        </MotionPreset>,
       );
       i++; // le groupe est consommé
       continue;
@@ -224,17 +219,17 @@ export const SalonOrderedSections: React.FC<SalonOrderedSectionsProps> = ({
           className="w-full"
         >
           {renderSection(block.id, false)}
-        </MotionPreset>
+        </MotionPreset>,
       );
     } else if (block.id === 'location_hours' || block.id === 'reviews') {
       rendered.push(
         <MotionPreset key={`single-${block.id}`} fade blur delay={0.3} transition={{ duration: 0.5 }}>
           {renderSection(block.id, false)}
-        </MotionPreset>
+        </MotionPreset>,
       );
     } else {
       rendered.push(
-        <React.Fragment key={`single-${block.id}`}>{renderSection(block.id, false)}</React.Fragment>
+        <React.Fragment key={`single-${block.id}`}>{renderSection(block.id, false)}</React.Fragment>,
       );
     }
   }

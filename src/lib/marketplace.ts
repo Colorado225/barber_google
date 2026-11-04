@@ -6,7 +6,7 @@ import type {
   SalonGalleryItem,
   SalonMarketplaceViewConfig,
   Service,
-  StaffMember
+  StaffMember,
 } from '../types';
 import { getSupabaseClient } from './supabase';
 import { ApiError } from './api';
@@ -97,7 +97,9 @@ export function mapPublicSalon(row: DbRow): Salon {
     isVerified: row.is_verified === true,
     publicationDate: str(row, 'publication_date') || undefined,
     paymentMethods: Array.isArray(row.payment_methods) ? (row.payment_methods as PaymentMethod[]) : undefined,
-    featuredPrestations: Array.isArray(row.featured_service_ids) ? (row.featured_service_ids as string[]) : undefined,
+    featuredPrestations: Array.isArray(row.featured_service_ids)
+      ? (row.featured_service_ids as string[])
+      : undefined,
   };
 }
 
@@ -164,7 +166,12 @@ export async function getMarketplaceSalonDetail(key: string): Promise<PublicSalo
   const result = await supabase.rpc('marketplace_salon_detail', { p_key: key });
   const data = unwrap(result) as DbRow;
   const salonRow = (data.salon ?? {}) as DbRow;
-  const salon = mapPublicSalon({ ...salonRow, rating: data.rating, review_count: data.review_count, min_price: data.min_price });
+  const salon = mapPublicSalon({
+    ...salonRow,
+    rating: data.rating,
+    review_count: data.review_count,
+    min_price: data.min_price,
+  });
   return {
     salon,
     services: ((data.services as DbRow[]) ?? []).map(mapPublicService),
@@ -248,7 +255,11 @@ export async function bookMarketplaceAppointment(input: PublicBookingInput): Pro
   return mapBooking(unwrap(result) as DbRow);
 }
 
-export async function getMarketplaceBooking(salonId: string, appointmentId: string, cancelToken: string): Promise<PublicBooking> {
+export async function getMarketplaceBooking(
+  salonId: string,
+  appointmentId: string,
+  cancelToken: string,
+): Promise<PublicBooking> {
   const supabase = getSupabaseClient();
   const result = await supabase.rpc('marketplace_get_booking', {
     p_salon_id: salonId,
@@ -258,7 +269,12 @@ export async function getMarketplaceBooking(salonId: string, appointmentId: stri
   return mapBooking(unwrap(result) as DbRow);
 }
 
-export async function cancelMarketplaceBooking(salonId: string, appointmentId: string, cancelToken: string, reason: string): Promise<PublicBooking> {
+export async function cancelMarketplaceBooking(
+  salonId: string,
+  appointmentId: string,
+  cancelToken: string,
+  reason: string,
+): Promise<PublicBooking> {
   const supabase = getSupabaseClient();
   const result = await supabase.rpc('marketplace_cancel_booking', {
     p_salon_id: salonId,
@@ -297,8 +313,18 @@ export interface PortalReview {
 export interface BookingPortal {
   booking: PublicBooking & { clientEmail: string; clientPhone: string; notes: string; createdAt: string };
   salon: {
-    id: string; name: string; slug: string; type: string; city: string; commune: string;
-    address: string; phone: string; whatsapp: string; logoUrl: string; coverUrl: string; currency: string;
+    id: string;
+    name: string;
+    slug: string;
+    type: string;
+    city: string;
+    commune: string;
+    address: string;
+    phone: string;
+    whatsapp: string;
+    logoUrl: string;
+    coverUrl: string;
+    currency: string;
   };
   canCancel: boolean;
   canReview: boolean;
@@ -334,10 +360,18 @@ export async function getBookingPortal(token: string): Promise<BookingPortal> {
       createdAt: str(booking, 'created_at'),
     },
     salon: {
-      id: str(salon, 'id'), name: str(salon, 'name'), slug: str(salon, 'slug'), type: str(salon, 'type'),
-      city: str(salon, 'city'), commune: str(salon, 'commune'), address: str(salon, 'address'),
-      phone: str(salon, 'phone'), whatsapp: str(salon, 'whatsapp'),
-      logoUrl: str(salon, 'logo_url'), coverUrl: str(salon, 'cover_url'), currency: str(salon, 'currency', 'XOF'),
+      id: str(salon, 'id'),
+      name: str(salon, 'name'),
+      slug: str(salon, 'slug'),
+      type: str(salon, 'type'),
+      city: str(salon, 'city'),
+      commune: str(salon, 'commune'),
+      address: str(salon, 'address'),
+      phone: str(salon, 'phone'),
+      whatsapp: str(salon, 'whatsapp'),
+      logoUrl: str(salon, 'logo_url'),
+      coverUrl: str(salon, 'cover_url'),
+      currency: str(salon, 'currency', 'XOF'),
     },
     canCancel: row.can_cancel === true,
     canReview: row.can_review === true,
@@ -351,13 +385,20 @@ export async function getBookingPortal(token: string): Promise<BookingPortal> {
       : null,
     timeline: Array.isArray(row.timeline)
       ? (row.timeline as DbRow[]).map((e) => ({
-          status: str(e, 'status'), reason: str(e, 'reason'), createdAt: str(e, 'created_at'),
+          status: str(e, 'status'),
+          reason: str(e, 'reason'),
+          createdAt: str(e, 'created_at'),
         }))
       : [],
   };
 }
 
-export async function submitBookingReview(token: string, rating: number, comment: string, author?: string): Promise<PortalReview> {
+export async function submitBookingReview(
+  token: string,
+  rating: number,
+  comment: string,
+  author?: string,
+): Promise<PortalReview> {
   const supabase = getSupabaseClient();
   const result = await supabase.rpc('marketplace_submit_review', {
     p_token: token,

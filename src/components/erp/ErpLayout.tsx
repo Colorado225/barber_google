@@ -48,8 +48,9 @@ import {
   Heart,
   UserPlus,
   Inbox,
-  Send
+  Send,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 export type ErpTab =
   | 'dashboard'
@@ -88,7 +89,7 @@ const TAB_PATHS: Record<ErpTab, string> = {
   loyalty: 'fidelite',
   qr_code: 'qr-code',
   storefront: 'parametres',
-  saas: 'abonnement'
+  saas: 'abonnement',
 };
 
 export const ErpLayout: React.FC = () => {
@@ -103,7 +104,7 @@ export const ErpLayout: React.FC = () => {
     syncError,
     reloadWorkspace,
     appointments,
-    notifications
+    notifications,
   } = useOptionalApp();
   const { memberships, hasPermission } = useOptionalAuth();
 
@@ -111,9 +112,7 @@ export const ErpLayout: React.FC = () => {
     if (typeof window === 'undefined') return 'dashboard';
     const segment = window.location.pathname.split('/app/')[1]?.split('/')[0];
     if (segment === 'marketplace-personnalisation') return 'marketplace_showcase';
-    const match = (Object.entries(TAB_PATHS) as [ErpTab, string][]).find(
-      ([, path]) => path === segment
-    );
+    const match = (Object.entries(TAB_PATHS) as [ErpTab, string][]).find(([, path]) => path === segment);
     return match ? match[0] : 'dashboard';
   });
   const [salonDropdownOpen, setSalonDropdownOpen] = useState(false);
@@ -121,14 +120,17 @@ export const ErpLayout: React.FC = () => {
   // Quick modals
   const [isNewAppointmentOpen, setIsNewAppointmentOpen] = useState(false);
   const [isWalkInOpen, setIsWalkInOpen] = useState(false);
-  const [newAppointmentSlot, setNewAppointmentSlot] = useState<{ date?: string; time?: string; staffId?: string }>({});
+  const [newAppointmentSlot, setNewAppointmentSlot] = useState<{
+    date?: string;
+    time?: string;
+    staffId?: string;
+  }>({});
   const [isNewPaymentOpen, setIsNewPaymentOpen] = useState(false);
   const [preselectedAppointment, setPreselectedAppointment] = useState<Appointment | null>(null);
 
-  const canSee = (permission: string) =>
-    memberships.length > 0 && hasPermission(permission, activeSalon?.id);
+  const canSee = (permission: string) => memberships.length > 0 && hasPermission(permission, activeSalon?.id);
 
-  const navItems: { id: ErpTab; label: string; icon: any; permission?: string }[] = [
+  const navItems: { id: ErpTab; label: string; icon: LucideIcon; permission?: string }[] = [
     { id: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard, permission: 'dashboard.read' },
     { id: 'walk_in', label: 'Sans rendez-vous', icon: UserPlus, permission: 'appointments.read' },
     { id: 'online_requests', label: 'Demandes en ligne', icon: Inbox, permission: 'appointments.read' },
@@ -141,25 +143,34 @@ export const ErpLayout: React.FC = () => {
     { id: 'loyalty', label: 'Fidélité', icon: Heart, permission: 'loyalty.read' },
     { id: 'expenses', label: 'Dépenses & Bilan', icon: TrendingDown, permission: 'expenses.read' },
     { id: 'inventory', label: 'Stocks & Produits', icon: Package, permission: 'stock.read' },
-    { id: 'marketplace_showcase', label: 'Vitrine & Personnalisation', icon: Globe, permission: 'salon.read' },
+    {
+      id: 'marketplace_showcase',
+      label: 'Vitrine & Personnalisation',
+      icon: Globe,
+      permission: 'salon.read',
+    },
     { id: 'reports', label: 'Rapports', icon: BarChart3, permission: 'reports.read' },
     { id: 'qr_code', label: 'QR Code Réservation', icon: QrCode, permission: 'salon.read' },
     { id: 'storefront', label: 'Personnalisation Salon', icon: Store, permission: 'salon.update' },
-    { id: 'saas', label: 'Abonnement SaaS', icon: Sparkles, permission: 'subscriptions.read' }
+    { id: 'saas', label: 'Abonnement SaaS', icon: Sparkles, permission: 'subscriptions.read' },
   ];
 
   // Compteurs d'action : demandes à confirmer et messages à traiter.
   const pendingOnline = appointments.filter(
-    (a) => a.salonId === activeSalon?.id && a.source === 'marketplace' && a.status === 'pending'
+    (a) => a.salonId === activeSalon?.id && a.source === 'marketplace' && a.status === 'pending',
   ).length;
   const pendingNotifications = notifications.filter(
-    (n) => n.salonId === activeSalon?.id && (n.status === 'pending' || n.status === 'failed' || n.status === 'skipped')
+    (n) =>
+      n.salonId === activeSalon?.id &&
+      (n.status === 'pending' || n.status === 'failed' || n.status === 'skipped'),
   ).length;
   const navBadge = (id: ErpTab): number =>
     id === 'online_requests' ? pendingOnline : id === 'notifications' ? pendingNotifications : 0;
 
   // Sans session serveur (démonstration locale), tous les onglets restent visibles.
-  const visibleNavItems = memberships.length ? navItems.filter((i) => !i.permission || canSee(i.permission)) : navItems;
+  const visibleNavItems = memberships.length
+    ? navItems.filter((i) => !i.permission || canSee(i.permission))
+    : navItems;
   const visibleActiveTab = visibleNavItems.some((item) => item.id === activeTab) ? activeTab : 'dashboard';
 
   useEffect(() => {
@@ -172,8 +183,14 @@ export const ErpLayout: React.FC = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#0d0d0e] px-4 text-center text-stone-200">
         <div className="max-w-lg space-y-4">
-          <h1 className="text-xl font-bold">{syncError ? 'Chargement de l’espace impossible' : 'Chargement de votre espace…'}</h1>
-          {syncError && <p role="alert" className="text-sm text-red-300">{syncError}</p>}
+          <h1 className="text-xl font-bold">
+            {syncError ? 'Chargement de l’espace impossible' : 'Chargement de votre espace…'}
+          </h1>
+          {syncError && (
+            <p role="alert" className="text-sm text-red-300">
+              {syncError}
+            </p>
+          )}
           {syncError && (
             <button
               type="button"
@@ -235,7 +252,9 @@ export const ErpLayout: React.FC = () => {
                     setSalonDropdownOpen(false);
                   }}
                   className={`w-full text-left p-2 rounded-lg text-xs flex items-center justify-between hover:bg-[#232328] transition-colors ${
-                    activeSalon.id === salon.id ? 'text-[#C9A45C] font-bold bg-[#232328]/50' : 'text-stone-300'
+                    activeSalon.id === salon.id
+                      ? 'text-[#C9A45C] font-bold bg-[#232328]/50'
+                      : 'text-stone-300'
                   }`}
                 >
                   <span className="truncate">{salon.name}</span>
@@ -268,9 +287,11 @@ export const ErpLayout: React.FC = () => {
                 <Icon className={`w-4 h-4 ${isActive ? 'text-[#101010]' : 'text-stone-400'}`} />
                 <span className="flex-1 text-left">{item.label}</span>
                 {navBadge(item.id) > 0 && (
-                  <span className={`ml-auto rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                    isActive ? 'bg-[#101010] text-[#C9A45C]' : 'bg-[#C9A45C] text-[#101010]'
-                  }`}>
+                  <span
+                    className={`ml-auto rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                      isActive ? 'bg-[#101010] text-[#C9A45C]' : 'bg-[#C9A45C] text-[#101010]'
+                    }`}
+                  >
                     {navBadge(item.id)}
                   </span>
                 )}
@@ -284,7 +305,9 @@ export const ErpLayout: React.FC = () => {
           <div className="p-3 rounded-xl bg-[#161619] border border-[#242428] text-xs">
             <div className="flex items-center justify-between mb-1">
               <span className="text-[11px] font-semibold text-stone-400">Tiroir Caisse :</span>
-              <span className={`text-[10px] font-bold ${cashSession?.status === 'open' ? 'text-emerald-400' : 'text-stone-500'}`}>
+              <span
+                className={`text-[10px] font-bold ${cashSession?.status === 'open' ? 'text-emerald-400' : 'text-stone-500'}`}
+              >
                 {cashSession ? (cashSession.status === 'open' ? 'Ouverte' : 'Fermée') : 'Non configurée'}
               </span>
             </div>
@@ -408,10 +431,7 @@ export const ErpLayout: React.FC = () => {
 
       {/* ACCUEIL CLIENT SANS RENDEZ-VOUS */}
       {isWalkInOpen && (
-        <WalkInModal
-          onClose={() => setIsWalkInOpen(false)}
-          onCreated={() => setActiveTab('walk_in')}
-        />
+        <WalkInModal onClose={() => setIsWalkInOpen(false)} onCreated={() => setActiveTab('walk_in')} />
       )}
 
       {/* QUICK NEW APPOINTMENT MODAL */}

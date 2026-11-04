@@ -16,36 +16,76 @@ const asUser = async (id) => {
 };
 
 test('migration et isolation entre deux salons', async () => {
-  await db.exec(await readFile(new URL('../migrations/20261102230000_postgresql_identity.sql', import.meta.url), 'utf8'));
+  await db.exec(
+    await readFile(new URL('../migrations/20261102230000_postgresql_identity.sql', import.meta.url), 'utf8'),
+  );
   await db.query('insert into public.bc_users(id) values ($1), ($2), ($3)', [alice, bob, worker]);
-  await db.exec(await readFile(new URL('../migrations/20261103000000_tenant_foundation.sql', import.meta.url), 'utf8'));
+  await db.exec(
+    await readFile(new URL('../migrations/20261103000000_tenant_foundation.sql', import.meta.url), 'utf8'),
+  );
   await asUser(alice);
   const a = await db.query("select * from public.bc_create_salon('Réseau A', 'Salon A', 'Principal')");
-  salonA = a.rows[0].salon_id; branchA = a.rows[0].branch_id;
+  salonA = a.rows[0].salon_id;
+  branchA = a.rows[0].branch_id;
   await asUser(bob);
   const b = await db.query("select * from public.bc_create_salon('Réseau B', 'Salon B', 'Principal')");
   salonB = b.rows[0].salon_id;
   assert.deepEqual((await db.query('select name from public.bc_salons')).rows, [{ name: 'Salon B' }]);
   assert.equal((await db.query('select * from public.bc_branches where id = $1', [branchA])).rows.length, 0);
-  assert.equal((await db.query("update public.bc_salons set name = 'intrusion' where id = $1 returning id", [salonA])).rows.length, 0);
-  await assert.rejects(db.query("insert into public.bc_branches (salon_id, name) values ($1, 'intrusion')", [salonA]));
+  assert.equal(
+    (await db.query("update public.bc_salons set name = 'intrusion' where id = $1 returning id", [salonA]))
+      .rows.length,
+    0,
+  );
+  await assert.rejects(
+    db.query("insert into public.bc_branches (salon_id, name) values ($1, 'intrusion')", [salonA]),
+  );
   await assert.rejects(db.query("update public.bc_memberships set role = 'owner' where user_id = $1", [bob]));
-  await assert.rejects(db.query("insert into public.bc_memberships(salon_id, user_id, role) values ($1, $2, 'owner')", [salonA, bob]));
-  await assert.rejects(db.query('update public.bc_branches set salon_id = $1 where id = $2', [salonB, branchA]));
+  await assert.rejects(
+    db.query("insert into public.bc_memberships(salon_id, user_id, role) values ($1, $2, 'owner')", [
+      salonA,
+      bob,
+    ]),
+  );
+  await assert.rejects(
+    db.query('update public.bc_branches set salon_id = $1 where id = $2', [salonB, branchA]),
+  );
 });
 
 test('droits employés, suspension et rattachement à plusieurs salons', async () => {
   await db.exec('reset role');
-  await db.query("insert into public.bc_memberships(salon_id, user_id, role) values ($1, $2, 'barber'), ($3, $2, 'manager')", [salonA, worker, salonB]);
+  await db.query(
+    "insert into public.bc_memberships(salon_id, user_id, role) values ($1, $2, 'barber'), ($3, $2, 'manager')",
+    [salonA, worker, salonB],
+  );
   await asUser(worker);
   assert.equal((await db.query('select id from public.bc_salons')).rows.length, 2);
-  assert.equal((await db.query("update public.bc_salons set name = 'non autorisé' where id = $1 returning id", [salonA])).rows.length, 0);
-  await assert.rejects(db.query("insert into public.bc_branches(salon_id, name) values ($1, 'interdit')", [salonA]));
-  assert.equal((await db.query("insert into public.bc_branches(salon_id, name) values ($1, 'autorisée') returning id", [salonB])).rows.length, 1);
+  assert.equal(
+    (await db.query("update public.bc_salons set name = 'non autorisé' where id = $1 returning id", [salonA]))
+      .rows.length,
+    0,
+  );
+  await assert.rejects(
+    db.query("insert into public.bc_branches(salon_id, name) values ($1, 'interdit')", [salonA]),
+  );
+  assert.equal(
+    (
+      await db.query("insert into public.bc_branches(salon_id, name) values ($1, 'autorisée') returning id", [
+        salonB,
+      ])
+    ).rows.length,
+    1,
+  );
   await db.exec('reset role');
-  await db.query("update public.bc_memberships set status = 'suspended' where salon_id = $1 and user_id = $2", [salonB, worker]);
+  await db.query(
+    "update public.bc_memberships set status = 'suspended' where salon_id = $1 and user_id = $2",
+    [salonB, worker],
+  );
   await asUser(worker);
-  assert.deepEqual((await db.query('select id from public.bc_salons')).rows.map(r => r.id), [salonA]);
+  assert.deepEqual(
+    (await db.query('select id from public.bc_salons')).rows.map((r) => r.id),
+    [salonA],
+  );
 });
 
 test('anonyme refusé et bootstrap invalide atomique', async () => {
@@ -61,4 +101,6 @@ test('anonyme refusé et bootstrap invalide atomique', async () => {
   await assert.rejects(db.query("select * from public.bc_create_salon('x', 'y', 'z')"));
 });
 
-after(async () => { await db.close(); });
+after(async () => {
+  await db.close();
+});

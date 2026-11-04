@@ -8,12 +8,12 @@
 
 ## 1. Périmètre livré
 
-| Réf. | Exigence | État |
-| --- | --- | --- |
-| 6.1 | Sessions de caisse (`cash_registers`, `cash_sessions`), fond de caisse, clôture, écart, rapprochement, RLS, remplacement du stub `CashRegisterView` | ✅ |
-| 6.2 | Paiements (`payments`) liés au rendez-vous, méthode, XOF entier, `payment_status` mis à jour atomiquement, branchement `NewPaymentModal` / `TodayView` / dashboard | ✅ |
-| 6.3 | Espèces + Wave / Orange Money / MTN MoMo / Moov Money (+ carte) avec référence opérateur ; **confirmation manuelle**, pas d'appel API opérateur | ✅ (preuve manuelle) |
-| 6.4 | Remboursements / annulations avec motif, journal append-only, rapports caisse/dépenses (`ReportsView`, `financial_summary`) | ✅ |
+| Réf. | Exigence                                                                                                                                                           | État                 |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------- |
+| 6.1  | Sessions de caisse (`cash_registers`, `cash_sessions`), fond de caisse, clôture, écart, rapprochement, RLS, remplacement du stub `CashRegisterView`                | ✅                   |
+| 6.2  | Paiements (`payments`) liés au rendez-vous, méthode, XOF entier, `payment_status` mis à jour atomiquement, branchement `NewPaymentModal` / `TodayView` / dashboard | ✅                   |
+| 6.3  | Espèces + Wave / Orange Money / MTN MoMo / Moov Money (+ carte) avec référence opérateur ; **confirmation manuelle**, pas d'appel API opérateur                    | ✅ (preuve manuelle) |
+| 6.4  | Remboursements / annulations avec motif, journal append-only, rapports caisse/dépenses (`ReportsView`, `financial_summary`)                                        | ✅                   |
 
 Hors périmètre volontaire : intégration API réelle des opérateurs Mobile Money
 (accès marchand non vérifié), retrait du backend Express (conditionné à la
@@ -26,12 +26,12 @@ Toutes dans `supabase/migrations/`, appliquées au distant via le connecteur
 Supabase dans une transaction, puis enregistrées dans
 `supabase_migrations.schema_migrations` avec la même version que le fichier local.
 
-| Version | Fichier | Contenu |
-| --- | --- | --- |
-| `20261104100000` | `finance_foundation.sql` | Carte de permissions financières, `cash_registers`, `cash_sessions`, RLS lecture, trigger d'immuabilité des sessions, `ensure_default_register`, `open_cash_session` |
-| `20261104100100` | `payment_journal.sql` | `payments`, `payment_events`, triggers append-only, helpers privés, `record_payment`, `record_payment_correction`, `confirm_pending_payment`, `reject_pending_payment`, `close_cash_session`, `reconcile_cash_session`, `get_cash_session`, `list_cash_sessions` |
-| `20261104100200` | `finance_reporting.sql` | `list_payments`, `get_appointment_balance`, `financial_summary`, `record_expense`, `expenses.created_by` serveur, contrainte `expenses_currency_xof` |
-| `20261104100300` | `finance_permissions_fix.sql` | Correctif : rétablit `reviews.moderate` (Lot 5) après la refonte de la carte de permissions |
+| Version          | Fichier                       | Contenu                                                                                                                                                                                                                                                          |
+| ---------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `20261104100000` | `finance_foundation.sql`      | Carte de permissions financières, `cash_registers`, `cash_sessions`, RLS lecture, trigger d'immuabilité des sessions, `ensure_default_register`, `open_cash_session`                                                                                             |
+| `20261104100100` | `payment_journal.sql`         | `payments`, `payment_events`, triggers append-only, helpers privés, `record_payment`, `record_payment_correction`, `confirm_pending_payment`, `reject_pending_payment`, `close_cash_session`, `reconcile_cash_session`, `get_cash_session`, `list_cash_sessions` |
+| `20261104100200` | `finance_reporting.sql`       | `list_payments`, `get_appointment_balance`, `financial_summary`, `record_expense`, `expenses.created_by` serveur, contrainte `expenses_currency_xof`                                                                                                             |
+| `20261104100300` | `finance_permissions_fix.sql` | Correctif : rétablit `reviews.moderate` (Lot 5) après la refonte de la carte de permissions                                                                                                                                                                      |
 
 > Note d'immuabilité : la migration `100000` a été appliquée avant que l'omission
 > de `reviews.moderate` soit détectée. Conformément à la règle « une migration
@@ -115,15 +115,15 @@ Alignées serveur (`private.has_salon_permission`) et client
 `payments.create`, `cashier.*`, `payments.refund.*`) sont conservés côté serveur
 pour compatibilité, mais l'UI utilise les noms canoniques.
 
-| Permission | owner | manager | cashier | accountant | receptionist | barber |
-| --- | --- | --- | --- | --- | --- | --- |
-| `payments.read` / `cash.read` | ✅ | ✅ | ✅ | ✅ | `payments.read` seul | ❌ |
-| `payments.record` / `cash.open` / `cash.close` | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| `payments.correct` (confirmer/rejeter/rembourser) | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
-| `cash.reconcile` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `reports.read` | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ |
-| `subscriptions.read` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `reviews.moderate` (Lot 5, préservé) | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Permission                                        | owner | manager | cashier | accountant | receptionist         | barber |
+| ------------------------------------------------- | ----- | ------- | ------- | ---------- | -------------------- | ------ |
+| `payments.read` / `cash.read`                     | ✅    | ✅      | ✅      | ✅         | `payments.read` seul | ❌     |
+| `payments.record` / `cash.open` / `cash.close`    | ✅    | ✅      | ✅      | ❌         | ❌                   | ❌     |
+| `payments.correct` (confirmer/rejeter/rembourser) | ✅    | ✅      | ❌      | ❌         | ❌                   | ❌     |
+| `cash.reconcile`                                  | ✅    | ❌      | ❌      | ❌         | ❌                   | ❌     |
+| `reports.read`                                    | ✅    | ✅      | ❌      | ✅         | ❌                   | ❌     |
+| `subscriptions.read`                              | ✅    | ❌      | ❌      | ❌         | ❌                   | ❌     |
+| `reviews.moderate` (Lot 5, préservé)              | ✅    | ✅      | ❌      | ❌         | ❌                   | ❌     |
 
 ## 5. RPC publiques (signatures)
 

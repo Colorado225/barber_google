@@ -96,13 +96,7 @@ export interface StaffMember {
 }
 
 export type AppointmentStatus =
-  | 'pending'
-  | 'confirmed'
-  | 'checked_in'
-  | 'in_progress'
-  | 'completed'
-  | 'cancelled'
-  | 'no_show';
+  'pending' | 'confirmed' | 'checked_in' | 'in_progress' | 'completed' | 'cancelled' | 'no_show';
 
 export type PaymentStatus = 'unpaid' | 'deposit_paid' | 'paid' | 'refunded';
 
@@ -235,14 +229,7 @@ export interface AppointmentBalance {
 }
 
 export type ExpenseCategory =
-  | 'rent'
-  | 'electricity'
-  | 'water'
-  | 'salaries'
-  | 'products'
-  | 'maintenance'
-  | 'marketing'
-  | 'other';
+  'rent' | 'electricity' | 'water' | 'salaries' | 'products' | 'maintenance' | 'marketing' | 'other';
 
 export interface Expense {
   id: string;
@@ -395,13 +382,7 @@ export interface LoyaltySettings {
 }
 
 export type SalonMarketplaceSectionId =
-  | 'hero'
-  | 'gallery'
-  | 'featured_services'
-  | 'team'
-  | 'trust'
-  | 'location_hours'
-  | 'reviews';
+  'hero' | 'gallery' | 'featured_services' | 'team' | 'trust' | 'location_hours' | 'reviews';
 
 export type SalonMarketplaceLayout = 'classic' | 'elegant' | 'editorial';
 
@@ -459,4 +440,3 @@ export interface SalonMarketplaceSettingsRecord {
   publishedAt?: string | null;
   updatedAt: string;
 }
-

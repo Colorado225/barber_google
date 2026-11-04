@@ -43,11 +43,11 @@ export const SalonLocationHoursCard: React.FC<SalonLocationHoursCardProps> = ({
   showAddress = true,
   showPhone = true,
   showWhatsapp = true,
-  defaultBranchId
+  defaultBranchId,
 }) => {
   const initialBranchIndex = Math.max(
     0,
-    branches.findIndex((b) => b.id === defaultBranchId)
+    branches.findIndex((b) => b.id === defaultBranchId),
   );
   const [selectedBranchIndex, setSelectedBranchIndex] = useState(initialBranchIndex);
   const [hoursExpanded, setHoursExpanded] = useState(false);
@@ -64,12 +64,7 @@ export const SalonLocationHoursCard: React.FC<SalonLocationHoursCardProps> = ({
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`;
 
   return (
-    <Card
-      className={cn(
-        'bg-[#161619] border border-stone-800 p-5 shadow-lg space-y-4',
-        cardStyle
-      )}
-    >
+    <Card className={cn('bg-[#161619] border border-stone-800 p-5 shadow-lg space-y-4', cardStyle)}>
       {/* Header with branch selector */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
@@ -87,7 +82,7 @@ export const SalonLocationHoursCard: React.FC<SalonLocationHoursCardProps> = ({
               <span
                 className={cn(
                   'size-2 rounded-full',
-                  isOpenToday ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'
+                  isOpenToday ? 'bg-emerald-400 animate-pulse' : 'bg-red-400',
                 )}
               />
               <span className="text-[11px] font-medium text-stone-300">
@@ -150,9 +145,7 @@ export const SalonLocationHoursCard: React.FC<SalonLocationHoursCardProps> = ({
             className="w-full flex items-center justify-between text-xs text-stone-400 hover:text-white py-1 cursor-pointer transition-colors"
           >
             <span>Voir toute la semaine</span>
-            <ChevronDown
-              className={cn('w-3.5 h-3.5 transition-transform', hoursExpanded && 'rotate-180')}
-            />
+            <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', hoursExpanded && 'rotate-180')} />
           </button>
 
           {hoursExpanded && (
@@ -164,7 +157,7 @@ export const SalonLocationHoursCard: React.FC<SalonLocationHoursCardProps> = ({
                     key={h.weekday}
                     className={cn(
                       'flex items-center justify-between py-1 px-2 rounded-md',
-                      isToday ? 'bg-white/5 font-semibold text-white' : 'text-stone-400'
+                      isToday ? 'bg-white/5 font-semibold text-white' : 'text-stone-400',
                     )}
                   >
                     <span>{WEEKDAY_NAMES[h.weekday]}</span>

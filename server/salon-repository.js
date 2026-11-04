@@ -31,7 +31,11 @@ export class NotFoundError extends Error {
 
 /** Convertit une erreur PostgreSQL en erreur HTTP explicite. */
 export function toHttpError(error) {
-  if (error instanceof PermissionError || error instanceof ValidationError || error instanceof NotFoundError) {
+  if (
+    error instanceof PermissionError ||
+    error instanceof ValidationError ||
+    error instanceof NotFoundError
+  ) {
     return error;
   }
   switch (error?.code) {
@@ -49,8 +53,7 @@ const isoDate = (value) => {
   if (!value) return '';
   return value instanceof Date ? value.toISOString().slice(0, 10) : String(value).slice(0, 10);
 };
-const isoDateTime = (value) =>
-  value instanceof Date ? value.toISOString() : value ? String(value) : '';
+const isoDateTime = (value) => (value instanceof Date ? value.toISOString() : value ? String(value) : '');
 
 // ----- Mappers (colonnes SQL → types de l'application) -----
 const mapClient = (r) => ({
@@ -64,7 +67,7 @@ const mapClient = (r) => ({
   notes: r.notes || '',
   totalSpent: num(r.total_spent),
   visitsCount: num(r.visits_count),
-  lastVisit: isoDate(r.last_visit)
+  lastVisit: isoDate(r.last_visit),
 });
 
 const mapService = (r) => ({
@@ -75,7 +78,7 @@ const mapService = (r) => ({
   description: r.description || '',
   price: num(r.price),
   durationMinutes: num(r.duration_minutes),
-  popular: Boolean(r.popular)
+  popular: Boolean(r.popular),
 });
 
 const mapStaff = (r) => ({
@@ -88,7 +91,7 @@ const mapStaff = (r) => ({
   rating: 0,
   commissionRate: num(r.commission_rate),
   phone: r.phone || '',
-  isAvailable: Boolean(r.is_available)
+  isAvailable: Boolean(r.is_available),
 });
 
 const mapExpense = (r) => ({
@@ -99,7 +102,7 @@ const mapExpense = (r) => ({
   amount: num(r.amount),
   date: isoDate(r.spent_on),
   paymentMethod: 'cash',
-  notes: r.notes || ''
+  notes: r.notes || '',
 });
 
 const mapStock = (r) => ({
@@ -111,7 +114,7 @@ const mapStock = (r) => ({
   minThreshold: num(r.min_threshold),
   unitCost: num(r.unit_cost),
   supplier: r.supplier || '',
-  lastRestock: ''
+  lastRestock: '',
 });
 
 const mapReward = (r) => ({
@@ -125,7 +128,7 @@ const mapReward = (r) => ({
   timesRedeemed: num(r.times_redeemed),
   discountPercentage: r.discount_percentage === null ? undefined : num(r.discount_percentage),
   freeServiceName: r.free_service_name || undefined,
-  createdAt: isoDateTime(r.created_at)
+  createdAt: isoDateTime(r.created_at),
 });
 
 const mapReview = (r) => ({
@@ -135,28 +138,44 @@ const mapReview = (r) => ({
   rating: num(r.rating),
   date: isoDate(r.created_at),
   comment: r.comment,
-  verified: Boolean(r.verified)
+  verified: Boolean(r.verified),
 });
 
 export function createSalonRepository(db) {
   // `runner` est la connexion d'une requête (transaction RLS). Par défaut on
   // réutilise la connexion du repository (tests et usage interne).
   const queries = (runner) => {
-    const q = runner ? (text, params) => runner.query(text, params) : (text, params) => db.query(text, params);
+    const q = runner
+      ? (text, params) => runner.query(text, params)
+      : (text, params) => db.query(text, params);
     const listClients = async (salonId) =>
-      (await q('select * from public.bc_clients where salon_id = $1 order by name', [salonId])).rows.map(mapClient);
+      (await q('select * from public.bc_clients where salon_id = $1 order by name', [salonId])).rows.map(
+        mapClient,
+      );
     const listServices = async (salonId) =>
-      (await q('select * from public.bc_services where salon_id = $1 order by name', [salonId])).rows.map(mapService);
+      (await q('select * from public.bc_services where salon_id = $1 order by name', [salonId])).rows.map(
+        mapService,
+      );
     const listStaff = async (salonId) =>
-      (await q('select * from public.bc_staff where salon_id = $1 order by name', [salonId])).rows.map(mapStaff);
+      (await q('select * from public.bc_staff where salon_id = $1 order by name', [salonId])).rows.map(
+        mapStaff,
+      );
     const listExpenses = async (salonId) =>
-      (await q('select * from public.bc_expenses where salon_id = $1 order by spent_on desc', [salonId])).rows.map(mapExpense);
+      (
+        await q('select * from public.bc_expenses where salon_id = $1 order by spent_on desc', [salonId])
+      ).rows.map(mapExpense);
     const listStock = async (salonId) =>
-      (await q('select * from public.bc_stock_items where salon_id = $1 order by name', [salonId])).rows.map(mapStock);
+      (await q('select * from public.bc_stock_items where salon_id = $1 order by name', [salonId])).rows.map(
+        mapStock,
+      );
     const listRewards = async (salonId) =>
-      (await q('select * from public.bc_loyalty_rewards where salon_id = $1 order by name', [salonId])).rows.map(mapReward);
+      (
+        await q('select * from public.bc_loyalty_rewards where salon_id = $1 order by name', [salonId])
+      ).rows.map(mapReward);
     const listReviews = async (salonId) =>
-      (await q('select * from public.bc_reviews where salon_id = $1 order by created_at desc', [salonId])).rows.map(mapReview);
+      (
+        await q('select * from public.bc_reviews where salon_id = $1 order by created_at desc', [salonId])
+      ).rows.map(mapReview);
 
     return {
       /** Vue agrégée d'un salon, alimentée par une seule connexion autorisée. */
@@ -169,7 +188,7 @@ export function createSalonRepository(db) {
           q('select * from public.bc_expenses where salon_id = $1 order by spent_on desc', [salonId]),
           q('select * from public.bc_stock_items where salon_id = $1 order by name', [salonId]),
           q('select * from public.bc_loyalty_rewards where salon_id = $1 order by name', [salonId]),
-          q('select * from public.bc_reviews where salon_id = $1 order by created_at desc', [salonId])
+          q('select * from public.bc_reviews where salon_id = $1 order by created_at desc', [salonId]),
         ]);
 
         if (!salon.rows.length) throw new NotFoundError('Salon introuvable ou inaccessible.');
@@ -182,7 +201,7 @@ export function createSalonRepository(db) {
           expenses: expenses.rows.map(mapExpense),
           stock: stock.rows.map(mapStock),
           rewards: rewards.rows.map(mapReward),
-          reviews: reviews.rows.map(mapReview)
+          reviews: reviews.rows.map(mapReview),
         };
       },
 
@@ -199,7 +218,7 @@ export function createSalonRepository(db) {
           notes: r.notes || '',
           totalSpent: num(r.total_spent),
           visitsCount: num(r.visits_count),
-          lastVisit: isoDate(r.last_visit)
+          lastVisit: isoDate(r.last_visit),
         };
       },
       mapService(r) {
@@ -211,7 +230,7 @@ export function createSalonRepository(db) {
           description: r.description || '',
           price: num(r.price),
           durationMinutes: num(r.duration_minutes),
-          popular: Boolean(r.popular)
+          popular: Boolean(r.popular),
         };
       },
       mapStaff(r) {
@@ -225,7 +244,7 @@ export function createSalonRepository(db) {
           rating: 0,
           commissionRate: num(r.commission_rate),
           phone: r.phone || '',
-          isAvailable: Boolean(r.is_available)
+          isAvailable: Boolean(r.is_available),
         };
       },
       mapExpense(r) {
@@ -237,7 +256,7 @@ export function createSalonRepository(db) {
           amount: num(r.amount),
           date: isoDate(r.spent_on),
           paymentMethod: 'cash',
-          notes: r.notes || ''
+          notes: r.notes || '',
         };
       },
       mapStock(r) {
@@ -250,7 +269,7 @@ export function createSalonRepository(db) {
           minThreshold: num(r.min_threshold),
           unitCost: num(r.unit_cost),
           supplier: r.supplier || '',
-          lastRestock: ''
+          lastRestock: '',
         };
       },
       mapReward(r) {
@@ -265,7 +284,7 @@ export function createSalonRepository(db) {
           timesRedeemed: num(r.times_redeemed),
           discountPercentage: r.discount_percentage === null ? undefined : num(r.discount_percentage),
           freeServiceName: r.free_service_name || undefined,
-          createdAt: isoDateTime(r.created_at)
+          createdAt: isoDateTime(r.created_at),
         };
       },
       mapReview(r) {
@@ -276,7 +295,7 @@ export function createSalonRepository(db) {
           rating: num(r.rating),
           date: isoDate(r.created_at),
           comment: r.comment,
-          verified: Boolean(r.verified)
+          verified: Boolean(r.verified),
         };
       },
 
@@ -287,15 +306,26 @@ export function createSalonRepository(db) {
       },
       async createClient(salonId, data) {
         const r = await q('select public.bc_create_client($1,$2,$3,$4,$5,$6,$7) as id', [
-          salonId, data.name, data.phone, data.email ?? '', data.segment ?? 'new',
-          data.favoriteService ?? '', data.notes ?? ''
+          salonId,
+          data.name,
+          data.phone,
+          data.email ?? '',
+          data.segment ?? 'new',
+          data.favoriteService ?? '',
+          data.notes ?? '',
         ]);
         return listClients(salonId).then((rows) => rows.find((c) => c.id === r.rows[0].id));
       },
       async updateClient(salonId, id, data) {
         await q('select public.bc_update_client($1,$2,$3,$4,$5,$6,$7,$8)', [
-          salonId, id, data.name, data.phone, data.email ?? '', data.segment ?? 'new',
-          data.favoriteService ?? '', data.notes ?? ''
+          salonId,
+          id,
+          data.name,
+          data.phone,
+          data.email ?? '',
+          data.segment ?? 'new',
+          data.favoriteService ?? '',
+          data.notes ?? '',
         ]);
         const rows = await listClients(salonId);
         return rows.find((c) => c.id === id);
@@ -312,8 +342,14 @@ export function createSalonRepository(db) {
       },
       async saveService(salonId, id, data) {
         const r = await q('select public.bc_save_service($1,$2,$3,$4,$5,$6,$7,$8) as id', [
-          salonId, id ?? null, data.name, data.category, data.description ?? '',
-          data.price, data.durationMinutes, data.popular ?? false
+          salonId,
+          id ?? null,
+          data.name,
+          data.category,
+          data.description ?? '',
+          data.price,
+          data.durationMinutes,
+          data.popular ?? false,
         ]);
         const rows = await listServices(salonId);
         return rows.find((s) => s.id === r.rows[0].id);
@@ -330,8 +366,14 @@ export function createSalonRepository(db) {
       },
       async saveStaff(salonId, id, data) {
         const r = await q('select public.bc_save_staff($1,$2,$3,$4,$5,$6,$7,$8) as id', [
-          salonId, id ?? null, data.name, data.role, data.phone ?? '',
-          data.specialties ?? [], data.commissionRate, data.isAvailable ?? true
+          salonId,
+          id ?? null,
+          data.name,
+          data.role,
+          data.phone ?? '',
+          data.specialties ?? [],
+          data.commissionRate,
+          data.isAvailable ?? true,
         ]);
         const rows = await listStaff(salonId);
         return rows.find((s) => s.id === r.rows[0].id);
@@ -343,12 +385,19 @@ export function createSalonRepository(db) {
 
       // ----- Dépenses -----
       async listExpenses(salonId) {
-        const r = await q('select * from public.bc_expenses where salon_id = $1 order by spent_on desc', [salonId]);
+        const r = await q('select * from public.bc_expenses where salon_id = $1 order by spent_on desc', [
+          salonId,
+        ]);
         return r.rows.map(mapExpense);
       },
       async addExpense(salonId, data) {
         const r = await q('select public.bc_add_expense($1,$2,$3,$4,$5,$6) as id', [
-          salonId, data.title, data.category, data.amount, data.date, data.notes ?? ''
+          salonId,
+          data.title,
+          data.category,
+          data.amount,
+          data.date,
+          data.notes ?? '',
         ]);
         const rows = await listExpenses(salonId);
         return rows.find((e) => e.id === r.rows[0].id);
@@ -361,8 +410,14 @@ export function createSalonRepository(db) {
       },
       async saveStockItem(salonId, id, data) {
         const r = await q('select public.bc_save_stock_item($1,$2,$3,$4,$5,$6,$7,$8) as id', [
-          salonId, id ?? null, data.name, data.category, data.quantity,
-          data.minThreshold, data.unitCost, data.supplier ?? ''
+          salonId,
+          id ?? null,
+          data.name,
+          data.category,
+          data.quantity,
+          data.minThreshold,
+          data.unitCost,
+          data.supplier ?? '',
         ]);
         const rows = await listStock(salonId);
         return rows.find((i) => i.id === r.rows[0].id);
@@ -374,14 +429,22 @@ export function createSalonRepository(db) {
 
       // ----- Fidélité -----
       async listRewards(salonId) {
-        const r = await q('select * from public.bc_loyalty_rewards where salon_id = $1 order by name', [salonId]);
+        const r = await q('select * from public.bc_loyalty_rewards where salon_id = $1 order by name', [
+          salonId,
+        ]);
         return r.rows.map(mapReward);
       },
       async saveReward(salonId, id, data) {
         const r = await q('select public.bc_save_reward($1,$2,$3,$4,$5,$6,$7,$8,$9) as id', [
-          salonId, id ?? null, data.name, data.description ?? '', data.pointsCost,
-          data.category, data.discountPercentage ?? null, data.freeServiceName ?? '',
-          data.isActive ?? true
+          salonId,
+          id ?? null,
+          data.name,
+          data.description ?? '',
+          data.pointsCost,
+          data.category,
+          data.discountPercentage ?? null,
+          data.freeServiceName ?? '',
+          data.isActive ?? true,
         ]);
         const rows = await listRewards(salonId);
         return rows.find((x) => x.id === r.rows[0].id);
@@ -393,12 +456,17 @@ export function createSalonRepository(db) {
 
       // ----- Avis -----
       async listReviews(salonId) {
-        const r = await q('select * from public.bc_reviews where salon_id = $1 order by created_at desc', [salonId]);
+        const r = await q('select * from public.bc_reviews where salon_id = $1 order by created_at desc', [
+          salonId,
+        ]);
         return r.rows.map(mapReview);
       },
       async addReview(salonId, data) {
         const r = await q('select public.bc_add_review($1,$2,$3,$4) as id', [
-          salonId, data.author, data.rating, data.comment
+          salonId,
+          data.author,
+          data.rating,
+          data.comment,
         ]);
         const rows = await listReviews(salonId);
         return rows.find((x) => x.id === r.rows[0].id);
@@ -406,7 +474,7 @@ export function createSalonRepository(db) {
       async deleteReview(salonId, id) {
         await q('select public.bc_delete_review($1,$2)', [salonId, id]);
         return { ok: true };
-      }
+      },
     };
   };
 
@@ -416,4 +484,3 @@ export function createSalonRepository(db) {
   repo.withRunner = queries;
   return repo;
 }
-

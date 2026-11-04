@@ -21,15 +21,14 @@ export class DuplicateEntryError extends Error {
 const num = (value) => (value === null || value === undefined ? 0 : Number(value));
 const isoDate = (value) =>
   !value ? '' : value instanceof Date ? value.toISOString().slice(0, 10) : String(value).slice(0, 10);
-const isoDateTime = (value) =>
-  value instanceof Date ? value.toISOString() : value ? String(value) : '';
+const isoDateTime = (value) => (value instanceof Date ? value.toISOString() : value ? String(value) : '');
 
 const mapRegister = (r) => ({
   id: r.id,
   salonId: r.salon_id,
   branchId: r.branch_id,
   name: r.name,
-  isActive: r.is_active === undefined ? true : Boolean(r.is_active)
+  isActive: r.is_active === undefined ? true : Boolean(r.is_active),
 });
 
 const mapSession = (r) => ({
@@ -47,7 +46,7 @@ const mapSession = (r) => ({
   expectedBalance: r.expected_balance === null ? null : num(r.expected_balance),
   difference: r.difference === null ? null : num(r.difference),
   status: r.status,
-  notes: r.notes || ''
+  notes: r.notes || '',
 });
 
 const mapEntry = (r) => ({
@@ -67,7 +66,7 @@ const mapEntry = (r) => ({
   cashSessionId: r.cash_session_id || null,
   createdAt: isoDateTime(r.created_at),
   clientName: r.client_name || '',
-  serviceName: r.service_name || ''
+  serviceName: r.service_name || '',
 });
 
 /** Traduit les erreurs PostgreSQL du lot 4 en erreurs HTTP explicites. */
@@ -83,14 +82,15 @@ export function toFinanceError(error) {
 
 export function createFinanceRepository(db) {
   const queries = (runner) => {
-    const q = runner ? (text, params) => runner.query(text, params) : (text, params) => db.query(text, params);
+    const q = runner
+      ? (text, params) => runner.query(text, params)
+      : (text, params) => db.query(text, params);
 
     // ===================== Caisses =====================
     const listRegisters = async (salonId) => {
-      const r = await q(
-        'select * from public.bc_cash_registers where salon_id = $1 order by created_at',
-        [salonId]
-      );
+      const r = await q('select * from public.bc_cash_registers where salon_id = $1 order by created_at', [
+        salonId,
+      ]);
       return r.rows.map(mapRegister);
     };
 
@@ -137,7 +137,7 @@ export function createFinanceRepository(db) {
         salonId,
         branchId,
         register,
-        openingBalance
+        openingBalance,
       ]);
       return getSession(salonId, r.rows[0].id);
     };
@@ -153,7 +153,10 @@ export function createFinanceRepository(db) {
     };
 
     // ===================== Encaissements =====================
-    const listEntries = async (salonId, { from = null, to = null, appointmentId = null, sessionId = null } = {}) => {
+    const listEntries = async (
+      salonId,
+      { from = null, to = null, appointmentId = null, sessionId = null } = {},
+    ) => {
       const params = [salonId];
       let sql = `
         select e.*, a.client_name, a.service_name
@@ -182,20 +185,17 @@ export function createFinanceRepository(db) {
     };
 
     const createEntry = async (salonId, data) => {
-      const r = await q(
-        'select public.bc_record_manual_entry($1,$2,$3,$4,$5,$6,$7,$8,$9) as id',
-        [
-          data.appointmentId,
-          data.kind ?? 'payment',
-          data.amount,
-          data.method,
-          data.reason ?? '',
-          data.idempotencyKey,
-          data.originalEntryId ?? null,
-          data.paymentStatus ?? 'confirmed',
-          data.providerReference ?? ''
-        ]
-      );
+      const r = await q('select public.bc_record_manual_entry($1,$2,$3,$4,$5,$6,$7,$8,$9) as id', [
+        data.appointmentId,
+        data.kind ?? 'payment',
+        data.amount,
+        data.method,
+        data.reason ?? '',
+        data.idempotencyKey,
+        data.originalEntryId ?? null,
+        data.paymentStatus ?? 'confirmed',
+        data.providerReference ?? '',
+      ]);
       const rows = await listEntries(salonId, { appointmentId: data.appointmentId });
       return rows.find((e) => e.id === r.rows[0].id);
     };
@@ -218,7 +218,7 @@ export function createFinanceRepository(db) {
            left join public.bc_payment_entries e on e.appointment_id = a.id
           where a.salon_id = $1 and a.id = $2
           group by a.amount`,
-        [salonId, appointmentId]
+        [salonId, appointmentId],
       );
       const row = r.rows[0];
       if (!row) return null;
@@ -252,7 +252,7 @@ export function createFinanceRepository(db) {
         notes: x.notes || '',
         receiptRef: x.receipt_ref || '',
         createdBy: x.created_by || null,
-        createdAt: isoDateTime(x.created_at)
+        createdAt: isoDateTime(x.created_at),
       }));
     };
 
@@ -265,7 +265,7 @@ export function createFinanceRepository(db) {
         data.amount,
         data.date,
         data.notes ?? '',
-        data.receiptRef ?? ''
+        data.receiptRef ?? '',
       ]);
       const rows = await listExpenses(salonId);
       return rows.find((x) => x.id === r.rows[0].id);
@@ -273,7 +273,11 @@ export function createFinanceRepository(db) {
 
     // ===================== Rapports =====================
     const summary = async (salonId, from, to) => {
-      const r = await q('select * from public.bc_financial_summary($1,$2::date,$3::date)', [salonId, from, to]);
+      const r = await q('select * from public.bc_financial_summary($1,$2::date,$3::date)', [
+        salonId,
+        from,
+        to,
+      ]);
       const row = r.rows[0] || {};
       return {
         revenueBilled: num(row.revenue_billed),
@@ -281,7 +285,7 @@ export function createFinanceRepository(db) {
         outstanding: num(row.outstanding),
         refunds: num(row.refunds),
         expenses: num(row.expenses),
-        netBalance: num(row.net_balance)
+        netBalance: num(row.net_balance),
       };
     };
 
@@ -293,7 +297,7 @@ export function createFinanceRepository(db) {
           where e.salon_id = $1 and e.payment_status = 'confirmed' and e.kind = 'payment'
             and coalesce((a.starts_at at time zone 'Africa/Abidjan')::date, (e.created_at at time zone 'Africa/Abidjan')::date) between $2::date and $3::date
           group by e.method order by total desc`,
-        [salonId, from, to]
+        [salonId, from, to],
       );
       return r.rows.map((x) => ({ method: x.method, total: num(x.total), count: num(x.count) }));
     };
@@ -305,7 +309,7 @@ export function createFinanceRepository(db) {
           where a.salon_id = $1 and a.status not in ('cancelled', 'no_show')
             and (a.starts_at at time zone 'Africa/Abidjan')::date between $2::date and $3::date
           group by a.service_name order by count desc limit 10`,
-        [salonId, from, to]
+        [salonId, from, to],
       );
       return r.rows.map((x) => ({ name: x.name, count: num(x.count), total: num(x.total) }));
     };
@@ -323,13 +327,13 @@ export function createFinanceRepository(db) {
           where st.salon_id = $1
           group by st.id, st.name
           order by completed_revenue desc`,
-        [salonId, from, to]
+        [salonId, from, to],
       );
       return r.rows.map((x) => ({
         staffId: x.staff_id,
         name: x.name,
         appointments: num(x.appointments),
-        revenue: num(x.completed_revenue)
+        revenue: num(x.completed_revenue),
       }));
     };
 
@@ -344,12 +348,12 @@ export function createFinanceRepository(db) {
                            where x.salon_id = $1 and x.spent_on = d::date), 0)::bigint as expenses
            from generate_series($2::date, $3::date, interval '1 day') as d
           order by d`,
-        [salonId, from, to]
+        [salonId, from, to],
       );
       return r.rows.map((x) => ({
         date: isoDate(x.day),
         collected: num(x.collected),
-        expenses: num(x.expenses)
+        expenses: num(x.expenses),
       }));
     };
 
@@ -372,7 +376,7 @@ export function createFinanceRepository(db) {
       byPaymentMethod,
       topServices,
       staffPerformance,
-      dailySeries
+      dailySeries,
     };
   };
 

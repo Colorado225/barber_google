@@ -17,7 +17,7 @@ export const SalonReviewsSection: React.FC<SalonReviewsSectionProps> = ({
   rating,
   reviewCount = 0,
   cardStyle = 'rounded-3xl',
-  accentColor = '#C9A45C'
+  accentColor = '#C9A45C',
 }) => {
   const verifiedReviews = reviews.filter((r) => r.verified !== false);
 
@@ -28,7 +28,12 @@ export const SalonReviewsSection: React.FC<SalonReviewsSectionProps> = ({
           <MessageSquare className="w-5 h-5" style={{ color: accentColor }} />
           <h2 className="text-xl font-bold text-white">Avis certifiés</h2>
         </div>
-        <Card className={cn('p-6 bg-[#161619] border border-stone-800 text-center text-stone-400 text-xs', cardStyle)}>
+        <Card
+          className={cn(
+            'p-6 bg-[#161619] border border-stone-800 text-center text-stone-400 text-xs',
+            cardStyle,
+          )}
+        >
           <p>Aucun avis n'a encore été déposé pour cet établissement.</p>
         </Card>
       </section>
@@ -51,9 +56,7 @@ export const SalonReviewsSection: React.FC<SalonReviewsSectionProps> = ({
             <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
               Avis certifiés par les clients
             </h2>
-            <p className="text-xs text-stone-400">
-              Chaque avis provient d'un rendez-vous réel honoré
-            </p>
+            <p className="text-xs text-stone-400">Chaque avis provient d'un rendez-vous réel honoré</p>
           </div>
         </div>
 
@@ -79,14 +82,12 @@ export const SalonReviewsSection: React.FC<SalonReviewsSectionProps> = ({
                   key={i}
                   className={cn(
                     'w-4 h-4',
-                    i < Math.round(rating ?? 5) ? 'fill-amber-400 text-amber-400' : 'text-stone-700'
+                    i < Math.round(rating ?? 5) ? 'fill-amber-400 text-amber-400' : 'text-stone-700',
                   )}
                 />
               ))}
             </div>
-            <p className="text-[11px] text-stone-400">
-              Note globale basée sur {verifiedReviews.length} avis
-            </p>
+            <p className="text-[11px] text-stone-400">Note globale basée sur {verifiedReviews.length} avis</p>
           </div>
 
           <div className="space-y-1.5 pt-1">
@@ -100,9 +101,7 @@ export const SalonReviewsSection: React.FC<SalonReviewsSectionProps> = ({
                     style={{ width: `${d.percentage}%`, backgroundColor: accentColor }}
                   />
                 </div>
-                <span className="w-6 text-[10px] text-stone-500 text-right tabular-nums">
-                  {d.count}
-                </span>
+                <span className="w-6 text-[10px] text-stone-500 text-right tabular-nums">{d.count}</span>
               </div>
             ))}
           </div>
@@ -133,7 +132,7 @@ export const SalonReviewsSection: React.FC<SalonReviewsSectionProps> = ({
                     <span className="text-[10px] text-stone-500 block">
                       {new Intl.DateTimeFormat('fr-FR', {
                         timeZone: 'Africa/Abidjan',
-                        dateStyle: 'medium'
+                        dateStyle: 'medium',
                       }).format(new Date(rev.date))}
                     </span>
                   </div>
@@ -145,7 +144,7 @@ export const SalonReviewsSection: React.FC<SalonReviewsSectionProps> = ({
                       key={i}
                       className={cn(
                         'w-3 h-3',
-                        i < rev.rating ? 'fill-amber-400 text-amber-400' : 'text-stone-700'
+                        i < rev.rating ? 'fill-amber-400 text-amber-400' : 'text-stone-700',
                       )}
                     />
                   ))}
@@ -153,9 +152,7 @@ export const SalonReviewsSection: React.FC<SalonReviewsSectionProps> = ({
               </div>
 
               {rev.comment && (
-                <p className="text-xs text-stone-300 leading-relaxed pt-1">
-                  « {rev.comment} »
-                </p>
+                <p className="text-xs text-stone-300 leading-relaxed pt-1">« {rev.comment} »</p>
               )}
             </Card>
           ))}

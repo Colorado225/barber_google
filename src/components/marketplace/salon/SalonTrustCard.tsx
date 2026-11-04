@@ -25,7 +25,7 @@ export const SalonTrustCard: React.FC<SalonTrustCardProps> = ({
     <Card
       className={cn(
         'relative bg-gradient-to-br from-[#1c1a16] via-[#141416] to-[#121214] border border-amber-900/30 p-5 shadow-lg overflow-hidden flex flex-col justify-between group',
-        cardStyle
+        cardStyle,
       )}
     >
       {/* Decorative top ribbon */}
@@ -37,9 +37,7 @@ export const SalonTrustCard: React.FC<SalonTrustCardProps> = ({
           >
             <ShieldCheck className="w-4 h-4" />
           </div>
-          <span className="text-xs font-bold text-white uppercase tracking-wider">
-            Gage de confiance
-          </span>
+          <span className="text-xs font-bold text-white uppercase tracking-wider">Gage de confiance</span>
         </div>
 
         <span className="text-[10px] font-semibold text-amber-300/80 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20 flex items-center gap-1">
@@ -58,9 +56,7 @@ export const SalonTrustCard: React.FC<SalonTrustCardProps> = ({
                   key={i}
                   className={cn(
                     'w-5 h-5',
-                    i < Math.round(rating)
-                      ? 'fill-amber-400 text-amber-400'
-                      : 'text-stone-700'
+                    i < Math.round(rating) ? 'fill-amber-400 text-amber-400' : 'text-stone-700',
                   )}
                 />
               ))}
@@ -69,7 +65,8 @@ export const SalonTrustCard: React.FC<SalonTrustCardProps> = ({
               {rating.toFixed(1)} <span className="text-sm font-normal text-stone-400">/ 5</span>
             </p>
             <p className="text-xs text-stone-400 font-medium">
-              Basé sur {reviewCount} avis client{reviewCount > 1 ? 's' : ''} certifié{reviewCount > 1 ? 's' : ''}
+              Basé sur {reviewCount} avis client{reviewCount > 1 ? 's' : ''} certifié
+              {reviewCount > 1 ? 's' : ''}
             </p>
           </div>
         ) : (
@@ -77,12 +74,8 @@ export const SalonTrustCard: React.FC<SalonTrustCardProps> = ({
             <div className="inline-flex p-2 rounded-xl bg-amber-500/10 text-amber-300 mb-1">
               <Sparkles className="w-5 h-5" />
             </div>
-            <p className="text-sm font-bold text-white">
-              Établissement Professionnel
-            </p>
-            <p className="text-xs text-stone-400">
-              Réservations vérifiées & créneaux garantis
-            </p>
+            <p className="text-sm font-bold text-white">Établissement Professionnel</p>
+            <p className="text-xs text-stone-400">Réservations vérifiées & créneaux garantis</p>
           </div>
         )}
       </div>

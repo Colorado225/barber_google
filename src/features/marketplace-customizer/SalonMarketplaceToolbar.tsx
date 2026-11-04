@@ -12,7 +12,7 @@ import {
   CheckCircle2,
   Clock,
   AlertCircle,
-  Loader2
+  Loader2,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
@@ -45,7 +45,7 @@ export const SalonMarketplaceToolbar: React.FC<SalonMarketplaceToolbarProps> = (
   onPublish,
   onUnpublish,
   onRevert,
-  publicUrl
+  publicUrl,
 }) => {
   return (
     <div className="bg-[#161619] border border-stone-800 rounded-2xl p-4 shadow-xl flex flex-wrap items-center justify-between gap-4">
@@ -70,9 +70,7 @@ export const SalonMarketplaceToolbar: React.FC<SalonMarketplaceToolbarProps> = (
               Modifications non enregistrées
             </span>
           ) : (
-            <span className="text-[11px] text-stone-400">
-              Brouillon à jour
-            </span>
+            <span className="text-[11px] text-stone-400">Brouillon à jour</span>
           )}
         </div>
 
@@ -97,9 +95,7 @@ export const SalonMarketplaceToolbar: React.FC<SalonMarketplaceToolbarProps> = (
           title="Aperçu Ordinateur"
           className={cn(
             'p-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer flex items-center gap-1.5',
-            viewport === 'desktop'
-              ? 'bg-[#25252b] text-white shadow-sm'
-              : 'text-stone-400 hover:text-white'
+            viewport === 'desktop' ? 'bg-[#25252b] text-white shadow-sm' : 'text-stone-400 hover:text-white',
           )}
         >
           <Monitor className="w-4 h-4" />
@@ -112,9 +108,7 @@ export const SalonMarketplaceToolbar: React.FC<SalonMarketplaceToolbarProps> = (
           title="Aperçu Tablette (768px)"
           className={cn(
             'p-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer flex items-center gap-1.5',
-            viewport === 'tablet'
-              ? 'bg-[#25252b] text-white shadow-sm'
-              : 'text-stone-400 hover:text-white'
+            viewport === 'tablet' ? 'bg-[#25252b] text-white shadow-sm' : 'text-stone-400 hover:text-white',
           )}
         >
           <Tablet className="w-4 h-4" />
@@ -127,9 +121,7 @@ export const SalonMarketplaceToolbar: React.FC<SalonMarketplaceToolbarProps> = (
           title="Aperçu Mobile (390px)"
           className={cn(
             'p-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer flex items-center gap-1.5',
-            viewport === 'mobile'
-              ? 'bg-[#25252b] text-white shadow-sm'
-              : 'text-stone-400 hover:text-white'
+            viewport === 'mobile' ? 'bg-[#25252b] text-white shadow-sm' : 'text-stone-400 hover:text-white',
           )}
         >
           <Smartphone className="w-4 h-4" />
@@ -157,7 +149,11 @@ export const SalonMarketplaceToolbar: React.FC<SalonMarketplaceToolbarProps> = (
           disabled={saving || publishing}
           className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#222228] hover:bg-[#2a2a32] text-stone-200 border border-stone-700 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
         >
-          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5 text-stone-400" />}
+          {saving ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <Save className="w-3.5 h-3.5 text-stone-400" />
+          )}
           <span>Enregistrer brouillon</span>
         </button>
 
@@ -178,7 +174,11 @@ export const SalonMarketplaceToolbar: React.FC<SalonMarketplaceToolbarProps> = (
             disabled={saving || publishing}
             className="px-4 py-2 rounded-xl text-xs font-bold bg-[#C9A45C] hover:brightness-110 text-[#101010] shadow-md transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
           >
-            {publishing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UploadCloud className="w-3.5 h-3.5" />}
+            {publishing ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <UploadCloud className="w-3.5 h-3.5" />
+            )}
             <span>Publier sur la marketplace</span>
           </button>
         )}

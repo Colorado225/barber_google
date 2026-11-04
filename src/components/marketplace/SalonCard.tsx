@@ -15,7 +15,7 @@ export const SalonCard: React.FC<SalonCardProps> = ({ salon }) => {
     barbershop: 'Barbershop',
     salon_femme: 'Salon femme',
     salon_mixte: 'Salon mixte',
-    institut: 'Institut de beauté'
+    institut: 'Institut de beauté',
   };
 
   return (

@@ -12,7 +12,16 @@ export async function hashPassword(password) {
 
 export async function verifyPassword(password, encoded) {
   const parts = typeof encoded === 'string' ? encoded.split('$') : [];
-  if (parts.length !== 6 || parts[0] !== 'scrypt' || parts[1] !== '16384' || parts[2] !== '8' || parts[3] !== '1' || !/^[a-f0-9]{32}$/.test(parts[4]) || !/^[a-f0-9]{128}$/.test(parts[5])) return false;
+  if (
+    parts.length !== 6 ||
+    parts[0] !== 'scrypt' ||
+    parts[1] !== '16384' ||
+    parts[2] !== '8' ||
+    parts[3] !== '1' ||
+    !/^[a-f0-9]{32}$/.test(parts[4]) ||
+    !/^[a-f0-9]{128}$/.test(parts[5])
+  )
+    return false;
   const expected = Buffer.from(parts[5], 'hex');
   const actual = await scrypt(password, Buffer.from(parts[4], 'hex'), expected.length, options);
   return timingSafeEqual(actual, expected);
@@ -29,8 +38,18 @@ export const hashOpaqueToken = hashSessionToken;
 
 /** Mot de passe compromis ? Liste courte des plus courants (complétée par la longueur minimale). */
 const commonPasswords = new Set([
-  'motdepasse', 'motdepasse1', 'password', 'password1', 'password123', 'passw0rd', 'azertyuiop',
-  'azerty123456', 'qwertyuiop12', '123456789012', 'administrateur', 'barbercuts2026'
+  'motdepasse',
+  'motdepasse1',
+  'password',
+  'password1',
+  'password123',
+  'passw0rd',
+  'azertyuiop',
+  'azerty123456',
+  'qwertyuiop12',
+  '123456789012',
+  'administrateur',
+  'barbercuts2026',
 ]);
 
 /** Politique de mot de passe : 12 caractères minimum, pas uniquement un caractère répété, pas trivial. */

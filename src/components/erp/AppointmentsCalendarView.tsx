@@ -20,7 +20,7 @@ import {
   X,
   UserCheck,
   Sparkles,
-  Info
+  Info,
 } from 'lucide-react';
 
 interface AppointmentsCalendarViewProps {
@@ -30,7 +30,7 @@ interface AppointmentsCalendarViewProps {
 
 export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> = ({
   onOpenNewAppointment,
-  onOpenNewPaymentForAppointment
+  onOpenNewPaymentForAppointment,
 }) => {
   const {
     activeSalon,
@@ -39,7 +39,7 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
     formatPrice,
     updateAppointmentStatus,
     updateAppointmentDetails,
-    cancelAppointment
+    cancelAppointment,
   } = useApp();
 
   const [viewType, setViewType] = useState<'day' | 'week' | 'list'>('week');
@@ -54,49 +54,52 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
   const salonStaff = staff.filter((s) => s.salonId === activeSalon.id);
 
   // Status visual configs
-  const statusLabels: Record<AppointmentStatus, { label: string; badge: string; border: string; bgCard: string }> = {
+  const statusLabels: Record<
+    AppointmentStatus,
+    { label: string; badge: string; border: string; bgCard: string }
+  > = {
     pending: {
       label: 'En attente',
       badge: 'bg-blue-950/80 text-blue-400 border-blue-800/50',
       border: 'border-l-blue-500',
-      bgCard: 'bg-[#151a24] hover:bg-[#1a2130]'
+      bgCard: 'bg-[#151a24] hover:bg-[#1a2130]',
     },
     confirmed: {
       label: 'Confirmé',
       badge: 'bg-emerald-950/80 text-emerald-400 border-emerald-800/50',
       border: 'border-l-emerald-500',
-      bgCard: 'bg-[#14201a] hover:bg-[#1a2b23]'
+      bgCard: 'bg-[#14201a] hover:bg-[#1a2b23]',
     },
     checked_in: {
       label: 'En attente au salon',
       badge: 'bg-purple-950/80 text-purple-300 border-purple-800/50',
       border: 'border-l-purple-500',
-      bgCard: 'bg-[#1e1526] hover:bg-[#281c33]'
+      bgCard: 'bg-[#1e1526] hover:bg-[#281c33]',
     },
     in_progress: {
       label: 'Au fauteuil (En cours)',
       badge: 'bg-amber-950/90 text-[#E5C378] border-[#C9A45C]/50',
       border: 'border-l-[#C9A45C]',
-      bgCard: 'bg-[#221c13] hover:bg-[#2b2418]'
+      bgCard: 'bg-[#221c13] hover:bg-[#2b2418]',
     },
     completed: {
       label: 'Terminé',
       badge: 'bg-stone-800 text-stone-300 border-stone-700',
       border: 'border-l-stone-600',
-      bgCard: 'bg-[#19191d] hover:bg-[#202025]'
+      bgCard: 'bg-[#19191d] hover:bg-[#202025]',
     },
     cancelled: {
       label: 'Annulé',
       badge: 'bg-red-950/80 text-red-400 border-red-800/50',
       border: 'border-l-red-500 opacity-60',
-      bgCard: 'bg-[#221516] hover:bg-[#2b1b1c]'
+      bgCard: 'bg-[#221516] hover:bg-[#2b1b1c]',
     },
     no_show: {
       label: 'Absent (No-show)',
       badge: 'bg-stone-900 text-stone-500 border-stone-800',
       border: 'border-l-stone-700 opacity-50',
-      bgCard: 'bg-[#141417]'
-    }
+      bgCard: 'bg-[#141417]',
+    },
   };
 
   // Compute 7 days of the currently selected week (Monday to Sunday)
@@ -112,7 +115,20 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
       const iso = d.toISOString().slice(0, 10);
       const dayNames = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
       const dayFull = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
-      const monthNames = ['janv', 'févr', 'mars', 'avr', 'mai', 'juin', 'juil', 'août', 'sept', 'oct', 'nov', 'déc'];
+      const monthNames = [
+        'janv',
+        'févr',
+        'mars',
+        'avr',
+        'mai',
+        'juin',
+        'juil',
+        'août',
+        'sept',
+        'oct',
+        'nov',
+        'déc',
+      ];
       const todayIso = new Date().toISOString().slice(0, 10);
 
       return {
@@ -122,16 +138,37 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
         dayNum: d.getDate(),
         month: monthNames[d.getMonth()],
         isToday: iso === todayIso,
-        isSelected: iso === selectedDate
+        isSelected: iso === selectedDate,
       };
     });
   }, [selectedDate]);
 
   // Hourly slots from 08:30 to 20:00
   const calendarHours = [
-    '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
-    '12:00', '12:30', '13:00', '13:30', '14:00', '14:30', '15:00',
-    '15:30', '16:00', '16:30', '17:00', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00'
+    '08:30',
+    '09:00',
+    '09:30',
+    '10:00',
+    '10:30',
+    '11:00',
+    '11:30',
+    '12:00',
+    '12:30',
+    '13:00',
+    '13:30',
+    '14:00',
+    '14:30',
+    '15:00',
+    '15:30',
+    '16:00',
+    '16:30',
+    '17:00',
+    '17:30',
+    '18:00',
+    '18:30',
+    '19:00',
+    '19:30',
+    '20:00',
   ];
 
   // Navigation handlers
@@ -194,9 +231,10 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
 
   // Daily / Weekly KPI calculations
   const kpiStats = useMemo(() => {
-    const relevantApts = viewType === 'day'
-      ? salonAppointments.filter((a) => a.date === selectedDate)
-      : salonAppointments.filter((a) => weekDays.some((w) => w.iso === a.date));
+    const relevantApts =
+      viewType === 'day'
+        ? salonAppointments.filter((a) => a.date === selectedDate)
+        : salonAppointments.filter((a) => weekDays.some((w) => w.iso === a.date));
 
     const totalCount = relevantApts.filter((a) => a.status !== 'cancelled').length;
     const inProgressCount = relevantApts.filter((a) => a.status === 'in_progress').length;
@@ -221,7 +259,7 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
         <div className="bg-[#161619] border border-[#27272c] rounded-2xl p-4 flex items-center justify-between shadow-sm">
           <div>
             <div className="text-[11px] font-semibold text-stone-400">
-              {viewType === 'day' ? 'RDV Aujourd\'hui' : 'RDV de la semaine'}
+              {viewType === 'day' ? "RDV Aujourd'hui" : 'RDV de la semaine'}
             </div>
             <div className="text-xl font-extrabold text-white mt-0.5">
               {kpiStats.totalCount} <span className="text-xs font-normal text-stone-500">créneaux</span>
@@ -295,7 +333,7 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
 
         {salonStaff.map((barber) => {
           const barberCountToday = salonAppointments.filter(
-            (a) => a.staffId === barber.id && a.date === selectedDate && a.status !== 'cancelled'
+            (a) => a.staffId === barber.id && a.date === selectedDate && a.status !== 'cancelled',
           ).length;
           const isSelected = filterStaffId === barber.id;
 
@@ -336,7 +374,9 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
             <button
               onClick={() => setViewType('day')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                viewType === 'day' ? 'bg-[#C9A45C] text-[#101010] font-bold shadow-sm' : 'text-stone-400 hover:text-white'
+                viewType === 'day'
+                  ? 'bg-[#C9A45C] text-[#101010] font-bold shadow-sm'
+                  : 'text-stone-400 hover:text-white'
               }`}
             >
               Vue Jour
@@ -344,7 +384,9 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
             <button
               onClick={() => setViewType('week')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                viewType === 'week' ? 'bg-[#C9A45C] text-[#101010] font-bold shadow-sm' : 'text-stone-400 hover:text-white'
+                viewType === 'week'
+                  ? 'bg-[#C9A45C] text-[#101010] font-bold shadow-sm'
+                  : 'text-stone-400 hover:text-white'
               }`}
             >
               Vue Semaine (7j)
@@ -352,7 +394,9 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
             <button
               onClick={() => setViewType('list')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                viewType === 'list' ? 'bg-[#C9A45C] text-[#101010] font-bold shadow-sm' : 'text-stone-400 hover:text-white'
+                viewType === 'list'
+                  ? 'bg-[#C9A45C] text-[#101010] font-bold shadow-sm'
+                  : 'text-stone-400 hover:text-white'
               }`}
             >
               Liste globale
@@ -430,7 +474,12 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
           </select>
 
           <button
-            onClick={() => onOpenNewAppointment({ date: selectedDate, staffId: filterStaffId !== 'all' ? filterStaffId : undefined })}
+            onClick={() =>
+              onOpenNewAppointment({
+                date: selectedDate,
+                staffId: filterStaffId !== 'all' ? filterStaffId : undefined,
+              })
+            }
             className="bg-[#C9A45C] hover:bg-[#d8b56d] text-[#101010] font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-md transition-all cursor-pointer"
           >
             <Plus className="w-4 h-4" />
@@ -453,7 +502,7 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
 
                 {weekDays.map((day) => {
                   const dayAptsCount = salonAppointments.filter(
-                    (a) => a.date === day.iso && a.status !== 'cancelled'
+                    (a) => a.date === day.iso && a.status !== 'cancelled',
                   ).length;
 
                   return (
@@ -467,12 +516,14 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
                         day.isToday
                           ? 'bg-[#1d1b14] border-t-2 border-t-[#C9A45C]'
                           : day.isSelected
-                          ? 'bg-[#18181c]'
-                          : 'hover:bg-[#17171a]'
+                            ? 'bg-[#18181c]'
+                            : 'hover:bg-[#17171a]'
                       }`}
                     >
                       <div className="flex items-center justify-center gap-1.5">
-                        <span className={`text-xs font-bold uppercase ${day.isToday ? 'text-[#C9A45C]' : 'text-stone-300'}`}>
+                        <span
+                          className={`text-xs font-bold uppercase ${day.isToday ? 'text-[#C9A45C]' : 'text-stone-300'}`}
+                        >
                           {day.shortName}
                         </span>
                         {day.isToday && (
@@ -510,7 +561,7 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
                       {weekDays.map((day) => {
                         // Appointments matching this day & hour & filter
                         const cellApts = filteredAppointments.filter(
-                          (a) => a.date === day.iso && a.time === hour
+                          (a) => a.date === day.iso && a.time === hour,
                         );
 
                         return (
@@ -525,7 +576,7 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
                                 label: apt.status,
                                 badge: 'bg-stone-800 text-stone-300',
                                 border: 'border-l-[#C9A45C]',
-                                bgCard: 'bg-[#18181b]'
+                                bgCard: 'bg-[#18181b]',
                               };
 
                               return (
@@ -561,9 +612,7 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
                                       </span>
                                       <span className="truncate">{apt.staffName.split(' ')[0]}</span>
                                     </div>
-                                    <span className="font-semibold text-white">
-                                      {formatPrice(apt.price)}
-                                    </span>
+                                    <span className="font-semibold text-white">{formatPrice(apt.price)}</span>
                                   </div>
                                 </div>
                               );
@@ -577,7 +626,7 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
                                   onOpenNewAppointment({
                                     date: day.iso,
                                     time: hour,
-                                    staffId: filterStaffId !== 'all' ? filterStaffId : undefined
+                                    staffId: filterStaffId !== 'all' ? filterStaffId : undefined,
                                   })
                                 }
                                 className="w-full h-full min-h-[48px] rounded-lg border border-dashed border-transparent hover:border-[#C9A45C]/40 hover:bg-[#C9A45C]/5 flex items-center justify-center text-[10px] text-stone-500 hover:text-[#E5C378] transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
@@ -611,7 +660,7 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
               {(filterStaffId === 'all' ? salonStaff : salonStaff.filter((s) => s.id === filterStaffId)).map(
                 (st) => {
                   const staffDayApts = salonAppointments.filter(
-                    (a) => a.date === selectedDate && a.staffId === st.id && a.status !== 'cancelled'
+                    (a) => a.date === selectedDate && a.staffId === st.id && a.status !== 'cancelled',
                   );
                   return (
                     <div
@@ -636,7 +685,7 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
                       </span>
                     </div>
                   );
-                }
+                },
               )}
             </div>
 
@@ -644,9 +693,7 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
             <div className="divide-y divide-[#202025]">
               {calendarHours.map((slot) => {
                 const targetStaffList =
-                  filterStaffId === 'all'
-                    ? salonStaff
-                    : salonStaff.filter((s) => s.id === filterStaffId);
+                  filterStaffId === 'all' ? salonStaff : salonStaff.filter((s) => s.id === filterStaffId);
 
                 return (
                   <div key={slot} className="grid grid-cols-12 gap-3 py-3 items-stretch">
@@ -656,7 +703,7 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
 
                     {targetStaffList.map((st) => {
                       const matchingApt = filteredAppointments.find(
-                        (a) => a.time === slot && (a.staffId === st.id || a.staffId === 'any')
+                        (a) => a.time === slot && (a.staffId === st.id || a.staffId === 'any'),
                       );
 
                       if (matchingApt) {
@@ -664,7 +711,7 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
                           label: matchingApt.status,
                           badge: 'bg-stone-800',
                           border: 'border-l-[#C9A45C]',
-                          bgCard: 'bg-[#18181b]'
+                          bgCard: 'bg-[#18181b]',
                         };
 
                         return (
@@ -720,7 +767,7 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
                             onOpenNewAppointment({
                               date: selectedDate,
                               time: slot,
-                              staffId: st.id
+                              staffId: st.id,
                             })
                           }
                           className={`${
@@ -768,7 +815,7 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
                   filteredAppointments.map((apt) => {
                     const cfg = statusLabels[apt.status] || {
                       label: apt.status,
-                      badge: 'bg-stone-800'
+                      badge: 'bg-stone-800',
                     };
                     return (
                       <tr
@@ -807,7 +854,7 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
                                 const reason = window.prompt(
                                   next === 'cancelled'
                                     ? "Motif de l'annulation (obligatoire) :"
-                                    : "Motif de l'absence (obligatoire) :"
+                                    : "Motif de l'absence (obligatoire) :",
                                 );
                                 if (!reason || reason.trim().length < 3) {
                                   e.target.value = apt.status;
@@ -880,12 +927,13 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
                 <Scissors className="w-4 h-4" />
                 <span>Fiche Rendez-vous • {activeSalon.name}</span>
               </div>
-              <h2 className="text-2xl font-extrabold text-white">
-                {currentInspected.clientName}
-              </h2>
+              <h2 className="text-2xl font-extrabold text-white">{currentInspected.clientName}</h2>
               <div className="text-xs text-stone-400 flex items-center gap-2 mt-1">
                 <CalendarIcon className="w-3.5 h-3.5 text-[#C9A45C]" />
-                <span>{currentInspected.date} à <strong className="text-white">{currentInspected.time}</strong> ({currentInspected.durationMinutes} min)</span>
+                <span>
+                  {currentInspected.date} à <strong className="text-white">{currentInspected.time}</strong> (
+                  {currentInspected.durationMinutes} min)
+                </span>
               </div>
             </div>
 
@@ -893,7 +941,7 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
             <div className="flex gap-3">
               <a
                 href={`https://wa.me/${currentInspected.clientPhone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(
-                  `Bonjour ${currentInspected.clientName}, nous vous attendons chez ${activeSalon.name} le ${currentInspected.date} à ${currentInspected.time} pour votre ${currentInspected.serviceName}. À tout de suite !`
+                  `Bonjour ${currentInspected.clientName}, nous vous attendons chez ${activeSalon.name} le ${currentInspected.date} à ${currentInspected.time} pour votre ${currentInspected.serviceName}. À tout de suite !`,
                 )}`}
                 target="_blank"
                 rel="noreferrer"
@@ -928,7 +976,8 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
                 <span className="text-stone-400">Règlement :</span>
                 {currentInspected.paymentStatus === 'paid' ? (
                   <span className="text-emerald-400 font-bold flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5" /> Réglé ({currentInspected.paymentMethod?.toUpperCase()})
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Réglé (
+                    {currentInspected.paymentMethod?.toUpperCase()})
                   </span>
                 ) : (
                   <span className="text-amber-400 font-bold">À payer au salon</span>
@@ -945,7 +994,7 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
                     const found = salonStaff.find((s) => s.id === nextStaffId);
                     updateAppointmentDetails(currentInspected.id, {
                       staffId: nextStaffId,
-                      staffName: found?.name || 'Sans préférence'
+                      staffName: found?.name || 'Sans préférence',
                     });
                   }}
                   className="bg-[#18181c] border border-[#2e2e34] rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-[#C9A45C]"

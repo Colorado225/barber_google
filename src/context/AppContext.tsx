@@ -21,7 +21,7 @@ import {
   LoyaltyAccount,
   LoyaltyLedgerEntry,
   AppointmentNotification,
-  NotificationDispatchResult
+  NotificationDispatchResult,
 } from '../types';
 import { salonApi, ApiError } from '../lib/api';
 import {
@@ -116,8 +116,13 @@ interface AppContextValue {
     notes?: string;
     idempotencyKey?: string;
   }) => Promise<{ success: boolean; appointment?: Appointment; error?: string }>;
-  startWalkIn: (appointmentId: string, staffId?: string | null) => Promise<{ success: boolean; appointment?: Appointment; error?: string }>;
-  completeWalkIn: (appointmentId: string) => Promise<{ success: boolean; appointment?: Appointment; error?: string }>;
+  startWalkIn: (
+    appointmentId: string,
+    staffId?: string | null,
+  ) => Promise<{ success: boolean; appointment?: Appointment; error?: string }>;
+  completeWalkIn: (
+    appointmentId: string,
+  ) => Promise<{ success: boolean; appointment?: Appointment; error?: string }>;
 
   // POS / Cash operations (Lot 6 — journal Supabase immuable)
   recordPayment: (payment: {
@@ -128,7 +133,11 @@ interface AppContextValue {
     reason?: string;
     idempotencyKey?: string;
   }) => Promise<PaymentTransaction>;
-  confirmPendingPayment: (paymentId: string, providerReference: string, settlementNote: string) => Promise<PaymentTransaction>;
+  confirmPendingPayment: (
+    paymentId: string,
+    providerReference: string,
+    settlementNote: string,
+  ) => Promise<PaymentTransaction>;
   rejectPendingPayment: (paymentId: string, reason: string) => Promise<PaymentTransaction>;
   recordPaymentCorrection: (correction: {
     originalEntryId: string;
@@ -140,7 +149,11 @@ interface AppContextValue {
     idempotencyKey?: string;
   }) => Promise<PaymentTransaction>;
   getAppointmentBalance: (appointmentId: string) => Promise<AppointmentBalance>;
-  closeCurrentCashSession: (actualCashAmount: number, notes?: string, sessionId?: string) => Promise<CashSession>;
+  closeCurrentCashSession: (
+    actualCashAmount: number,
+    notes?: string,
+    sessionId?: string,
+  ) => Promise<CashSession>;
   openNewCashSession: (openingBalance: number, branchId?: string, note?: string) => Promise<CashSession>;
   reconcileCashSession: (sessionId: string, note: string) => Promise<CashSession>;
   refreshFinance: () => Promise<void>;
@@ -173,10 +186,15 @@ interface AppContextValue {
   adjustStockQuantity: (id: string, delta: number) => void;
 
   // Marketplace / réservation publique (Lot 7)
-  bookPublicAppointment: (input: Omit<PublicBookingInput, 'idempotencyKey'> & { idempotencyKey?: string }) =>
-    Promise<{ success: boolean; booking?: PublicBooking; error?: string }>;
-  cancelPublicBooking: (salonId: string, appointmentId: string, cancelToken: string, reason: string) =>
-    Promise<{ success: boolean; booking?: PublicBooking; error?: string }>;
+  bookPublicAppointment: (
+    input: Omit<PublicBookingInput, 'idempotencyKey'> & { idempotencyKey?: string },
+  ) => Promise<{ success: boolean; booking?: PublicBooking; error?: string }>;
+  cancelPublicBooking: (
+    salonId: string,
+    appointmentId: string,
+    cancelToken: string,
+    reason: string,
+  ) => Promise<{ success: boolean; booking?: PublicBooking; error?: string }>;
   setSalonPublished: (salonId: string, published: boolean) => Promise<void>;
 
   // Salon Onboarding / Settings
@@ -198,7 +216,10 @@ interface AppContextValue {
   updateLoyaltyReward: (id: string, updates: Partial<LoyaltyReward>) => void;
   deleteLoyaltyReward: (id: string) => void;
   updateLoyaltySettings: (settings: Partial<LoyaltySettings>) => Promise<void>;
-  redeemRewardForClient: (clientId: string, rewardId: string) => Promise<{ success: boolean; error?: string }>;
+  redeemRewardForClient: (
+    clientId: string,
+    rewardId: string,
+  ) => Promise<{ success: boolean; error?: string }>;
   creditPointsToClient: (clientId: string, points: number, reason: string) => Promise<void>;
 
   // Helpers
@@ -270,8 +291,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       await action();
     } catch (error) {
-      const message =
-        error instanceof ApiError ? error.message : fallbackMessage;
+      const message = error instanceof ApiError ? error.message : fallbackMessage;
       addToast(message, 'error');
     }
   };
@@ -284,7 +304,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const list = await listMarketplaceSalons();
       setSalons(list);
     } catch (error) {
-      setMarketplaceError(error instanceof Error ? error.message : 'Le chargement de la marketplace a échoué.');
+      setMarketplaceError(
+        error instanceof Error ? error.message : 'Le chargement de la marketplace a échoué.',
+      );
     } finally {
       setMarketplaceLoading(false);
     }
@@ -325,7 +347,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const now = new Date();
     const to = now.toISOString().slice(0, 10);
     const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 11, 1))
-      .toISOString().slice(0, 10);
+      .toISOString()
+      .slice(0, 10);
     return { from, to, monthStart: `${to.slice(0, 8)}01` };
   };
 
@@ -337,9 +360,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       hasPermission('payments.read', salonId)
         ? api.payments.list({ from, to, limit: 500 })
         : Promise.resolve([] as PaymentTransaction[]),
-      hasPermission('cash.read', salonId)
-        ? api.cash.sessions(50)
-        : Promise.resolve([] as CashSession[]),
+      hasPermission('cash.read', salonId) ? api.cash.sessions(50) : Promise.resolve([] as CashSession[]),
       hasPermission('reports.read', salonId)
         ? api.reports.summary(monthStart, to)
         : Promise.resolve(null as FinancialSummary | null),
@@ -383,10 +404,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const api = salonApi(salonId);
       // Inclut la veille pour ne pas perdre un client de passage encore actif.
       const from = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-      const [data, appointments] = await Promise.all([
-        api.workspace(),
-        api.appointments.list({ from }),
-      ]);
+      const [data, appointments] = await Promise.all([api.workspace(), api.appointments.list({ from })]);
       setSalons([mapPublicSalon(data.salon as Record<string, unknown>)]);
       setBranches(data.branches);
       setClients(data.clients);
@@ -411,7 +429,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const saved = await salonApi(review.salonId).reviews.create({
         author: review.author,
         rating: review.rating,
-        comment: review.comment
+        comment: review.comment,
       });
       setReviews((prev) => [saved, ...prev]);
       return saved;
@@ -461,7 +479,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     date,
     time,
     source,
-    notes
+    notes,
   }: {
     salonId: string;
     clientName: string;
@@ -511,11 +529,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const updateAppointmentStatus = (
-    appointmentId: string,
-    status: AppointmentStatus,
-    reason?: string
-  ) => {
+  const updateAppointmentStatus = (appointmentId: string, status: AppointmentStatus, reason?: string) => {
     if (!hasActiveMembership) {
       addToast('Modification indisponible sans adhésion active à ce salon.', 'error');
       return;
@@ -525,9 +539,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const saved = await salonApi(requireActiveSalon().id).appointments.transition(
         appointmentId,
         status,
-        status === 'cancelled' || status === 'no_show'
-          ? reason || 'Motif non précisé'
-          : undefined
+        status === 'cancelled' || status === 'no_show' ? reason || 'Motif non précisé' : undefined,
       );
       setAppointments((prev) => prev.map((a) => (a.id === appointmentId ? { ...a, ...saved } : a)));
       await Promise.all([loadNotifications(requireActiveSalon().id), loadLoyalty(requireActiveSalon().id)]);
@@ -545,7 +557,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     void remote(async () => {
       const saved = await salonApi(requireActiveSalon().id).appointments.cancel(
         appointmentId,
-        'Annulé par un membre du salon'
+        'Annulé par un membre du salon',
       );
       setAppointments((prev) => prev.map((a) => (a.id === appointmentId ? { ...a, ...saved } : a)));
       await loadNotifications(requireActiveSalon().id);
@@ -586,7 +598,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         created.status === 'in_progress'
           ? 'Client de passage installé : prestation démarrée.'
           : 'Client de passage ajouté à la file d’attente.',
-        'success'
+        'success',
       );
       return { success: true, appointment: created };
     } catch (error) {
@@ -598,7 +610,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const startWalkIn = async (appointmentId: string, staffId?: string | null) => {
     try {
-      const saved = await salonApi(requireActiveSalon().id).appointments.startWalkIn(appointmentId, staffId ?? null);
+      const saved = await salonApi(requireActiveSalon().id).appointments.startWalkIn(
+        appointmentId,
+        staffId ?? null,
+      );
       setAppointments((prev) => prev.map((a) => (a.id === appointmentId ? saved : a)));
       addToast('Prestation démarrée.', 'success');
       return { success: true, appointment: saved };
@@ -634,11 +649,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         category: reward.category,
         discountPercentage: reward.discountPercentage,
         freeServiceName: reward.freeServiceName,
-        isActive: reward.isActive
+        isActive: reward.isActive,
       });
       setLoyaltyRewards((prev) => [created, ...prev]);
       addToast(`Récompense "${created.name}" ajoutée au catalogue !`, 'success');
-    }, "Ajout de la récompense impossible");
+    }, 'Ajout de la récompense impossible');
   };
 
   const updateLoyaltyReward = (id: string, updates: Partial<LoyaltyReward>) => {
@@ -653,7 +668,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         category: merged.category,
         discountPercentage: merged.discountPercentage,
         freeServiceName: merged.freeServiceName,
-        isActive: merged.isActive
+        isActive: merged.isActive,
       });
       setLoyaltyRewards((prev) => prev.map((r) => (r.id === id ? saved : r)));
       addToast('Récompense mise à jour.', 'success');
@@ -676,11 +691,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await loadLoyalty(salonId);
       addToast('Programme de fidélité enregistré.', 'success');
     } catch (error) {
-      addToast(error instanceof ApiError ? error.message : 'Enregistrement du programme impossible.', 'error');
+      addToast(
+        error instanceof ApiError ? error.message : 'Enregistrement du programme impossible.',
+        'error',
+      );
     }
   };
 
-  const redeemRewardForClient = async (clientId: string, rewardId: string): Promise<{ success: boolean; error?: string }> => {
+  const redeemRewardForClient = async (
+    clientId: string,
+    rewardId: string,
+  ): Promise<{ success: boolean; error?: string }> => {
     const salonId = requireActiveSalon().id;
     try {
       const result = await salonApi(salonId).loyalty.redeem(clientId, rewardId);
@@ -761,7 +782,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  const paymentStatusFromBalance = (balance: AppointmentBalance, billed: number): Appointment['paymentStatus'] => {
+  const paymentStatusFromBalance = (
+    balance: AppointmentBalance,
+    billed: number,
+  ): Appointment['paymentStatus'] => {
     if (billed > 0 && balance.collected >= billed) return 'paid';
     if (balance.collected > 0) return 'deposit_paid';
     if (balance.refunded > 0) return 'refunded';
@@ -775,9 +799,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await loadLoyalty(salonId);
     if (appointmentId) {
       const balance = await salonApi(salonId).payments.balance(appointmentId);
-      setAppointments((prev) => prev.map((a) => (
-        a.id === appointmentId ? { ...a, paymentStatus: paymentStatusFromBalance(balance, a.price) } : a
-      )));
+      setAppointments((prev) =>
+        prev.map((a) =>
+          a.id === appointmentId ? { ...a, paymentStatus: paymentStatusFromBalance(balance, a.price) } : a,
+        ),
+      );
     }
   };
 
@@ -811,13 +837,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       saved.status === 'pending'
         ? 'Paiement Mobile Money enregistré en attente de vérification manuelle.'
         : 'Encaissement enregistré dans le journal de caisse.',
-      'success'
+      'success',
     );
     return saved;
   };
 
-  const confirmPendingPayment = async (paymentId: string, providerReference: string, settlementNote: string) => {
-    const saved = await salonApi(requireActiveSalon().id).payments.confirm(paymentId, providerReference, settlementNote);
+  const confirmPendingPayment = async (
+    paymentId: string,
+    providerReference: string,
+    settlementNote: string,
+  ) => {
+    const saved = await salonApi(requireActiveSalon().id).payments.confirm(
+      paymentId,
+      providerReference,
+      settlementNote,
+    );
     await syncAfterFinance(saved.appointmentId);
     addToast('Paiement vérifié manuellement et confirmé.', 'success');
     return saved;
@@ -856,11 +890,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved;
   };
 
-  const getAppointmentBalance = useCallback(async (appointmentId: string): Promise<AppointmentBalance> => {
-    return salonApi(activeSalonId).payments.balance(appointmentId);
-  }, [activeSalonId]);
+  const getAppointmentBalance = useCallback(
+    async (appointmentId: string): Promise<AppointmentBalance> => {
+      return salonApi(activeSalonId).payments.balance(appointmentId);
+    },
+    [activeSalonId],
+  );
 
-  const closeCurrentCashSession = async (actualCashAmount: number, notes?: string, sessionId?: string): Promise<CashSession> => {
+  const closeCurrentCashSession = async (
+    actualCashAmount: number,
+    notes?: string,
+    sessionId?: string,
+  ): Promise<CashSession> => {
     const target = sessionId ?? cashSession?.id;
     if (!target) throw new Error('Aucune session de caisse ouverte à clôturer.');
     if (!Number.isInteger(actualCashAmount) || actualCashAmount < 0) {
@@ -872,11 +913,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved;
   };
 
-  const openNewCashSession = async (openingBalance: number, branchId?: string, note?: string): Promise<CashSession> => {
+  const openNewCashSession = async (
+    openingBalance: number,
+    branchId?: string,
+    note?: string,
+  ): Promise<CashSession> => {
     const salonId = requireActiveSalon().id;
-    const targetBranch = branchId
-      ?? memberships.find((m) => m.salonId === salonId)?.branchId
-      ?? branches[0]?.id;
+    const targetBranch =
+      branchId ?? memberships.find((m) => m.salonId === salonId)?.branchId ?? branches[0]?.id;
     if (!targetBranch) throw new Error('Aucune succursale disponible pour ouvrir une caisse.');
     if (!Number.isInteger(openingBalance) || openingBalance < 0) {
       throw new Error('Le fond de caisse doit être un entier positif ou nul en FCFA.');
@@ -900,7 +944,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     void remote(async () => {
       await salonApi(requireActiveSalon().id).services.setActive(id, isActive);
       setServices((prev) => prev.map((s) => (s.id === id ? { ...s, isActive } : s)));
-      addToast(isActive ? 'Prestation réactivée.' : 'Prestation désactivée (retirée de la réservation).', 'info');
+      addToast(
+        isActive ? 'Prestation réactivée.' : 'Prestation désactivée (retirée de la réservation).',
+        'info',
+      );
     }, 'Changement de statut de la prestation impossible');
   };
 
@@ -913,7 +960,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         price: data.price,
         durationMinutes: data.durationMinutes,
         prepMinutes: data.prepMinutes ?? 0,
-        popular: Boolean(data.popular)
+        popular: Boolean(data.popular),
       });
       setServices((prev) => [...prev, created]);
       addToast('Prestation ajoutée au catalogue !', 'success');
@@ -932,7 +979,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         price: merged.price,
         durationMinutes: merged.durationMinutes,
         prepMinutes: merged.prepMinutes ?? 0,
-        popular: Boolean(merged.popular)
+        popular: Boolean(merged.popular),
       });
       setServices((prev) => prev.map((s) => (s.id === id ? saved : s)));
       addToast('Prestation mise à jour.', 'success');
@@ -956,7 +1003,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         phone: data.phone,
         specialties: data.specialties,
         commissionRate: data.commissionRate,
-        isAvailable: data.isAvailable
+        isAvailable: data.isAvailable,
       });
       setStaff((prev) => [...prev, created]);
       addToast(`${created.name} a été ajouté à l'équipe !`, 'success');
@@ -974,7 +1021,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         phone: merged.phone,
         specialties: merged.specialties,
         commissionRate: merged.commissionRate,
-        isAvailable: merged.isAvailable
+        isAvailable: merged.isAvailable,
       });
       setStaff((prev) => prev.map((m) => (m.id === id ? saved : m)));
       addToast('Collaborateur mis à jour.', 'success');
@@ -998,7 +1045,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         email: data.email || '',
         segment: data.segment,
         favoriteService: data.favoriteService,
-        notes: data.notes
+        notes: data.notes,
       });
       setClients((prev) => [created, ...prev]);
       addToast(`Client ${created.name} ajouté au CRM !`, 'success');
@@ -1015,7 +1062,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         email: client.email || '',
         segment: client.segment,
         favoriteService: client.favoriteService,
-        notes
+        notes,
       });
       setClients((prev) => prev.map((c) => (c.id === clientId ? saved : c)));
       addToast('Fiche client mise à jour.', 'success');
@@ -1033,7 +1080,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         email: merged.email || '',
         segment: merged.segment,
         favoriteService: merged.favoriteService,
-        notes: merged.notes
+        notes: merged.notes,
       });
       setClients((prev) => prev.map((c) => (c.id === clientId ? saved : c)));
       addToast('Client mis à jour.', 'success');
@@ -1050,7 +1097,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   /** Les opérations ERP nécessitent une adhésion Supabase active au salon. */
   const hasActiveMembership = memberships.some(
-    (membership) => membership.status === 'active' && membership.salonId === activeSalonId
+    (membership) => membership.status === 'active' && membership.salonId === activeSalonId,
   );
   const toIso = (date: string, time: string) => `${date}T${time.slice(0, 5)}:00.000Z`;
 
@@ -1070,10 +1117,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     void remote(async () => {
       const saved = await salonApi(requireActiveSalon().id).appointments.reschedule(appointmentId, {
-        staffId: merged.staffId === "any" || !merged.staffId ? current.staffId : merged.staffId,
+        staffId: merged.staffId === 'any' || !merged.staffId ? current.staffId : merged.staffId,
         serviceId: merged.serviceId,
         startsAt,
-        notes: merged.notes ?? ''
+        notes: merged.notes ?? '',
       });
       setAppointments((prev) => prev.map((a) => (a.id === appointmentId ? { ...a, ...saved } : a)));
       addToast('Rendez-vous modifié.', 'success');
@@ -1086,7 +1133,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (!hasActiveMembership) throw new Error('Annulation indisponible sans adhésion active au salon.');
       const saved = await salonApi(requireActiveSalon().id).appointments.cancel(
         appointmentId,
-        'Annulé depuis le planning'
+        'Annulé depuis le planning',
       );
       setAppointments((prev) => prev.map((a) => (a.id === appointmentId ? { ...a, ...saved } : a)));
       addToast('Rendez-vous annulé, historique conservé.', 'info');
@@ -1123,7 +1170,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         quantity: data.quantity,
         minThreshold: data.minThreshold,
         unitCost: data.unitCost,
-        supplier: data.supplier
+        supplier: data.supplier,
       });
       setStocks((prev) => [...prev, created]);
       addToast(`Produit ${created.name} ajouté au stock`, 'success');
@@ -1148,7 +1195,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         quantity,
         minThreshold: item.minThreshold,
         unitCost: item.unitCost,
-        supplier: item.supplier
+        supplier: item.supplier,
       });
       setStocks((prev) => prev.map((entry) => (entry.id === id ? saved : entry)));
       addToast('Stock ajusté.', 'info');
@@ -1174,9 +1221,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (updates.whatsapp !== undefined) profile.whatsapp = updates.whatsapp;
       if (updates.email !== undefined) profile.email = updates.email || null;
       if (updates.paymentMethods !== undefined) profile.payment_methods = updates.paymentMethods;
-      if (updates.featuredPrestations !== undefined) profile.featured_service_ids = updates.featuredPrestations;
+      if (updates.featuredPrestations !== undefined)
+        profile.featured_service_ids = updates.featuredPrestations;
       if (updates.galleryItems !== undefined) {
-        profile.gallery = updates.galleryItems.map((item) => ({ url: item.url, title: item.title, description: item.description }));
+        profile.gallery = updates.galleryItems.map((item) => ({
+          url: item.url,
+          title: item.title,
+          description: item.description,
+        }));
       } else if (updates.gallery !== undefined) {
         profile.gallery = updates.gallery.map((url) => ({ url, title: '', description: '' }));
       }
@@ -1199,11 +1251,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const bookPublicAppointment = async (
-    input: Omit<PublicBookingInput, 'idempotencyKey'> & { idempotencyKey?: string }
+    input: Omit<PublicBookingInput, 'idempotencyKey'> & { idempotencyKey?: string },
   ): Promise<{ success: boolean; booking?: PublicBooking; error?: string }> => {
     try {
-      const idempotencyKey = input.idempotencyKey
-        ?? (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      const idempotencyKey =
+        input.idempotencyKey ??
+        (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
           ? crypto.randomUUID()
           : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
       const booking = await bookMarketplaceAppointment({ ...input, idempotencyKey });
@@ -1215,7 +1268,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const cancelPublicBooking = async (
-    salonId: string, appointmentId: string, cancelToken: string, reason: string
+    salonId: string,
+    appointmentId: string,
+    cancelToken: string,
+    reason: string,
   ): Promise<{ success: boolean; booking?: PublicBooking; error?: string }> => {
     try {
       const booking = await cancelMarketplaceBooking(salonId, appointmentId, cancelToken, reason);
@@ -1312,7 +1368,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         formatPrice,
         isSyncing,
         syncError,
-        reloadWorkspace
+        reloadWorkspace,
       }}
     >
       {children}

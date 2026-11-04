@@ -12,15 +12,15 @@
 
 ## 1. Architecture réelle (VÉRIFIÉ)
 
-| Couche | Réalité | Preuve |
-| --- | --- | --- |
-| Frontend | React 19 + TS + Vite 8 + Tailwind 4 + React Router 7, SPA unique ERP + marketplace | `package.json`, `src/router.tsx` |
-| Source de vérité | **Supabase PostgreSQL** : le frontend n'appelle **aucune** route Express (0 référence `/api/` dans `src/`) | grep `src/` |
-| Accès données | PostgREST direct (CRUD simples, RLS) sur 25 tables + **44 RPC** appelées, **toutes définies** dans `supabase/migrations/` (73 fonctions au total) | inventaire automatisé |
-| Auth | Supabase Auth (`signInWithPassword`, `signUp`, session persistée) + `OnboardingGate` devant `/app/*` | `src/context/AuthContext.tsx` |
-| Backend Express | **Legacy** : `server/` (2 774 lignes, auth + ressources + finance) n'est plus appelé par le produit ; seuls 8 fichiers de tests legacy l'exercent encore. Schéma associé : `database/migrations/` (10 fichiers, distinct de `supabase/migrations/`) + `compose.yaml` (PG local dev uniquement) | `server/`, `database/` |
-| Edge Functions | 1 : `notifications-dispatcher` (**déployée, ACTIVE v7** sur le projet lié) | connecteur Supabase |
-| CI | GitHub Actions : `ci.yml` (typecheck, lint, tests, build via `npm ci`) + `supabase-migrations.yml` (validation des migrations) | `.github/workflows/` |
+| Couche           | Réalité                                                                                                                                                                                                                                                                                        | Preuve                           |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| Frontend         | React 19 + TS + Vite 8 + Tailwind 4 + React Router 7, SPA unique ERP + marketplace                                                                                                                                                                                                             | `package.json`, `src/router.tsx` |
+| Source de vérité | **Supabase PostgreSQL** : le frontend n'appelle **aucune** route Express (0 référence `/api/` dans `src/`)                                                                                                                                                                                     | grep `src/`                      |
+| Accès données    | PostgREST direct (CRUD simples, RLS) sur 25 tables + **44 RPC** appelées, **toutes définies** dans `supabase/migrations/` (73 fonctions au total)                                                                                                                                              | inventaire automatisé            |
+| Auth             | Supabase Auth (`signInWithPassword`, `signUp`, session persistée) + `OnboardingGate` devant `/app/*`                                                                                                                                                                                           | `src/context/AuthContext.tsx`    |
+| Backend Express  | **Legacy** : `server/` (2 774 lignes, auth + ressources + finance) n'est plus appelé par le produit ; seuls 8 fichiers de tests legacy l'exercent encore. Schéma associé : `database/migrations/` (10 fichiers, distinct de `supabase/migrations/`) + `compose.yaml` (PG local dev uniquement) | `server/`, `database/`           |
+| Edge Functions   | 1 : `notifications-dispatcher` (**déployée, ACTIVE v7** sur le projet lié)                                                                                                                                                                                                                     | connecteur Supabase              |
+| CI               | GitHub Actions : `ci.yml` (typecheck, lint, tests, build via `npm ci`) + `supabase-migrations.yml` (validation des migrations)                                                                                                                                                                 | `.github/workflows/`             |
 
 Conséquence (DÉDUIT) : la double pile Express/Supabase est un héritage des
 anciens « lots » du dépôt. La pile Express peut être retirée **après** le
@@ -29,12 +29,12 @@ fonctionnalité produit aujourd'hui.
 
 ## 2. Résultats des portes de qualité (exécutées le 2026-11-04, VÉRIFIÉ)
 
-| Commande | Résultat |
-| --- | --- |
-| `npm run typecheck` | ✅ 0 erreur (`strict` non activé dans `tsconfig.json` ; 13 occurrences `any` dans `src/`) |
-| `npm run lint` | ✅ 0 erreur |
-| `npm test` | ✅ **115 + 16 tests réussis, 0 échec**, 2 ignorés (`tests/operations-lot3.pg.test.mjs` : PostgreSQL réel absent) |
-| `npm run build` | ✅ (avertissement taille de chunk uniquement) |
+| Commande               | Résultat                                                                                                                   |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `npm run typecheck`    | ✅ 0 erreur (`strict` non activé dans `tsconfig.json` ; 13 occurrences `any` dans `src/`)                                  |
+| `npm run lint`         | ✅ 0 erreur                                                                                                                |
+| `npm test`             | ✅ **115 + 16 tests réussis, 0 échec**, 2 ignorés (`tests/operations-lot3.pg.test.mjs` : PostgreSQL réel absent)           |
+| `npm run build`        | ✅ (avertissement taille de chunk uniquement)                                                                              |
 | `npm run format:check` | ❌ **131 fichiers** non formatés Prettier (jamais enforced ; ne pas lancer `format` massif sans décision — diff illisible) |
 
 ## 3. Base de données (VÉRIFIÉ depuis les migrations)
@@ -61,14 +61,14 @@ fonctionnalité produit aujourd'hui.
 
 ## 4. État de la base liée / production (VÉRIFIÉ via connecteur, lecture seule)
 
-| Élément | État |
-| --- | --- |
-| Migrations enregistrées | jusqu'à `20261104130500` — **`20261104140000` et `…140100` (vitrines) non enregistrées** ; objets créés hors CLI : table `salon_marketplace_settings` + 6/7 fonctions du customizer ; **RPC `publish_marketplace_customizer` absente** → bouton « Publier » de l'éditeur **NON OPÉRATIONNEL** en production (correctif : `npm run supabase:db:linked:push` depuis un poste lié, migrations idempotentes) |
-| Edge `notifications-dispatcher` | ✅ ACTIVE v7 |
-| Secrets présents | `NOTIFICATIONS_DISPATCH_TOKEN`, `PUBLIC_APP_URL`, `WHATSAPP_DEFAULT_COUNTRY_CODE`, `WHATSAPP_TEMPLATE_LANG` |
-| Secrets absents | `RESEND_API_KEY`, `NOTIFICATIONS_EMAIL_FROM`, `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` → **aucun envoi réel e-mail/WhatsApp possible** (`provider_not_configured`, messages marqués « skipped », jamais « envoyés ») — **NON OPÉRATIONNEL** au sens envoi réel, OPÉRATIONNEL au sens file/journal |
-| Hébergement frontend | À VÉRIFIER (aucun `vercel.json` ; l'organisation Supabase est de type Vercel, DÉDUIT : déploiement Vercel depuis `main`) |
-| Données réelles en base | À VÉRIFIER (non inspectées : aucune lecture de données métier effectuée pendant l'audit) |
+| Élément                         | État                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Migrations enregistrées         | jusqu'à `20261104130500` — **`20261104140000` et `…140100` (vitrines) non enregistrées** ; objets créés hors CLI : table `salon_marketplace_settings` + 6/7 fonctions du customizer ; **RPC `publish_marketplace_customizer` absente** → bouton « Publier » de l'éditeur **NON OPÉRATIONNEL** en production (correctif : `npm run supabase:db:linked:push` depuis un poste lié, migrations idempotentes) |
+| Edge `notifications-dispatcher` | ✅ ACTIVE v7                                                                                                                                                                                                                                                                                                                                                                                             |
+| Secrets présents                | `NOTIFICATIONS_DISPATCH_TOKEN`, `PUBLIC_APP_URL`, `WHATSAPP_DEFAULT_COUNTRY_CODE`, `WHATSAPP_TEMPLATE_LANG`                                                                                                                                                                                                                                                                                              |
+| Secrets absents                 | `RESEND_API_KEY`, `NOTIFICATIONS_EMAIL_FROM`, `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` → **aucun envoi réel e-mail/WhatsApp possible** (`provider_not_configured`, messages marqués « skipped », jamais « envoyés ») — **NON OPÉRATIONNEL** au sens envoi réel, OPÉRATIONNEL au sens file/journal                                                                                                    |
+| Hébergement frontend            | À VÉRIFIER (aucun `vercel.json` ; l'organisation Supabase est de type Vercel, DÉDUIT : déploiement Vercel depuis `main`)                                                                                                                                                                                                                                                                                 |
+| Données réelles en base         | À VÉRIFIER (non inspectées : aucune lecture de données métier effectuée pendant l'audit)                                                                                                                                                                                                                                                                                                                 |
 
 ## 5. Points forts confirmés
 
@@ -98,18 +98,18 @@ fonctionnalité produit aujourd'hui.
 
 ## 6. Faiblesses et risques principaux
 
-| # | Constat | Catégorie | Gravité |
-| --- | --- | --- | --- |
-| F1 | RPC `publish_marketplace_customizer` absente en production + historique de migrations divergent (objets hors CLI) | VÉRIFIÉ | **Critique** (bloque « Publier ») |
-| F2 | Aucun fournisseur d'envoi configuré (Resend/WhatsApp) : les clients ne reçoivent rien ; le lien de suivi n'est visible qu'à l'écran de confirmation | VÉRIFIÉ | **Élevée** |
-| F3 | Double pile historique (Express + `database/migrations/` + ~55 tests legacy) : coût de maintenance, risque de confusion de source de vérité | VÉRIFIÉ | Moyenne |
-| F4 | `AppContext.tsx` (1 336 lignes) + `api.ts` (1 137) : god objects ; chargements plein périmètre, pas d'invalidation ciblée ni Realtime (0 abonnement `channel`) → écrans potentiellement périmés entre postes | VÉRIFIÉ | Moyenne |
-| F5 | `strict` TS désactivé ; `format:check` rouge (131 fichiers) | VÉRIFIÉ | Faible |
-| F6 | Réponse du salon aux avis absente (aucune colonne/fonction de réponse dans `reviews`) | VÉRIFIÉ | Moyenne |
-| F7 | Inbox « Demandes en ligne » : actions limitées à Confirmer/Refuser dans l'écran (pas de proposition de créneau ni de réaffectation depuis l'inbox ; possibles via le planning) | VÉRIFIÉ (lecture du composant) | Moyenne |
-| F8 | Stocks : table `stock_items` seule, aucun mouvement/fournisseur/consommation par prestation | VÉRIFIÉ | Faible (Lot 7) |
-| F9 | Concurrence « 2 réservations simultanées » garantie en prod par `btree_gist` **si** l'extension a été créée sur le projet lié ; sous PGlite le repli fonctionnel est testé | À VÉRIFIER sur le projet lié | Élevée si absent |
-| F10 | Hébergement/backup/observabilité de production non documentés dans le dépôt | À VÉRIFIER | Moyenne (Lot 9) |
+| #   | Constat                                                                                                                                                                                                      | Catégorie                      | Gravité                           |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------ | --------------------------------- |
+| F1  | RPC `publish_marketplace_customizer` absente en production + historique de migrations divergent (objets hors CLI)                                                                                            | VÉRIFIÉ                        | **Critique** (bloque « Publier ») |
+| F2  | Aucun fournisseur d'envoi configuré (Resend/WhatsApp) : les clients ne reçoivent rien ; le lien de suivi n'est visible qu'à l'écran de confirmation                                                          | VÉRIFIÉ                        | **Élevée**                        |
+| F3  | Double pile historique (Express + `database/migrations/` + ~55 tests legacy) : coût de maintenance, risque de confusion de source de vérité                                                                  | VÉRIFIÉ                        | Moyenne                           |
+| F4  | `AppContext.tsx` (1 336 lignes) + `api.ts` (1 137) : god objects ; chargements plein périmètre, pas d'invalidation ciblée ni Realtime (0 abonnement `channel`) → écrans potentiellement périmés entre postes | VÉRIFIÉ                        | Moyenne                           |
+| F5  | `strict` TS désactivé ; `format:check` rouge (131 fichiers)                                                                                                                                                  | VÉRIFIÉ                        | Faible                            |
+| F6  | Réponse du salon aux avis absente (aucune colonne/fonction de réponse dans `reviews`)                                                                                                                        | VÉRIFIÉ                        | Moyenne                           |
+| F7  | Inbox « Demandes en ligne » : actions limitées à Confirmer/Refuser dans l'écran (pas de proposition de créneau ni de réaffectation depuis l'inbox ; possibles via le planning)                               | VÉRIFIÉ (lecture du composant) | Moyenne                           |
+| F8  | Stocks : table `stock_items` seule, aucun mouvement/fournisseur/consommation par prestation                                                                                                                  | VÉRIFIÉ                        | Faible (Lot 7)                    |
+| F9  | Concurrence « 2 réservations simultanées » garantie en prod par `btree_gist` **si** l'extension a été créée sur le projet lié ; sous PGlite le repli fonctionnel est testé                                   | À VÉRIFIER sur le projet lié   | Élevée si absent                  |
+| F10 | Hébergement/backup/observabilité de production non documentés dans le dépôt                                                                                                                                  | À VÉRIFIER                     | Moyenne (Lot 9)                   |
 
 ## 7. Documentation historique vs réalité
 

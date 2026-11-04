@@ -17,8 +17,8 @@ export const ToastContainer: React.FC = () => {
               toast.type === 'success'
                 ? 'bg-[#18231c]/95 border-[#16A36A]/40 text-emerald-100'
                 : toast.type === 'error'
-                ? 'bg-[#291717]/95 border-[#DC4545]/40 text-red-100'
-                : 'bg-[#1b1b1e]/95 border-[#C9A45C]/40 text-amber-100'
+                  ? 'bg-[#291717]/95 border-[#DC4545]/40 text-red-100'
+                  : 'bg-[#1b1b1e]/95 border-[#C9A45C]/40 text-amber-100'
             }`}
           >
             {toast.type === 'success' && <CheckCircle2 className="w-5 h-5 text-[#16A36A] shrink-0 mt-0.5" />}

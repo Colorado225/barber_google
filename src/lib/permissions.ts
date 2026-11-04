@@ -70,19 +70,8 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     'payments.read',
   ],
   barber: [...MEMBER_PERMISSIONS, 'appointments.read', 'stock.read'],
-  cashier: [
-    ...MEMBER_PERMISSIONS,
-    'appointments.read',
-    'stock.read',
-    ...FINANCE_READ,
-    ...FINANCE_RECORD,
-  ],
-  accountant: [
-    ...MEMBER_PERMISSIONS,
-    'expenses.read',
-    ...FINANCE_READ,
-    ...REPORTS,
-  ],
+  cashier: [...MEMBER_PERMISSIONS, 'appointments.read', 'stock.read', ...FINANCE_READ, ...FINANCE_RECORD],
+  accountant: [...MEMBER_PERMISSIONS, 'expenses.read', ...FINANCE_READ, ...REPORTS],
 };
 
 export function getRolePermissions(role: string): string[] {

@@ -1,6 +1,6 @@
 /**
  * Supabase Client Configuration
- * 
+ *
  * This client uses the Supabase JavaScript SDK for all database and auth operations.
  * Make sure to install: @supabase/supabase-js
  */

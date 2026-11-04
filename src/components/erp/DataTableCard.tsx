@@ -28,7 +28,7 @@ export function DataTableCard<T>({
   getRowKey,
   emptyMessage,
   emptyHint,
-  action
+  action,
 }: DataTableCardProps<T>) {
   return (
     <div className="p-6 space-y-6">

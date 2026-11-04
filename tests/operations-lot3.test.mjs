@@ -28,7 +28,7 @@ const MIGRATIONS = [
   '20261103030000_lot2_account_security.sql',
   '20261103040000_lot3_operations.sql',
   '20261103060000_lot3_fitions.sql',
-  '20261103050000_lot4_finance.sql'
+  '20261103050000_lot4_finance.sql',
 ];
 
 let db;
@@ -88,7 +88,7 @@ async function createShop(label) {
       phone: '+225 0700000001',
       commissionRate: 25,
       branchId,
-      serviceIds: [service.body.id]
+      serviceIds: [service.body.id],
     })
     .expect(200);
 
@@ -105,7 +105,7 @@ async function createShop(label) {
     branchId,
     service: service.body,
     staff: staff.body,
-    client: client.body
+    client: client.body,
   };
 }
 
@@ -127,8 +127,8 @@ before(async () => {
       allowedOrigin: ORIGIN,
       secureCookie: true,
       exposeTokens: true,
-      rateLimits: { global: 100000, login: 100000, mail: 100000 }
-    })
+      rateLimits: { global: 100000, login: 100000, mail: 100000 },
+    }),
   );
   app.use(
     createResourceApp({
@@ -136,8 +136,8 @@ before(async () => {
       salonRepository: createSalonRepository(db),
       operationsRepository: createOperationsRepository(db),
       sessionRunner: createSessionRunner(db),
-      allowedOrigin: ORIGIN
-    }).app
+      allowedOrigin: ORIGIN,
+    }).app,
   );
 });
 
@@ -241,7 +241,7 @@ test('personnel : profil métier sans compte, horaires et absences', async () =>
   const reception = await createVerifiedAccount('reception-team@example.test', 'Réception');
   await db.query("insert into public.bc_memberships(salon_id,user_id,role) values ($1,$2,'receptionist')", [
     shop.salonId,
-    reception.userId
+    reception.userId,
   ]);
   await request(app)
     .post(`/api/salons/${shop.salonId}/staff`)
@@ -272,7 +272,7 @@ test('réservation : persistance, disponibilité et refus du chevauchement', asy
       serviceId: shop.service.id,
       startsAt: start,
       endsAt: end,
-      source: 'direct'
+      source: 'direct',
     })
     .expect(200);
   assert.equal(created.body.status, 'confirmed');
@@ -300,7 +300,7 @@ test('réservation : persistance, disponibilité et refus du chevauchement', asy
       staffId: shop.staff.id,
       serviceId: shop.service.id,
       startsAt: addMinutes(start, 20),
-      endsAt: addMinutes(end, 20)
+      endsAt: addMinutes(end, 20),
     })
     .expect(409);
   assert.equal(conflict.body.code, 'slot_conflict');
@@ -316,7 +316,7 @@ test('réservation : persistance, disponibilité et refus du chevauchement', asy
       staffId: shop.staff.id,
       serviceId: shop.service.id,
       startsAt: end,
-      endsAt: addMinutes(end, 40)
+      endsAt: addMinutes(end, 40),
     })
     .expect(200);
 });
@@ -333,7 +333,7 @@ test('réservation : deux requêtes concurrentes ne peuvent pas prendre le même
     staffId: shop.staff.id,
     serviceId: shop.service.id,
     startsAt: start,
-    endsAt: end
+    endsAt: end,
   };
   const send = () =>
     request(app)
@@ -349,7 +349,7 @@ test('réservation : deux requêtes concurrentes ne peuvent pas prendre le même
 
   const rows = await db.query(
     "select count(*)::int as count from public.bc_appointments where salon_id = $1 and status <> 'cancelled'",
-    [shop.salonId]
+    [shop.salonId],
   );
   assert.equal(rows.rows[0].count, 1, 'un seul rendez-vous doit être enregistré');
 });
@@ -377,7 +377,7 @@ test('disponibilités : absences, horaires et prestation non maîtrisée', async
       staffId: shop.staff.id,
       serviceId: shop.service.id,
       startsAt: slot(date, '08:00'),
-      endsAt: slot(date, '08:40')
+      endsAt: slot(date, '08:40'),
     })
     .expect(409);
 
@@ -392,7 +392,7 @@ test('disponibilités : absences, horaires et prestation non maîtrisée', async
       staffId: shop.staff.id,
       serviceId: shop.service.id,
       startsAt: slot(date, '09:00'),
-      endsAt: slot(date, '09:40')
+      endsAt: slot(date, '09:40'),
     })
     .expect(200);
 
@@ -413,7 +413,7 @@ test('disponibilités : absences, horaires et prestation non maîtrisée', async
       staffId: shop.staff.id,
       serviceId: shop.service.id,
       startsAt: slot('2030-02-07', '10:00'),
-      endsAt: slot('2030-02-07', '10:40')
+      endsAt: slot('2030-02-07', '10:40'),
     })
     .expect(409);
 
@@ -434,7 +434,7 @@ test('disponibilités : absences, horaires et prestation non maîtrisée', async
       staffId: shop.staff.id,
       serviceId: otherService.body.id,
       startsAt: slot('2030-02-13', '10:00'),
-      endsAt: slot('2030-02-13', '11:00')
+      endsAt: slot('2030-02-13', '11:00'),
     })
     .expect(400);
 
@@ -469,7 +469,7 @@ test('workflow : transitions contrôlées, historique conservé, annulation moti
       staffId: shop.staff.id,
       serviceId: shop.service.id,
       startsAt: slot(date, '14:00'),
-      endsAt: slot(date, '14:40')
+      endsAt: slot(date, '14:40'),
     })
     .expect(200);
   const id = created.body.id;
@@ -498,7 +498,7 @@ test('workflow : transitions contrôlées, historique conservé, annulation moti
     .expect(200);
   assert.deepEqual(
     events.body.map((e) => e.newStatus),
-    ['confirmed', 'checked_in', 'in_progress', 'completed']
+    ['confirmed', 'checked_in', 'in_progress', 'completed'],
   );
 
   // Annulation sans motif refusée ; avec motif acceptée.
@@ -512,7 +512,7 @@ test('workflow : transitions contrôlées, historique conservé, annulation moti
       staffId: shop.staff.id,
       serviceId: shop.service.id,
       startsAt: slot(date, '15:00'),
-      endsAt: slot(date, '15:40')
+      endsAt: slot(date, '15:40'),
     })
     .expect(200);
   await request(app)
@@ -540,7 +540,7 @@ test('workflow : transitions contrôlées, historique conservé, annulation moti
       staffId: shop.staff.id,
       serviceId: shop.service.id,
       startsAt: slot(date, '15:00'),
-      endsAt: slot(date, '15:40')
+      endsAt: slot(date, '15:40'),
     })
     .expect(200);
 
@@ -561,7 +561,7 @@ test('isolation : aucun accès aux rendez-vous d’un autre salon', async () => 
       staffId: shopA.staff.id,
       serviceId: shopA.service.id,
       startsAt: slot('2030-02-11', '10:00'),
-      endsAt: slot('2030-02-11', '10:40')
+      endsAt: slot('2030-02-11', '10:40'),
     })
     .expect(200);
 

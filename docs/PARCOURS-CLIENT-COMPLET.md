@@ -17,14 +17,14 @@ Conventions de statut utilisées dans tout ce document (voir `docs/MISEAJOUR.md`
 
 ## 1. Résumé
 
-| # | Chaînon | État | Où |
-| - | ------- | ---- | -- |
-| 1 | Page client persistante « Ma réservation » | **[Implémenté]** | `/reservation/:token`, `BookingPortalView.tsx` |
-| 2 | Envoi réel des notifications | **[Implémenté]** + **[À activer]** (clés fournisseur) | `supabase/functions/notifications-dispatcher/` |
-| 3 | Inbox ERP des demandes en ligne | **[Implémenté]** | `/app/demandes-en-ligne`, `OnlineRequestsView.tsx` |
-| 4 | CRM automatique par téléphone | **[Implémenté]** | `private.ensure_client_for_contact` |
-| 5 | Avis vérifié après prestation | **[Implémenté]** | `marketplace_submit_review` + portail |
-| 6 | Fidélité automatique | **[Implémenté]** | `loyalty_*`, `LoyaltyView.tsx` |
+| #   | Chaînon                                    | État                                                  | Où                                                 |
+| --- | ------------------------------------------ | ----------------------------------------------------- | -------------------------------------------------- |
+| 1   | Page client persistante « Ma réservation » | **[Implémenté]**                                      | `/reservation/:token`, `BookingPortalView.tsx`     |
+| 2   | Envoi réel des notifications               | **[Implémenté]** + **[À activer]** (clés fournisseur) | `supabase/functions/notifications-dispatcher/`     |
+| 3   | Inbox ERP des demandes en ligne            | **[Implémenté]**                                      | `/app/demandes-en-ligne`, `OnlineRequestsView.tsx` |
+| 4   | CRM automatique par téléphone              | **[Implémenté]**                                      | `private.ensure_client_for_contact`                |
+| 5   | Avis vérifié après prestation              | **[Implémenté]**                                      | `marketplace_submit_review` + portail              |
+| 6   | Fidélité automatique                       | **[Implémenté]**                                      | `loyalty_*`, `LoyaltyView.tsx`                     |
 
 **Validation [Vérifié]** : `typecheck` ✓, `lint` ✓, `build` ✓,
 `test:supabase` **46/46** ✓ (dont 9 nouveaux tests « parcours client »),
@@ -36,10 +36,12 @@ tests React ciblés 5/5 ✓, routes `/reservation/:token`,
 ## 2. Page client persistante « Ma réservation »
 
 ### Problème résolu
+
 Avant, la réservation n'existait que dans l'état React du modal. Fenêtre fermée
 = réservation perdue pour le client, qui ne pouvait plus ni suivre ni annuler.
 
 ### Fonctionnement
+
 - Chaque réservation possède déjà un **jeton secret** `public_cancel_token`
   (généré en base). Il devient la clé d'une page publique :
   **`/reservation/<jeton>`**.
@@ -56,6 +58,7 @@ Avant, la réservation n'existait que dans l'état React du modal. Fenêtre ferm
   `booking_token` (voir §3), donc il survit à un changement d'appareil.
 
 ### Limites assumées
+
 - Pas de compte client : le jeton **est** le secret. Il est marqué comme
   personnel dans l'UI, et retirables de l'appareil en un clic.
 - Aucune table n'est ouverte en lecture `anon` : tout passe par la RPC.
@@ -65,6 +68,7 @@ Avant, la réservation n'existait que dans l'état React du modal. Fenêtre ferm
 ## 3. Envoi réel des notifications
 
 ### Architecture
+
 ```
 déclencheur SQL (réservation / confirmation / annulation / fin)
         ↓  écrit dans appointment_notifications (outbox)
@@ -77,6 +81,7 @@ edge function « notifications-dispatcher »
 ```
 
 ### Garanti par la base **[Vérifié]**
+
 - `claim_due_notifications` est **réservé au rôle `service_role`** : ni `anon`
   ni `authenticated` ne peuvent l'exécuter (testé, SQLSTATE 42501).
 - Un message réservé passe `sending` avec un verrou ; s'il reste bloqué plus de
@@ -87,6 +92,7 @@ edge function « notifications-dispatcher »
   ou `skipped` ; il refuse de relancer un message déjà `sent`.
 
 ### Honnêteté des statuts
+
 - `sent` **uniquement** si le fournisseur répond 2xx avec un identifiant, stocké
   dans `provider_message_id`.
 - `failed` + message d'erreur du fournisseur sinon.
@@ -95,26 +101,28 @@ edge function « notifications-dispatcher »
   Aucun message n'est jamais affiché « envoyé » sans preuve.
 
 ### Déclenchement manuel
+
 Bouton **« Traiter la file d'envoi »** dans `/app/notifications`. L'appel part
 avec le JWT de l'utilisateur ; la fonction vérifie son identité puis appelle
 `can_manage_notifications(salon_id)` (droit `appointments.write`). Un membre
 sans ce droit reçoit 403.
 
 ### [À activer] — clés fournisseur
+
 Aucune clé e-mail/WhatsApp n'existe sur le projet **[Vérifié]** : seuls les
 secrets `SUPABASE_*` étaient présents. **Aucun e-mail réel n'a donc été envoyé,
 et ce document ne prétend pas le contraire.**
 
 Pour activer, dans **Dashboard Supabase → Edge Functions → Secrets** :
 
-| Secret | Rôle |
-| ------ | ---- |
-| `RESEND_API_KEY` | clé API Resend (e-mail) |
+| Secret                     | Rôle                                              |
+| -------------------------- | ------------------------------------------------- |
+| `RESEND_API_KEY`           | clé API Resend (e-mail)                           |
 | `NOTIFICATIONS_EMAIL_FROM` | expéditeur vérifié, ex. `Salon <resa@domaine.ci>` |
-| `WHATSAPP_TOKEN` | jeton Meta WhatsApp Cloud API |
-| `WHATSAPP_PHONE_NUMBER_ID` | identifiant du numéro émetteur |
-| `WHATSAPP_TEMPLATE_PREFIX` | optionnel : active les modèles approuvés |
-| `PUBLIC_APP_URL` | origine du site, pour le lien « Ma réservation » |
+| `WHATSAPP_TOKEN`           | jeton Meta WhatsApp Cloud API                     |
+| `WHATSAPP_PHONE_NUMBER_ID` | identifiant du numéro émetteur                    |
+| `WHATSAPP_TEMPLATE_PREFIX` | optionnel : active les modèles approuvés          |
+| `PUBLIC_APP_URL`           | origine du site, pour le lien « Ma réservation »  |
 
 Déjà posés : `NOTIFICATIONS_DISPATCH_TOKEN`, `WHATSAPP_DEFAULT_COUNTRY_CODE=225`,
 `WHATSAPP_TEMPLATE_LANG=fr`, et `PUBLIC_APP_URL` pointant sur l'URL de préversion
@@ -131,6 +139,7 @@ Avec le préfixe, la fonction envoie `<préfixe>_<kind>` avec 5 paramètres
 (nom client, salon, prestation, date/heure, lien).
 
 ### Planificateur
+
 - `pg_cron` + `pg_net` installés, tâche `dispatch-appointment-notifications`
   (`*/5 * * * *`) **[Vérifié]**.
 - La configuration vit dans `private.notification_dispatch_config`, **non
@@ -140,6 +149,7 @@ Avec le préfixe, la fonction envoie `<préfixe>_<kind>` avec 5 paramètres
   ou `select cron.unschedule('dispatch-appointment-notifications');`
 
 ### Preuve d'exécution **[Vérifié]**
+
 Appel réel de la fonction déployée depuis la base (`pg_net`) : **HTTP 200**,
 corps `{"processed":0,...,"provider_configured":false,"message":"Aucun
 fournisseur configuré : la file est conservée telle quelle."}`, et la file
@@ -185,6 +195,7 @@ réelle du projet est restée `pending / 0 tentative`.
   rattachées automatiquement.
 
 ### Correctif bloquant découvert au passage **[Vérifié]**
+
 La contrainte `clients_email_check` du noyau contenait `\\.` dans son littéral
 SQL : la regex exigeait un **antislash littéral**, donc **toute adresse e-mail
 valide était rejetée** — ce qui rendait toute notification e-mail impossible.
@@ -214,6 +225,7 @@ Corrigée par la migration `20261104130400` (le noyau appliqué n'est pas modifi
 ## 7. Fidélité automatique
 
 ### Règle
+
 Points crédités **uniquement** quand le rendez-vous est `completed` **et**
 `payment_status = 'paid'`, pour un client rattaché au CRM.
 
@@ -221,6 +233,7 @@ Barème par défaut : **1 point / 100 XOF** (4 000 XOF → 40 points), modifiabl
 Seuils : Argent 100, Or 250, VIP 500. Bonus de bienvenue : 0 par défaut.
 
 ### Invariants **[Vérifié par tests]**
+
 - **Un seul gain par rendez-vous** (index unique partiel) : rejouer le
   déclencheur ne crédite rien de plus.
 - Un paiement mobile money **non rapproché** reste `pending` → **aucun point**.
@@ -236,6 +249,7 @@ Seuils : Argent 100, Or 250, VIP 500. Bonus de bienvenue : 0 par défaut.
 - Lecture seule côté navigateur : aucune écriture directe, tout passe par RPC.
 
 ### Écran
+
 `/app/fidelite` affiche désormais : compteurs, règle d'attribution éditable,
 soldes et paliers par client, consommation de récompense, ajustement motivé,
 catalogue et **journal réel des mouvements**. La mention « indisponible tant
@@ -248,16 +262,17 @@ qu'une API persistante n'est pas configurée » a disparu.
 Projet `rozsykrjrncbupzmauzj`. Toutes appliquées en transaction et enregistrées
 dans `supabase_migrations.schema_migrations`. **Ne pas les réappliquer.**
 
-| Version | Contenu |
-| ------- | ------- |
+| Version          | Contenu                                                                                                            |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------ |
 | `20261104130000` | `crm_auto_link` — normalisation téléphone, `ensure_client_for_contact`, RPC de réservation et walk-in liées au CRM |
-| `20261104130100` | `loyalty_ledger` — 3 tables, 4 index, 3 déclencheurs, 6 fonctions, RLS |
-| `20261104130200` | `notification_dispatch` — statut `sending`, kind `review_request`, 4 colonnes, claim/mark/retry |
-| `20261104130300` | `booking_portal` — `marketplace_booking_by_token`, `marketplace_submit_review` |
-| `20261104130400` | `client_email_check_fix` — correction de la regex e-mail du noyau |
-| `20261104130500` | `notification_scheduler` — pg_cron/pg_net, config privée, planification |
+| `20261104130100` | `loyalty_ledger` — 3 tables, 4 index, 3 déclencheurs, 6 fonctions, RLS                                             |
+| `20261104130200` | `notification_dispatch` — statut `sending`, kind `review_request`, 4 colonnes, claim/mark/retry                    |
+| `20261104130300` | `booking_portal` — `marketplace_booking_by_token`, `marketplace_submit_review`                                     |
+| `20261104130400` | `client_email_check_fix` — correction de la regex e-mail du noyau                                                  |
+| `20261104130500` | `notification_scheduler` — pg_cron/pg_net, config privée, planification                                            |
 
 ### Vérification après application **[Vérifié]**
+
 - **19 versions** dans le journal de migrations.
 - 3 tables de fidélité, 3 déclencheurs, 4 colonnes outbox, `rewards.times_redeemed`.
 - Droits : `anon` EXECUTE sur le portail et l'avis ; `anon` **et** `authenticated`
@@ -270,15 +285,15 @@ dans `supabase_migrations.schema_migrations`. **Ne pas les réappliquer.**
 
 ## 9. Ce qui reste ouvert
 
-| Point | État |
-| ----- | ---- |
-| Clés fournisseur e-mail / WhatsApp | **[À activer]** par l'exploitant — aucun envoi réel tant que ce n'est pas fait |
-| `PUBLIC_APP_URL` = domaine de production | **[À activer]** — actuellement l'URL de préversion |
-| Modèles WhatsApp approuvés par Meta | **[À activer]** si envoi hors fenêtre de 24 h |
-| SMS | Non implémenté : le canal est marqué `skipped` (`channel_not_supported`) |
-| Rattachement rétroactif des réservations antérieures au CRM | Non fait, volontairement |
-| Temps réel multi-postes (point 7 du §11) | Hors périmètre de ce lot |
-| 52 tests `bc_*` du backend Express legacy | Rouges **avant** ce lot (préexistant, vérifié par stash) |
+| Point                                                       | État                                                                           |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Clés fournisseur e-mail / WhatsApp                          | **[À activer]** par l'exploitant — aucun envoi réel tant que ce n'est pas fait |
+| `PUBLIC_APP_URL` = domaine de production                    | **[À activer]** — actuellement l'URL de préversion                             |
+| Modèles WhatsApp approuvés par Meta                         | **[À activer]** si envoi hors fenêtre de 24 h                                  |
+| SMS                                                         | Non implémenté : le canal est marqué `skipped` (`channel_not_supported`)       |
+| Rattachement rétroactif des réservations antérieures au CRM | Non fait, volontairement                                                       |
+| Temps réel multi-postes (point 7 du §11)                    | Hors périmètre de ce lot                                                       |
+| 52 tests `bc_*` du backend Express legacy                   | Rouges **avant** ce lot (préexistant, vérifié par stash)                       |
 
 ---
 

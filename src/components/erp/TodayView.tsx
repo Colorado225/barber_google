@@ -13,14 +13,10 @@ export const TodayView: React.FC = () => {
     .sort((a, b) => a.time.localeCompare(b.time));
 
   const todayRevenue = transactions
-    .filter(
-      (t) => t.salonId === activeSalon.id && t.status === 'completed' && t.date === todayStr
-    )
+    .filter((t) => t.salonId === activeSalon.id && t.status === 'completed' && t.date === todayStr)
     .reduce((acc, t) => acc + paymentSignedAmount(t), 0);
 
-  const waiting = todayAppointments.filter(
-    (a) => a.status === 'pending' || a.status === 'confirmed'
-  ).length;
+  const waiting = todayAppointments.filter((a) => a.status === 'pending' || a.status === 'confirmed').length;
 
   const salonClientsCount = clients.filter((c) => c.salonId === activeSalon.id).length;
 
@@ -29,26 +25,26 @@ export const TodayView: React.FC = () => {
       label: 'Rendez-vous',
       value: String(todayAppointments.length),
       icon: Calendar,
-      color: 'text-[#C9A45C]'
+      color: 'text-[#C9A45C]',
     },
     {
       label: 'Clients',
       value: String(salonClientsCount),
       icon: Users,
-      color: 'text-[#C9A45C]'
+      color: 'text-[#C9A45C]',
     },
     {
       label: 'Encaissé',
       value: formatPrice(todayRevenue),
       icon: Wallet,
-      color: 'text-emerald-400'
+      color: 'text-emerald-400',
     },
     {
       label: 'En attente',
       value: String(waiting),
       icon: Clock,
-      color: 'text-amber-400'
-    }
+      color: 'text-amber-400',
+    },
   ];
 
   return (
@@ -78,9 +74,7 @@ export const TodayView: React.FC = () => {
       <div className="bg-[#151516] rounded-xl border border-[#2a2a2b] p-6">
         <h2 className="text-lg font-semibold text-[#f7f6f2] mb-4">Planning du jour</h2>
         {todayAppointments.length === 0 ? (
-          <div className="text-center py-12 text-[#a9a9a9]">
-            Aucun rendez-vous pour aujourd'hui
-          </div>
+          <div className="text-center py-12 text-[#a9a9a9]">Aucun rendez-vous pour aujourd'hui</div>
         ) : (
           <div className="space-y-2">
             {todayAppointments.map((apt) => (

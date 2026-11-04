@@ -13,7 +13,9 @@ export const VerifyEmailPage: React.FC = () => {
   const tokenHash = params.get('token_hash');
   const callbackError = params.get('error_description');
   const email = params.get('email') ?? '';
-  const [state, setState] = useState<'idle' | 'loading' | 'done' | 'error'>(tokenHash ? 'loading' : callbackError ? 'error' : 'idle');
+  const [state, setState] = useState<'idle' | 'loading' | 'done' | 'error'>(
+    tokenHash ? 'loading' : callbackError ? 'error' : 'idle',
+  );
   const [message, setMessage] = useState<string | null>(callbackError);
   const [resendEmail, setResendEmail] = useState(email);
   const { verifyEmail, resendVerification } = useAuth();

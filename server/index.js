@@ -10,7 +10,7 @@ import { createFinanceRepository } from './finance-repository.js';
 import { createSessionRunner } from './session-runner.js';
 
 if (process.env.NODE_ENV === 'production') {
-  console.error("Cette API est une fondation de développement, pas encore autorisée en production.");
+  console.error('Cette API est une fondation de développement, pas encore autorisée en production.');
   process.exit(1);
 }
 if (!process.env.DATABASE_URL || !process.env.APP_ORIGIN) {
@@ -44,22 +44,34 @@ app.use(
     // En développement uniquement, faute de fournisseur SMTP : les jetons de
     // vérification / réinitialisation sont renvoyés pour permettre le parcours.
     exposeTokens: process.env.AUTH_EXPOSE_TOKENS === 'true',
-    sessionAgeMs: Number(process.env.SESSION_TTL_MS || 7 * 24 * 60 * 60 * 1000)
-  })
+    sessionAgeMs: Number(process.env.SESSION_TTL_MS || 7 * 24 * 60 * 60 * 1000),
+  }),
 );
-app.use(createResourceApp({ authRepository, salonRepository, operationsRepository, financeRepository, sessionRunner, allowedOrigin }).app);
+app.use(
+  createResourceApp({
+    authRepository,
+    salonRepository,
+    operationsRepository,
+    financeRepository,
+    sessionRunner,
+    allowedOrigin,
+  }).app,
+);
 
 const port = Number(process.env.AUTH_PORT || 3001);
 const server = app.listen(port, '127.0.0.1', () =>
-  console.log(`API Barber Cuts prête sur http://127.0.0.1:${port}`)
+  console.log(`API Barber Cuts prête sur http://127.0.0.1:${port}`),
 );
 
 // Purge périodique des sessions expirées (toutes les heures).
-const purge = setInterval(() => {
-  authRepository.purgeExpiredSessions().catch((error) =>
-    console.error('Purge des sessions impossible:', error?.code || error?.name)
-  );
-}, 60 * 60 * 1000);
+const purge = setInterval(
+  () => {
+    authRepository
+      .purgeExpiredSessions()
+      .catch((error) => console.error('Purge des sessions impossible:', error?.code || error?.name));
+  },
+  60 * 60 * 1000,
+);
 purge.unref();
 
 for (const signal of ['SIGTERM', 'SIGINT']) {
