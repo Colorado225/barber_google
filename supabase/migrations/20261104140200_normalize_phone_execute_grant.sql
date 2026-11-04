@@ -1,0 +1,18 @@
+-- Lot 2 (sécurité) — Correctif d'autorisation : insertion directe dans clients.
+--
+-- Constat prouvé par la suite database/tests/supabase-security.test.mjs :
+-- depuis 20261104130000_crm_auto_link, l'index fonctionnel
+-- clients_salon_phone_normalized_idx évalue private.normalize_phone(phone)
+-- à chaque INSERT/UPDATE sur public.clients. Or cette même migration a
+-- révoqué EXECUTE sur la fonction au rôle authenticated. PostgreSQL
+-- vérifie le privilège EXECUTE lors de la maintenance de l'index par le
+-- rôle qui écrit : toute création/modification manuelle d'un client via
+-- PostgREST (écrans ERP Clients/CRM, src/lib/api.ts clients.create/update)
+-- échouait donc en 42501 « permission denied for function normalize_phone ».
+-- Seuls les chemins SECURITY DEFINER (réservation marketplace, walk-in)
+-- fonctionnaient.
+--
+-- normalize_phone est un helper pur (aucun accès aux données) : accorder
+-- EXECUTE à authenticated est sans risque d'exposition. anon ne reçoit
+-- rien (il n'écrit jamais dans clients).
+grant execute on function private.normalize_phone(text) to authenticated;
