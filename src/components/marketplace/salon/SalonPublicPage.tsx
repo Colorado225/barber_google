@@ -14,10 +14,7 @@ interface SalonPublicPageProps {
   onOpenBookingModal?: (serviceId?: string, staffId?: string) => void;
 }
 
-export const SalonPublicPage: React.FC<SalonPublicPageProps> = ({
-  initialDetail,
-  onOpenBookingModal
-}) => {
+export const SalonPublicPage: React.FC<SalonPublicPageProps> = ({ initialDetail, onOpenBookingModal }) => {
   const { slug } = useParams<{ slug: string }>();
   const [detail, setDetail] = useState<PublicSalonDetail | null>(initialDetail || null);
   const [loading, setLoading] = useState<boolean>(!initialDetail && Boolean(slug));
@@ -47,7 +44,7 @@ export const SalonPublicPage: React.FC<SalonPublicPageProps> = ({
           setError(
             err instanceof Error
               ? err.message
-              : "Impossible de charger la vitrine publique de cet établissement."
+              : 'Impossible de charger la vitrine publique de cet établissement.',
           );
         }
       })
@@ -90,8 +87,7 @@ export const SalonPublicPage: React.FC<SalonPublicPageProps> = ({
     );
   }
 
-  const config: SalonMarketplaceViewConfig =
-    detail.customizer || getDefaultCustomizerConfig(detail.salon.id);
+  const config: SalonMarketplaceViewConfig = detail.customizer || getDefaultCustomizerConfig(detail.salon.id);
 
   const handleBookNow = () => {
     if (onOpenBookingModal) {
@@ -123,10 +119,7 @@ export const SalonPublicPage: React.FC<SalonPublicPageProps> = ({
       <div className="max-w-6xl mx-auto space-y-8">
         {/* Navigation breadcrumb */}
         <div className="flex items-center justify-between text-xs text-stone-400">
-          <Link
-            to="/"
-            className="inline-flex items-center gap-1.5 hover:text-white transition-colors"
-          >
+          <Link to="/" className="inline-flex items-center gap-1.5 hover:text-white transition-colors">
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Marketplace Barber Cuts</span>
           </Link>
@@ -157,7 +150,7 @@ export const SalonPublicPage: React.FC<SalonPublicPageProps> = ({
           />
         )}
 
-        {(config.layout === 'classic' || (!['elegant', 'editorial'].includes(config.layout))) && (
+        {(config.layout === 'classic' || !['elegant', 'editorial'].includes(config.layout)) && (
           <ClassicSalonLayout
             detail={detail}
             config={config}

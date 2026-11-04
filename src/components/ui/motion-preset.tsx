@@ -6,7 +6,7 @@ import {
   type HTMLMotionProps,
   type UseInViewOptions,
   type Transition,
-  type Variant
+  type Variant,
 } from 'motion/react';
 
 type MotionComponent = keyof typeof motion;
@@ -54,7 +54,7 @@ export function MotionPreset({
   slide = false,
   fade = false,
   zoom = false,
-  motionProps = {}
+  motionProps = {},
 }: MotionPresetProps) {
   const localRef = React.useRef<any>(null);
 
@@ -62,7 +62,7 @@ export function MotionPreset({
 
   const inViewResult = useInView(localRef, {
     once: inViewOnce,
-    margin: inViewMargin
+    margin: inViewMargin,
   });
 
   const isInView = !inView || inViewResult;
@@ -105,11 +105,11 @@ export function MotionPreset({
         exit="hidden"
         variants={{
           hidden: hiddenVariant,
-          visible: visibleVariant
+          visible: visibleVariant,
         }}
         transition={{
           ...transition,
-          delay: (transition?.delay ?? 0) + delay
+          delay: (transition?.delay ?? 0) + delay,
         }}
         className={className}
         {...motionProps}

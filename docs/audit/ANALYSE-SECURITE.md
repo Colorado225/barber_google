@@ -13,7 +13,7 @@ publique `anon`, liens clients, pile Express legacy. Sources :
   (succursale) ; rôles : `owner`, `manager`, `receptionist`, `barber`,
   `cashier`, `accountant` (check SQL).
 - Autorisation : fonction unique `private.has_salon_permission(salon,
-  permission)` utilisée par RLS et RPC ; miroir frontend dans
+permission)` utilisée par RLS et RPC ; miroir frontend dans
   `src/lib/permissions.ts` (affichage uniquement — la décision réelle est
   serveur). Permissions granulaires existantes (extraits) :
   `appointments.read/write`, `clients.read/write`, `catalog.write`,
@@ -41,7 +41,7 @@ publique `anon`, liens clients, pile Express legacy. Sources :
   serveur dans les RPC d'écriture).
 - `SECURITY DEFINER` : `set search_path = ''` présent dans les fonctions
   auditées ; pattern `revoke all … from public, anon; grant execute … to
-  authenticated` appliqué aux RPC ERP ; schéma `private` non exposé par
+authenticated` appliqué aux RPC ERP ; schéma `private` non exposé par
   PostgREST.
 
 ## 3. Surface publique `anon` (VÉRIFIÉ)
@@ -109,14 +109,14 @@ construisant leurs payloads champ par champ (pas de `select *` métier) :
 
 ## 8. Risques résiduels priorisés
 
-| # | Risque | Niveau | Traitement prévu |
-| --- | --- | --- | --- |
-| S1 | Divergence schéma lié ↔ migrations (objets créés hors CLI, RPC manquante) : état réel de prod partiellement hors historique | Élevé | Lot 1 : `db push` de régularisation + vérification catalogues |
-| S2 | Serveur Express possiblement déployé (double auth/base) | Moyen (À VÉRIFIER) | Lot 2 : confirmation + gel/retrait |
-| S3 | Jeton de suivi non révocable | Faible | Lot 2 : décision documentée (accepter ou rotation) |
-| S4 | `btree_gist` non confirmé sur le projet lié (garantie dure anti-double-réservation) | Moyen | Lot 2/4 : contrôle lecture seule + test de concurrence réel |
-| S5 | Secrets fournisseurs absents ⇒ clients non notifiés (lien de suivi affiché une seule fois) | Moyen (métier) | Lot 4 : activation Resend/WhatsApp + preuve d'envoi |
-| S6 | Pas d'admin plateforme : support/modération par accès direct base | Faible (actuel) | Lot 8 (hors feuille de route) |
+| #   | Risque                                                                                                                      | Niveau             | Traitement prévu                                              |
+| --- | --------------------------------------------------------------------------------------------------------------------------- | ------------------ | ------------------------------------------------------------- |
+| S1  | Divergence schéma lié ↔ migrations (objets créés hors CLI, RPC manquante) : état réel de prod partiellement hors historique | Élevé              | Lot 1 : `db push` de régularisation + vérification catalogues |
+| S2  | Serveur Express possiblement déployé (double auth/base)                                                                     | Moyen (À VÉRIFIER) | Lot 2 : confirmation + gel/retrait                            |
+| S3  | Jeton de suivi non révocable                                                                                                | Faible             | Lot 2 : décision documentée (accepter ou rotation)            |
+| S4  | `btree_gist` non confirmé sur le projet lié (garantie dure anti-double-réservation)                                         | Moyen              | Lot 2/4 : contrôle lecture seule + test de concurrence réel   |
+| S5  | Secrets fournisseurs absents ⇒ clients non notifiés (lien de suivi affiché une seule fois)                                  | Moyen (métier)     | Lot 4 : activation Resend/WhatsApp + preuve d'envoi           |
+| S6  | Pas d'admin plateforme : support/modération par accès direct base                                                           | Faible (actuel)    | Lot 8 (hors feuille de route)                                 |
 
 **Conclusion sécurité Lot 0** : les fondamentaux (RLS, permissions
 serveur, surface anon minimale, jetons, honnêteté des statuts) sont en

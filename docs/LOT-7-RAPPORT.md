@@ -38,11 +38,11 @@ fait au salon, caisse Lot 6) ; envoi réel e-mail/WhatsApp/SMS ; retrait d'Expre
 Appliquées via le connecteur Supabase, chacune dans `begin; … commit;` avec une
 ligne dans `supabase_migrations.schema_migrations`. **[Vérifié]**
 
-| Version | Nom | Contenu |
-| --- | --- | --- |
-| `20261104110000` | `marketplace_profile` | Colonnes vitrine `salons`, `update_salon_profile`, `set_salon_publication`, `marketplace_list_salons`, `marketplace_salon_detail` |
-| `20261104110100` | `marketplace_booking` | `marketplace_day_availability`, `marketplace_book_appointment`, `marketplace_get_booking`, `marketplace_cancel_booking`, jeton d'annulation, idempotence |
-| `20261104110200` | `appointment_notifications` | Table outbox + trigger d'enqueue, RLS lecture membres |
+| Version          | Nom                         | Contenu                                                                                                                                                  |
+| ---------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `20261104110000` | `marketplace_profile`       | Colonnes vitrine `salons`, `update_salon_profile`, `set_salon_publication`, `marketplace_list_salons`, `marketplace_salon_detail`                        |
+| `20261104110100` | `marketplace_booking`       | `marketplace_day_availability`, `marketplace_book_appointment`, `marketplace_get_booking`, `marketplace_cancel_booking`, jeton d'annulation, idempotence |
+| `20261104110200` | `appointment_notifications` | Table outbox + trigger d'enqueue, RLS lecture membres                                                                                                    |
 
 ### 2.1 Particularité de compatibilité noyau
 
@@ -82,8 +82,8 @@ sinon ajoute `is_published` ; toutes les colonnes vitrine utilisent
   ⊆ `{cash, wave, orange_money, mtn_momo, moov_money, card}`,
   `featured_service_ids` validés comme services du salon). **[Implémenté]**
 - `set_salon_publication(uuid, bool)` : publier exige ≥ 1 service actif + adresse
-  + téléphone + photo de couverture ; `publication_date` posée une seule fois.
-  **[Implémenté]**
+  - téléphone + photo de couverture ; `publication_date` posée une seule fois.
+    **[Implémenté]**
 - `marketplace_list_salons(query, commune, city, category, limit)` : cartes avec
   note et nombre d'avis **vérifiés**, prix minimum et nombre de services actifs ;
   limite 1–100. **[Implémenté]**

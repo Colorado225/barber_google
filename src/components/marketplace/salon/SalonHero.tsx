@@ -14,19 +14,17 @@ export const SalonHero: React.FC<SalonHeroProps> = ({
   salon,
   config,
   onBookNow,
-  accentColor = '#C9A45C'
+  accentColor = '#C9A45C',
 }) => {
   const tagline = config.customTagline || salon.tagline || 'Salon de coiffure & soins pour homme';
   const description = config.customDescription || salon.description || '';
-  const locationLabel = [salon.address, salon.quarter, salon.commune, salon.city]
-    .filter(Boolean)
-    .join(', ');
+  const locationLabel = [salon.address, salon.quarter, salon.commune, salon.city].filter(Boolean).join(', ');
 
   const typeLabels: Record<string, string> = {
     barbershop: 'Barbershop Premium',
     salon_femme: 'Salon de Coiffure Femme',
     salon_mixte: 'Salon Mixte & Soins',
-    institut: 'Institut de Beauté'
+    institut: 'Institut de Beauté',
   };
 
   return (
@@ -38,7 +36,7 @@ export const SalonHero: React.FC<SalonHeroProps> = ({
               className="text-xs font-semibold tracking-wider uppercase flex items-center gap-1.5"
               style={{ color: accentColor }}
             >
-              {'//'} {salon.type ? typeLabels[salon.type] ?? 'Barbershop' : 'Barbershop'}
+              {'//'} {salon.type ? (typeLabels[salon.type] ?? 'Barbershop') : 'Barbershop'}
             </span>
             {salon.isVerified && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/10 text-amber-300 border border-amber-500/20">
@@ -56,9 +54,7 @@ export const SalonHero: React.FC<SalonHeroProps> = ({
                 <Star className="w-3.5 h-3.5 fill-amber-400" />
                 <span className="font-bold text-xs text-white">{salon.rating.toFixed(1)}</span>
               </div>
-              <span className="text-[11px] text-stone-400">
-                ({salon.reviewCount ?? 0} avis vérifiés)
-              </span>
+              <span className="text-[11px] text-stone-400">({salon.reviewCount ?? 0} avis vérifiés)</span>
             </div>
           </MotionPreset>
         )}
@@ -85,13 +81,9 @@ export const SalonHero: React.FC<SalonHeroProps> = ({
               {salon.name}
             </h1>
           </div>
-          <p className="text-base sm:text-lg text-stone-300 font-medium leading-snug">
-            {tagline}
-          </p>
+          <p className="text-base sm:text-lg text-stone-300 font-medium leading-snug">{tagline}</p>
           {description && (
-            <p className="text-xs sm:text-sm text-stone-400 leading-relaxed max-w-xl">
-              {description}
-            </p>
+            <p className="text-xs sm:text-sm text-stone-400 leading-relaxed max-w-xl">{description}</p>
           )}
 
           {config.showAddress && locationLabel && (

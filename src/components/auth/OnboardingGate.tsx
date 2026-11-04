@@ -15,7 +15,16 @@ import { useAuth } from '../../context/AuthContext';
  * requête est de nouveau vérifiée côté backend (permissions + RLS).
  */
 export const OnboardingGate: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { loading, error: authError, isAuthenticated, user, onboarding, hasWorkspace, createSalon, refreshSession } = useAuth();
+  const {
+    loading,
+    error: authError,
+    isAuthenticated,
+    user,
+    onboarding,
+    hasWorkspace,
+    createSalon,
+    refreshSession,
+  } = useAuth();
   const [form, setForm] = useState({ organizationName: '', salonName: '', branchName: 'Principal' });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -44,7 +53,9 @@ export const OnboardingGate: React.FC<{ children: React.ReactNode }> = ({ childr
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-[#0d0d0e] px-4 text-center">
         <h1 className="text-2xl font-bold text-[#f7f6f2]">Vérification de session impossible</h1>
-        <p role="alert" className="max-w-lg text-sm text-red-300">{error ?? authError}</p>
+        <p role="alert" className="max-w-lg text-sm text-red-300">
+          {error ?? authError}
+        </p>
         <button
           type="button"
           onClick={() => void retry()}
@@ -61,9 +72,7 @@ export const OnboardingGate: React.FC<{ children: React.ReactNode }> = ({ childr
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-[#0d0d0e] px-4 text-center">
         <h1 className="text-2xl font-bold text-[#f7f6f2]">Connexion requise</h1>
-        <p className="text-sm text-[#a9a9a9]">
-          L'espace de gestion est réservé aux comptes authentifiés.
-        </p>
+        <p className="text-sm text-[#a9a9a9]">L'espace de gestion est réservé aux comptes authentifiés.</p>
         <Link
           to="/connexion"
           className="px-5 py-3 rounded-lg bg-[#C9A45C] text-[#101010] font-semibold flex items-center gap-2"
@@ -81,7 +90,10 @@ export const OnboardingGate: React.FC<{ children: React.ReactNode }> = ({ childr
         <p className="text-sm text-[#a9a9a9]">
           Un lien de vérification a été envoyé à <strong>{user.email}</strong>.
         </p>
-        <Link to={`/verifier-email?email=${encodeURIComponent(user.email)}`} className="text-[#C9A45C] underline">
+        <Link
+          to={`/verifier-email?email=${encodeURIComponent(user.email)}`}
+          className="text-[#C9A45C] underline"
+        >
           Renvoyer le lien
         </Link>
       </div>
@@ -112,8 +124,8 @@ export const OnboardingGate: React.FC<{ children: React.ReactNode }> = ({ childr
             <h1 className="text-xl font-bold text-[#f7f6f2]">Créer votre établissement</h1>
           </div>
           <p className="text-sm text-[#a9a9a9]">
-            Votre compte n'est rattaché à aucun salon. Créez l'établissement pour accéder à l'espace
-            de gestion.
+            Votre compte n'est rattaché à aucun salon. Créez l'établissement pour accéder à l'espace de
+            gestion.
           </p>
           {error && (
             <p className="text-xs text-red-300 bg-red-950/50 border border-red-800/50 rounded-lg px-3 py-2">

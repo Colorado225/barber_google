@@ -16,7 +16,7 @@ import {
   Phone,
   MessageCircle,
   Mail,
-  Info
+  Info,
 } from 'lucide-react';
 
 export const SalonProfileSettingsView: React.FC = () => {
@@ -75,7 +75,8 @@ export const SalonProfileSettingsView: React.FC = () => {
           setSelectedBranch((current) => list.find((branch) => branch.id === current?.id) ?? list[0] ?? null);
         }
       } catch (error) {
-        if (mounted) setBranchesError(error instanceof Error ? error.message : 'Impossible de charger les succursales.');
+        if (mounted)
+          setBranchesError(error instanceof Error ? error.message : 'Impossible de charger les succursales.');
       } finally {
         if (mounted) setBranchesLoading(false);
       }
@@ -107,16 +108,10 @@ export const SalonProfileSettingsView: React.FC = () => {
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>(activeSalon.paymentMethods ?? []);
 
   const toggleMethod = (m: PaymentMethod) => {
-    setPaymentMethods((prev) =>
-      prev.includes(m) ? prev.filter((item) => item !== m) : [...prev, m]
-    );
+    setPaymentMethods((prev) => (prev.includes(m) ? prev.filter((item) => item !== m) : [...prev, m]));
   };
 
-  const handleHourChange = <K extends keyof OpeningHour>(
-    index: number,
-    field: K,
-    value: OpeningHour[K]
-  ) => {
+  const handleHourChange = <K extends keyof OpeningHour>(index: number, field: K, value: OpeningHour[K]) => {
     setOpeningHours((prev) => {
       const next = [...prev];
       next[index] = { ...next[index], [field]: value };
@@ -147,7 +142,7 @@ export const SalonProfileSettingsView: React.FC = () => {
       address,
       minPrice: minPrice ? Number(minPrice) : undefined,
       openingHours,
-      paymentMethods
+      paymentMethods,
     });
   };
 
@@ -161,12 +156,15 @@ export const SalonProfileSettingsView: React.FC = () => {
             <span>Personnalisation de l'Établissement</span>
           </h2>
           <p className="text-xs text-stone-400 mt-1">
-            Configurez l'identité officielle de votre salon : logo, coordonnées professionnelles, horaires et tarifs.
+            Configurez l'identité officielle de votre salon : logo, coordonnées professionnelles, horaires et
+            tarifs.
           </p>
         </div>
 
         <button
-          onClick={() => setSelectedSalonForModal({ ...activeSalon, name, logo, coverImage, tagline, description })}
+          onClick={() =>
+            setSelectedSalonForModal({ ...activeSalon, name, logo, coverImage, tagline, description })
+          }
           className="bg-[#242429] hover:bg-[#2e2e34] text-white border border-[#3c3c44] font-semibold text-xs px-4 py-2.5 rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer shrink-0"
         >
           <Eye className="w-4 h-4 text-[#C9A45C]" />
@@ -192,14 +190,14 @@ export const SalonProfileSettingsView: React.FC = () => {
                   <Building2 className="w-10 h-10 text-stone-500" />
                 )}
               </div>
-
             </div>
 
             {/* Logo Controls */}
             <div className="flex-1 space-y-2 text-center sm:text-left">
               <h4 className="text-sm font-bold text-white">Logo de l'établissement</h4>
               <p className="text-xs text-stone-400">
-                Collez l'URL HTTPS de votre logo (hébergement public ou Supabase Storage). Les fichiers base64 ne sont pas persistés.
+                Collez l'URL HTTPS de votre logo (hébergement public ou Supabase Storage). Les fichiers base64
+                ne sont pas persistés.
               </p>
               <input
                 type="url"
@@ -262,9 +260,7 @@ export const SalonProfileSettingsView: React.FC = () => {
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-stone-300 block mb-1">
-                Type d'établissement
-              </label>
+              <label className="text-xs font-semibold text-stone-300 block mb-1">Type d'établissement</label>
               <select
                 value={salonType}
                 onChange={(e) => setSalonType(e.target.value as SalonType)}
@@ -321,9 +317,7 @@ export const SalonProfileSettingsView: React.FC = () => {
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-stone-300 block mb-1">
-                Devise de facturation
-              </label>
+              <label className="text-xs font-semibold text-stone-300 block mb-1">Devise de facturation</label>
               <input
                 type="text"
                 disabled
@@ -526,7 +520,7 @@ export const SalonProfileSettingsView: React.FC = () => {
               { id: 'mtn_momo', label: 'MTN Mobile Money' },
               { id: 'moov_money', label: 'Moov Money' },
               { id: 'cash', label: 'Espèces (Au salon)' },
-              { id: 'card', label: 'Carte Bancaire (TPE)' }
+              { id: 'card', label: 'Carte Bancaire (TPE)' },
             ].map((item) => {
               const isChecked = paymentMethods.includes(item.id as PaymentMethod);
               return (
@@ -534,10 +528,11 @@ export const SalonProfileSettingsView: React.FC = () => {
                   key={item.id}
                   type="button"
                   onClick={() => toggleMethod(item.id as PaymentMethod)}
-                  className={`p-3 rounded-xl border text-left text-xs font-semibold transition-all ${isChecked
-                    ? 'bg-[#C9A45C]/15 border-[#C9A45C] text-[#C9A45C]'
-                    : 'bg-[#111113] border-[#29292e] text-stone-400 hover:border-stone-500'
-                    }`}
+                  className={`p-3 rounded-xl border text-left text-xs font-semibold transition-all ${
+                    isChecked
+                      ? 'bg-[#C9A45C]/15 border-[#C9A45C] text-[#C9A45C]'
+                      : 'bg-[#111113] border-[#29292e] text-stone-400 hover:border-stone-500'
+                  }`}
                 >
                   {item.label}
                 </button>
@@ -553,13 +548,21 @@ export const SalonProfileSettingsView: React.FC = () => {
             <span>Gestion des Succursales</span>
           </div>
           {!isAuthenticated ? (
-            <p className="text-xs text-stone-400">La gestion des succursales est disponible dans un espace authentifié.</p>
+            <p className="text-xs text-stone-400">
+              La gestion des succursales est disponible dans un espace authentifié.
+            </p>
           ) : branchesLoading ? (
             <p className="text-xs text-stone-400">Chargement des succursales…</p>
           ) : branchesError ? (
             <div className="space-y-3">
-              <p role="alert" className="text-xs text-red-300">{branchesError}</p>
-              <button type="button" onClick={() => void reloadBranches()} className="text-xs text-[#C9A45C] underline">
+              <p role="alert" className="text-xs text-red-300">
+                {branchesError}
+              </p>
+              <button
+                type="button"
+                onClick={() => void reloadBranches()}
+                className="text-xs text-[#C9A45C] underline"
+              >
                 Réessayer
               </button>
             </div>

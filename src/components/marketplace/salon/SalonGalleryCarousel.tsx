@@ -19,14 +19,12 @@ export const SalonGalleryCarousel: React.FC<SalonGalleryCarouselProps> = ({
   images: resolvedImages,
   salonName,
   cardStyle = 'rounded-3xl',
-  className = ''
+  className = '',
 }) => {
-  const images =
-    resolvedImages ??
-    [
-      ...(coverImage ? [coverImage] : []),
-      ...gallery.filter((src) => src !== coverImage),
-    ];
+  const images = resolvedImages ?? [
+    ...(coverImage ? [coverImage] : []),
+    ...gallery.filter((src) => src !== coverImage),
+  ];
 
   // Aucune image de démonstration externe : un salon sans photo affiche un
   // panneau neutre à son nom plutôt que les photos d'un autre établissement.
@@ -41,7 +39,7 @@ export const SalonGalleryCarousel: React.FC<SalonGalleryCarouselProps> = ({
       className={cn(
         'relative row-span-2 h-[340px] sm:h-[420px] lg:h-[480px] overflow-hidden bg-[#141417] border border-stone-800 shadow-xl group',
         cardStyle,
-        className
+        className,
       )}
     >
       {/* État vide : panneau neutre au nom du salon */}
@@ -62,7 +60,7 @@ export const SalonGalleryCarousel: React.FC<SalonGalleryCarouselProps> = ({
           loading={i === 0 ? 'eager' : 'lazy'}
           className={cn(
             'absolute inset-0 size-full object-cover transition-opacity duration-700',
-            i === index ? 'opacity-100 scale-100' : 'opacity-0 scale-105 pointer-events-none'
+            i === index ? 'opacity-100 scale-100' : 'opacity-0 scale-105 pointer-events-none',
           )}
         />
       ))}
@@ -81,7 +79,7 @@ export const SalonGalleryCarousel: React.FC<SalonGalleryCarouselProps> = ({
             key={src}
             className={cn(
               'block h-1 rounded-full transition-all duration-300',
-              i === index ? 'w-4 bg-white' : 'w-1 bg-white/40'
+              i === index ? 'w-4 bg-white' : 'w-1 bg-white/40',
             )}
           />
         ))}

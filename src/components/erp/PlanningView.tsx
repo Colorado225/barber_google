@@ -12,7 +12,7 @@ const STATUS_LABELS: Record<AppointmentStatus, string> = {
   in_progress: 'Au fauteuil',
   completed: 'Terminé',
   cancelled: 'Annulé',
-  no_show: 'Absent'
+  no_show: 'Absent',
 };
 
 const STATUS_STYLES: Record<AppointmentStatus, string> = {
@@ -22,7 +22,7 @@ const STATUS_STYLES: Record<AppointmentStatus, string> = {
   in_progress: 'bg-purple-950/80 text-purple-300',
   completed: 'bg-emerald-950/80 text-emerald-400',
   cancelled: 'bg-stone-800 text-stone-400',
-  no_show: 'bg-red-950/80 text-red-400'
+  no_show: 'bg-red-950/80 text-red-400',
 };
 
 type FormState = {
@@ -55,7 +55,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({ onOpenWalkIn }) => {
     updateAppointmentStatus,
     startWalkIn,
     completeWalkIn,
-    addToast
+    addToast,
   } = useApp();
 
   const [filterDate, setFilterDate] = useState('');
@@ -73,7 +73,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({ onOpenWalkIn }) => {
     staffId: '',
     date: todayStr(),
     time: '',
-    notes: ''
+    notes: '',
   });
 
   const [form, setForm] = useState<FormState>(emptyForm);
@@ -82,11 +82,11 @@ export const PlanningView: React.FC<PlanningViewProps> = ({ onOpenWalkIn }) => {
 
   const salonServices = useMemo(
     () => services.filter((s) => s.salonId === activeSalon.id),
-    [services, activeSalon.id]
+    [services, activeSalon.id],
   );
   const salonStaff = useMemo(
     () => staff.filter((s) => s.salonId === activeSalon.id),
-    [staff, activeSalon.id]
+    [staff, activeSalon.id],
   );
 
   const rows = useMemo(() => {
@@ -120,7 +120,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({ onOpenWalkIn }) => {
       staffId: apt.staffId ?? '',
       date: apt.date,
       time: apt.time,
-      notes: apt.notes || ''
+      notes: apt.notes || '',
     });
     setIsFormOpen(true);
   };
@@ -161,7 +161,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({ onOpenWalkIn }) => {
         staffName: member?.name || 'Sans préférence',
         date: form.date,
         time: form.time,
-        notes: form.notes.trim()
+        notes: form.notes.trim(),
       });
       setIsFormOpen(false);
       return;
@@ -177,7 +177,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({ onOpenWalkIn }) => {
       date: form.date,
       time: form.time,
       paymentMethod: 'cash',
-      notes: form.notes.trim()
+      notes: form.notes.trim(),
     });
 
     if (!result.success) {
@@ -267,30 +267,29 @@ export const PlanningView: React.FC<PlanningViewProps> = ({ onOpenWalkIn }) => {
           <div className="p-6 text-center py-12 text-[#a9a9a9]">
             <CalendarIcon className="w-12 h-12 mx-auto mb-4 opacity-50" />
             <p>Aucun rendez-vous</p>
-            <p>{filterDate || filterStaff ? 'Aucun rendez-vous pour ce filtre' : 'Créez votre premier rendez-vous'}</p>
+            <p>
+              {filterDate || filterStaff
+                ? 'Aucun rendez-vous pour ce filtre'
+                : 'Créez votre premier rendez-vous'}
+            </p>
           </div>
         ) : (
           <table className="w-full text-sm min-w-[760px]">
             <thead>
               <tr className="border-b border-[#2a2a2b] text-left">
-                {['Date', 'Heure', 'Client', 'Prestation', 'Barbier', 'Statut', 'Montant', ''].map(
-                  (h) => (
-                    <th
-                      key={h}
-                      className="px-3 py-3 text-[11px] uppercase tracking-wider text-[#a9a9a9] font-bold"
-                    >
-                      {h}
-                    </th>
-                  )
-                )}
+                {['Date', 'Heure', 'Client', 'Prestation', 'Barbier', 'Statut', 'Montant', ''].map((h) => (
+                  <th
+                    key={h}
+                    className="px-3 py-3 text-[11px] uppercase tracking-wider text-[#a9a9a9] font-bold"
+                  >
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {rows.map((apt) => (
-                <tr
-                  key={apt.id}
-                  className="border-b border-[#232326] last:border-0 hover:bg-[#18181b]"
-                >
+                <tr key={apt.id} className="border-b border-[#232326] last:border-0 hover:bg-[#18181b]">
                   <td className="px-3 py-3 text-[#a9a9a9] text-xs">{apt.date}</td>
                   <td className="px-3 py-3 text-[#C9A45C] font-mono text-xs">{apt.time}</td>
                   <td className="px-3 py-3">
@@ -316,9 +315,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({ onOpenWalkIn }) => {
                       {STATUS_LABELS[apt.status]}
                     </span>
                   </td>
-                  <td className="px-3 py-3 text-[#E5C378] font-semibold">
-                    {formatPrice(apt.price)}
-                  </td>
+                  <td className="px-3 py-3 text-[#E5C378] font-semibold">{formatPrice(apt.price)}</td>
                   <td className="px-3 py-3">
                     <div className="flex items-center justify-end gap-1.5">
                       {apt.source !== 'walk_in' && (
@@ -359,7 +356,9 @@ export const PlanningView: React.FC<PlanningViewProps> = ({ onOpenWalkIn }) => {
                         </button>
                       )}
 
-                      {apt.source !== 'walk_in' && <ConfirmDelete onConfirm={() => deleteAppointment(apt.id)} />}
+                      {apt.source !== 'walk_in' && (
+                        <ConfirmDelete onConfirm={() => deleteAppointment(apt.id)} />
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -395,13 +394,11 @@ export const PlanningView: React.FC<PlanningViewProps> = ({ onOpenWalkIn }) => {
                 value={form.clientName}
                 onChange={(e) => {
                   const name = e.target.value;
-                  const match = clients.find(
-                    (c) => c.salonId === activeSalon.id && c.name === name
-                  );
+                  const match = clients.find((c) => c.salonId === activeSalon.id && c.name === name);
                   setForm({
                     ...form,
                     clientName: name,
-                    clientPhone: match ? match.phone : form.clientPhone
+                    clientPhone: match ? match.phone : form.clientPhone,
                   });
                 }}
                 placeholder="Ex: Awa Koné"
@@ -451,9 +448,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({ onOpenWalkIn }) => {
               >
                 {salonStaff
                   .filter((m) => m.isActive !== false && m.isAvailable)
-                  .filter((m) =>
-                    (m.serviceIds?.length ?? 0) === 0 || m.serviceIds!.includes(form.serviceId)
-                  )
+                  .filter((m) => (m.serviceIds?.length ?? 0) === 0 || m.serviceIds!.includes(form.serviceId))
                   .map((m) => (
                     <option key={m.id} value={m.id} className="bg-[#17171a]">
                       {m.name}
@@ -461,8 +456,8 @@ export const PlanningView: React.FC<PlanningViewProps> = ({ onOpenWalkIn }) => {
                   ))}
               </select>
               <p className="text-[11px] text-stone-500 mt-1">
-                Seuls les employés actifs maîtrisant la prestation sont proposés. La disponibilité
-                réelle est vérifiée par le serveur à l'enregistrement.
+                Seuls les employés actifs maîtrisant la prestation sont proposés. La disponibilité réelle est
+                vérifiée par le serveur à l'enregistrement.
               </p>
             </Field>
           </div>

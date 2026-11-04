@@ -3,7 +3,7 @@ import type {
   SalonMarketplaceViewConfig,
   SalonMarketplaceLayout,
   SalonMarketplaceSection,
-  SalonCardStyle
+  SalonCardStyle,
 } from '../types';
 import { getSupabaseClient } from './supabase';
 import { ApiError } from './api';
@@ -49,16 +49,11 @@ export function getDefaultCustomizerConfig(salonId?: string): SalonMarketplaceVi
  * Sections actives triées selon la position configurée par le propriétaire.
  * L'ordre est déterministe : position croissante, puis ordre canonique.
  */
-export function getOrderedEnabledSections(
-  config: SalonMarketplaceViewConfig
-): SalonMarketplaceSection[] {
+export function getOrderedEnabledSections(config: SalonMarketplaceViewConfig): SalonMarketplaceSection[] {
   const canonical = getDefaultCustomizerConfig().sections.map((s) => s.id);
   return [...(config.sections ?? [])]
     .filter((s) => s.enabled)
-    .sort(
-      (a, b) =>
-        a.position - b.position || canonical.indexOf(a.id) - canonical.indexOf(b.id)
-    );
+    .sort((a, b) => a.position - b.position || canonical.indexOf(a.id) - canonical.indexOf(b.id));
 }
 
 /**
@@ -70,20 +65,19 @@ export function getOrderedEnabledSections(
  */
 export function resolveGalleryImages(
   salon: { coverImage?: string; gallery?: string[] },
-  config: SalonMarketplaceViewConfig
+  config: SalonMarketplaceViewConfig,
 ): string[] {
   const all = [
     ...(salon.coverImage ? [salon.coverImage] : []),
     ...(salon.gallery ?? []).filter((src) => src && src !== salon.coverImage),
   ];
-  const selected = (config.featuredGalleryImageIds ?? []).filter((src) =>
-    all.includes(src)
-  );
+  const selected = (config.featuredGalleryImageIds ?? []).filter((src) => all.includes(src));
   return selected.length > 0 ? selected : all;
 }
 
 function mapSettingsRecord(data: DbRow): SalonMarketplaceSettingsRecord {
-  const draft = (data.draft_config as SalonMarketplaceViewConfig) ?? getDefaultCustomizerConfig(String(data.salon_id));
+  const draft =
+    (data.draft_config as SalonMarketplaceViewConfig) ?? getDefaultCustomizerConfig(String(data.salon_id));
   const published = (data.published_config as SalonMarketplaceViewConfig) ?? null;
   return {
     salonId: String(data.salon_id),
@@ -107,7 +101,7 @@ export async function getCustomizerConfig(salonId: string): Promise<SalonMarketp
 
 export async function saveCustomizerDraft(
   salonId: string,
-  config: SalonMarketplaceViewConfig
+  config: SalonMarketplaceViewConfig,
 ): Promise<SalonMarketplaceSettingsRecord> {
   const supabase = getSupabaseClient();
   const result = await supabase.rpc('save_marketplace_customizer_draft', {
@@ -126,7 +120,7 @@ export async function publishCustomizer(salonId: string): Promise<SalonMarketpla
 }
 
 export async function unpublishCustomizer(
-  salonId: string
+  salonId: string,
 ): Promise<{ salonId: string; isPublished: boolean; updatedAt: string }> {
   const supabase = getSupabaseClient();
   const result = await supabase.rpc('unpublish_marketplace_customizer', { p_salon_id: salonId });

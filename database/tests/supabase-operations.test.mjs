@@ -73,7 +73,9 @@ test('lot 5 migrations apply and seed a tenant with staff, services and hours', 
   }
 
   await asUser(ownerA);
-  const createdA = await db.query("select * from public.create_salon('Organisation A', 'Salon A', 'Principal')");
+  const createdA = await db.query(
+    "select * from public.create_salon('Organisation A', 'Salon A', 'Principal')",
+  );
   salonA = createdA.rows[0].salon_id;
   branchA = createdA.rows[0].branch_id;
 
@@ -89,32 +91,42 @@ test('lot 5 migrations apply and seed a tenant with staff, services and hours', 
   );
 
   await asUser(managerA);
-  serviceCoupe = (await db.query(
-    `insert into public.services(salon_id, name, category, price, duration_minutes)
+  serviceCoupe = (
+    await db.query(
+      `insert into public.services(salon_id, name, category, price, duration_minutes)
      values ($1, 'Coupe classique', 'coupe', 4000, 30) returning id`,
-    [salonA],
-  )).rows[0].id;
-  serviceLong = (await db.query(
-    `insert into public.services(salon_id, name, category, price, duration_minutes, prep_minutes)
+      [salonA],
+    )
+  ).rows[0].id;
+  serviceLong = (
+    await db.query(
+      `insert into public.services(salon_id, name, category, price, duration_minutes, prep_minutes)
      values ($1, 'Coloration', 'coloration', 15000, 90, 15) returning id`,
-    [salonA],
-  )).rows[0].id;
-  serviceInactive = (await db.query(
-    `insert into public.services(salon_id, name, category, price, duration_minutes, is_active)
+      [salonA],
+    )
+  ).rows[0].id;
+  serviceInactive = (
+    await db.query(
+      `insert into public.services(salon_id, name, category, price, duration_minutes, is_active)
      values ($1, 'Ancienne prestation', 'coupe', 2000, 20, false) returning id`,
-    [salonA],
-  )).rows[0].id;
-  staffKouassi = (await db.query(
-    `insert into public.staff(salon_id, name, role, branch_id, service_ids)
+      [salonA],
+    )
+  ).rows[0].id;
+  staffKouassi = (
+    await db.query(
+      `insert into public.staff(salon_id, name, role, branch_id, service_ids)
      values ($1, 'Kouassi', 'barber', $2, $3) returning id`,
-    [salonA, branchA, [serviceCoupe, serviceLong]],
-  )).rows[0].id;
+      [salonA, branchA, [serviceCoupe, serviceLong]],
+    )
+  ).rows[0].id;
 
   await asUser(receptionistA);
-  clientA = (await db.query(
-    `insert into public.clients(salon_id, name, phone) values ($1, 'Client A', '0700000001') returning id`,
-    [salonA],
-  )).rows[0].id;
+  clientA = (
+    await db.query(
+      `insert into public.clients(salon_id, name, phone) values ($1, 'Client A', '0700000001') returning id`,
+      [salonA],
+    )
+  ).rows[0].id;
 
   await asUser(managerA);
   await db.query(
@@ -158,26 +170,32 @@ test('staff schedules and absences: manager writes, receptionist reads only, ten
 
 test('create_appointment books a walk-in, computes end/amount and logs the first event', async () => {
   await asUser(receptionistA);
-  apptNine = (await db.query(
-    `select * from public.create_appointment($1, $2, $3, $4, $5, $6, null, null, 'phone', 'Contours fins')`,
-    [salonA, serviceCoupe, `${MON}T09:00:00Z`, 'Client Un', '0700000001', staffKouassi],
-  )).rows[0].id;
+  apptNine = (
+    await db.query(
+      `select * from public.create_appointment($1, $2, $3, $4, $5, $6, null, null, 'phone', 'Contours fins')`,
+      [salonA, serviceCoupe, `${MON}T09:00:00Z`, 'Client Un', '0700000001', staffKouassi],
+    )
+  ).rows[0].id;
 
-  const row = (await db.query(
-    `select status, amount, client_name, staff_name,
+  const row = (
+    await db.query(
+      `select status, amount, client_name, staff_name,
             extract(epoch from (ends_at - starts_at))::int / 60 as minutes
      from public.appointments where id = $1`,
-    [apptNine],
-  )).rows[0];
+      [apptNine],
+    )
+  ).rows[0];
   assert.equal(row.status, 'confirmed');
   assert.equal(row.amount, 4000);
   assert.equal(row.minutes, 30);
   assert.equal(row.staff_name, 'Kouassi');
 
-  const events = (await db.query(
-    'select new_status, previous_status from public.appointment_events where appointment_id = $1',
-    [apptNine],
-  )).rows;
+  const events = (
+    await db.query(
+      'select new_status, previous_status from public.appointment_events where appointment_id = $1',
+      [apptNine],
+    )
+  ).rows;
   assert.deepEqual(events, [{ new_status: 'confirmed', previous_status: null }]);
 });
 
@@ -185,52 +203,96 @@ test('create_appointment rejects overlaps, closed hours, absences and inactive s
   await asUser(receptionistA);
   // Chevauchement exact du créneau de 09:00.
   await expectCode(
-    db.query(`select public.create_appointment($1, $2, $3, $4, $5, $6)`,
-      [salonA, serviceCoupe, `${MON}T09:00:00Z`, 'Autre', '0700000002', staffKouassi]),
+    db.query(`select public.create_appointment($1, $2, $3, $4, $5, $6)`, [
+      salonA,
+      serviceCoupe,
+      `${MON}T09:00:00Z`,
+      'Autre',
+      '0700000002',
+      staffKouassi,
+    ]),
     '23P01',
   );
   // Avant l'ouverture (08:00 < 09:00).
   await expectCode(
-    db.query(`select public.create_appointment($1, $2, $3, $4, $5, $6)`,
-      [salonA, serviceCoupe, `${MON}T08:00:00Z`, 'Autre', '0700000002', staffKouassi]),
+    db.query(`select public.create_appointment($1, $2, $3, $4, $5, $6)`, [
+      salonA,
+      serviceCoupe,
+      `${MON}T08:00:00Z`,
+      'Autre',
+      '0700000002',
+      staffKouassi,
+    ]),
     '23P01',
   );
   // Mardi : jour d'absence du collaborateur.
   await expectCode(
-    db.query(`select public.create_appointment($1, $2, $3, $4, $5, $6)`,
-      [salonA, serviceCoupe, `${TUE}T09:00:00Z`, 'Autre', '0700000002', staffKouassi]),
+    db.query(`select public.create_appointment($1, $2, $3, $4, $5, $6)`, [
+      salonA,
+      serviceCoupe,
+      `${TUE}T09:00:00Z`,
+      'Autre',
+      '0700000002',
+      staffKouassi,
+    ]),
     '23P01',
   );
   // Prestation désactivée.
   await expectCode(
-    db.query(`select public.create_appointment($1, $2, $3, $4, $5, $6)`,
-      [salonA, serviceInactive, `${MON}T14:00:00Z`, 'Autre', '0700000002', staffKouassi]),
+    db.query(`select public.create_appointment($1, $2, $3, $4, $5, $6)`, [
+      salonA,
+      serviceInactive,
+      `${MON}T14:00:00Z`,
+      'Autre',
+      '0700000002',
+      staffKouassi,
+    ]),
     '22023',
   );
 });
 
 test('create_appointment auto-assigns a competent staff and enforces permissions', async () => {
   await asUser(receptionistA);
-  apptTen = (await db.query(
-    `select * from public.create_appointment($1, $2, $3, $4, $5, null, $6)`,
-    [salonA, serviceCoupe, `${MON}T10:00:00Z`, 'Client Deux', '0700000003', clientA],
-  )).rows[0].id;
-  const assigned = (await db.query('select staff_id, client_id from public.appointments where id = $1', [apptTen])).rows[0];
+  apptTen = (
+    await db.query(`select * from public.create_appointment($1, $2, $3, $4, $5, null, $6)`, [
+      salonA,
+      serviceCoupe,
+      `${MON}T10:00:00Z`,
+      'Client Deux',
+      '0700000003',
+      clientA,
+    ])
+  ).rows[0].id;
+  const assigned = (
+    await db.query('select staff_id, client_id from public.appointments where id = $1', [apptTen])
+  ).rows[0];
   assert.equal(assigned.staff_id, staffKouassi);
   assert.equal(assigned.client_id, clientA);
 
   // Un barbier n'a pas appointments.write.
   await asUser(barberA);
   await expectCode(
-    db.query(`select public.create_appointment($1, $2, $3, $4, $5, $6)`,
-      [salonA, serviceCoupe, `${MON}T15:00:00Z`, 'Autre', '0700000004', staffKouassi]),
+    db.query(`select public.create_appointment($1, $2, $3, $4, $5, $6)`, [
+      salonA,
+      serviceCoupe,
+      `${MON}T15:00:00Z`,
+      'Autre',
+      '0700000004',
+      staffKouassi,
+    ]),
     '42501',
   );
   // Un autre salon ne peut pas écrire chez nous.
   await asUser(ownerB);
   await expectCode(
-    db.query(`select public.create_appointment($1, $2, $3, $4, $5, $6)`,
-      [salonA, serviceCoupe, `${MON}T15:00:00Z`, 'Autre', '0700000004', staffKouassi]),
+    db.query(`select public.create_appointment($1, $2, $3, $4, $5, $6)`, [
+      salonA,
+      serviceCoupe,
+      `${MON}T15:00:00Z`,
+      'Autre',
+      '0700000004',
+      staffKouassi,
+    ]),
     '42501',
   );
 });
@@ -238,21 +300,34 @@ test('create_appointment auto-assigns a competent staff and enforces permissions
 test('transition_appointment enforces the state machine, reasons and append-only audit', async () => {
   await asUser(receptionistA);
   // confirmed -> completed est interdit.
-  await expectCode(db.query(`select public.transition_appointment($1, $2, 'completed')`, [salonA, apptNine]), '22023');
+  await expectCode(
+    db.query(`select public.transition_appointment($1, $2, 'completed')`, [salonA, apptNine]),
+    '22023',
+  );
   // Parcours valide.
   await db.query(`select public.transition_appointment($1, $2, 'checked_in')`, [salonA, apptNine]);
   await db.query(`select public.transition_appointment($1, $2, 'in_progress')`, [salonA, apptNine]);
   await db.query(`select public.transition_appointment($1, $2, 'completed')`, [salonA, apptNine]);
-  assert.equal((await db.query('select status from public.appointments where id = $1', [apptNine])).rows[0].status, 'completed');
   assert.equal(
-    (await db.query('select count(*)::int as n from public.appointment_events where appointment_id = $1', [apptNine])).rows[0].n,
+    (await db.query('select status from public.appointments where id = $1', [apptNine])).rows[0].status,
+    'completed',
+  );
+  assert.equal(
+    (
+      await db.query('select count(*)::int as n from public.appointment_events where appointment_id = $1', [
+        apptNine,
+      ])
+    ).rows[0].n,
     4,
   );
 
   // Annulation sans motif refusée, avec motif acceptée.
   await expectCode(db.query(`select public.cancel_appointment($1, $2, '  ')`, [salonA, apptTen]), '22023');
   await db.query(`select public.cancel_appointment($1, $2, 'Client absent')`, [salonA, apptTen]);
-  assert.equal((await db.query('select status from public.appointments where id = $1', [apptTen])).rows[0].status, 'cancelled');
+  assert.equal(
+    (await db.query('select status from public.appointments where id = $1', [apptTen])).rows[0].status,
+    'cancelled',
+  );
 
   // Aucune écriture directe dans le journal.
   await expectCode(
@@ -268,44 +343,67 @@ test('transition_appointment enforces the state machine, reasons and append-only
 test('reschedule_appointment rechecks availability, recomputes end and refuses closed rows', async () => {
   await asUser(receptionistA);
   // Nouveau RDV à 11:00 pour disposer d'une ligne ouverte.
-  const apptEleven = (await db.query(
-    `select * from public.create_appointment($1, $2, $3, $4, $5, $6)`,
-    [salonA, serviceCoupe, `${MON}T11:00:00Z`, 'Client Trois', '0700000005', staffKouassi],
-  )).rows[0].id;
+  const apptEleven = (
+    await db.query(`select * from public.create_appointment($1, $2, $3, $4, $5, $6)`, [
+      salonA,
+      serviceCoupe,
+      `${MON}T11:00:00Z`,
+      'Client Trois',
+      '0700000005',
+      staffKouassi,
+    ])
+  ).rows[0].id;
 
   // Déplacer 11:00 -> 12:00 avec une prestation plus longue : fin recalculée (105 min).
-  const moved = (await db.query(
-    `select * from public.reschedule_appointment($1, $2, $3, $4, $5, 'Déplacé')`,
-    [salonA, apptEleven, staffKouassi, serviceLong, `${MON}T12:00:00Z`],
-  )).rows[0];
-  const minutes = (await db.query(
-    'select extract(epoch from (ends_at - starts_at))::int / 60 as m from public.appointments where id = $1',
-    [apptEleven],
-  )).rows[0].m;
+  const moved = (
+    await db.query(`select * from public.reschedule_appointment($1, $2, $3, $4, $5, 'Déplacé')`, [
+      salonA,
+      apptEleven,
+      staffKouassi,
+      serviceLong,
+      `${MON}T12:00:00Z`,
+    ])
+  ).rows[0];
+  const minutes = (
+    await db.query(
+      'select extract(epoch from (ends_at - starts_at))::int / 60 as m from public.appointments where id = $1',
+      [apptEleven],
+    )
+  ).rows[0].m;
   assert.equal(minutes, 105);
   assert.equal(moved.amount, 15000);
 
   // Chevauchement avec le RDV terminé de 09:00 (occupe encore le créneau).
   await expectCode(
-    db.query(`select public.reschedule_appointment($1, $2, $3, $4, $5)`,
-      [salonA, apptEleven, staffKouassi, serviceCoupe, `${MON}T09:00:00Z`]),
+    db.query(`select public.reschedule_appointment($1, $2, $3, $4, $5)`, [
+      salonA,
+      apptEleven,
+      staffKouassi,
+      serviceCoupe,
+      `${MON}T09:00:00Z`,
+    ]),
     '23P01',
   );
   // Un RDV terminé ne se déplace plus.
   await expectCode(
-    db.query(`select public.reschedule_appointment($1, $2, null, null, $3)`,
-      [salonA, apptNine, `${MON}T13:00:00Z`]),
+    db.query(`select public.reschedule_appointment($1, $2, null, null, $3)`, [
+      salonA,
+      apptNine,
+      `${MON}T13:00:00Z`,
+    ]),
     '22023',
   );
 });
 
 test('day_availability reflects hours, bookings and service duration, and is access-controlled', async () => {
   await asUser(receptionistA);
-  const slots = (await db.query(
-    `select starts_at::text as starts_at, available from public.day_availability($1, $2, $3)
+  const slots = (
+    await db.query(
+      `select starts_at::text as starts_at, available from public.day_availability($1, $2, $3)
      where staff_id = $4 order by starts_at`,
-    [salonA, MON, serviceCoupe, staffKouassi],
-  )).rows;
+      [salonA, MON, serviceCoupe, staffKouassi],
+    )
+  ).rows;
   assert.equal(slots.length, 12); // 08:00 -> 19:00
   const at = (hhmm) => slots.find((s) => s.starts_at.slice(11, 16) === hhmm);
   assert.equal(at('08:00').available, false); // avant ouverture
@@ -319,16 +417,14 @@ test('day_availability reflects hours, bookings and service duration, and is acc
 
 test('create_review verifies against completed appointments and prevents duplicates', async () => {
   await asUser(reviewer);
-  const unverified = (await db.query(
-    `select * from public.create_review($1, 'Visiteur', 5, 'Très propre', null)`,
-    [salonA],
-  )).rows[0];
+  const unverified = (
+    await db.query(`select * from public.create_review($1, 'Visiteur', 5, 'Très propre', null)`, [salonA])
+  ).rows[0];
   assert.equal(unverified.verified, false);
 
-  const verified = (await db.query(
-    `select * from public.create_review($1, 'Client Un', 4, 'Bien', $2)`,
-    [salonA, apptNine],
-  )).rows[0];
+  const verified = (
+    await db.query(`select * from public.create_review($1, 'Client Un', 4, 'Bien', $2)`, [salonA, apptNine])
+  ).rows[0];
   assert.equal(verified.verified, true);
   assert.equal(verified.appointment_id, apptNine);
 
@@ -346,7 +442,8 @@ test('create_review verifies against completed appointments and prevents duplica
 
 test('delete_review is reserved to moderators and stays tenant-scoped', async () => {
   await asUser(managerA);
-  const reviewId = (await db.query('select id from public.reviews where salon_id = $1 limit 1', [salonA])).rows[0].id;
+  const reviewId = (await db.query('select id from public.reviews where salon_id = $1 limit 1', [salonA]))
+    .rows[0].id;
 
   await asUser(receptionistA);
   await expectCode(db.query(`select public.delete_review($1, $2)`, [salonA, reviewId]), '42501');

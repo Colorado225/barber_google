@@ -32,8 +32,8 @@ before(async () => {
       allowedOrigin: ORIGIN,
       secureCookie: true,
       exposeTokens: true,
-      rateLimits: { global: 100000, login: 100000, mail: 100000 }
-    })
+      rateLimits: { global: 100000, login: 100000, mail: 100000 },
+    }),
   );
   app.use(
     createResourceApp({
@@ -41,8 +41,8 @@ before(async () => {
       salonRepository: createSalonRepository(pool),
       operationsRepository: createOperationsRepository(pool),
       sessionRunner: createSessionRunner(pool),
-      allowedOrigin: ORIGIN
-    }).app
+      allowedOrigin: ORIGIN,
+    }).app,
   );
   enabled = true;
 });
@@ -62,8 +62,16 @@ async function createShop(label) {
     .set('Origin', ORIGIN)
     .send({ name: `Owner ${label}`, email, password: PASSWORD })
     .expect(201);
-  await request(app).post('/api/auth/verify-email').set('Origin', ORIGIN).send({ token: signup.body.token }).expect(200);
-  const login = await request(app).post('/api/auth/login').set('Origin', ORIGIN).send({ email, password: PASSWORD }).expect(200);
+  await request(app)
+    .post('/api/auth/verify-email')
+    .set('Origin', ORIGIN)
+    .send({ token: signup.body.token })
+    .expect(200);
+  const login = await request(app)
+    .post('/api/auth/login')
+    .set('Origin', ORIGIN)
+    .send({ email, password: PASSWORD })
+    .expect(200);
   const cookie = cookieOf(login);
   const salon = await request(app)
     .post('/api/salons')
@@ -82,7 +90,13 @@ async function createShop(label) {
     .post(`/api/salons/${salonId}/staff`)
     .set('Origin', ORIGIN)
     .set('Cookie', cookie)
-    .send({ name: 'Kevin', role: 'barber', commissionRate: 25, branchId: salon.body.branch_id, serviceIds: [service.body.id] })
+    .send({
+      name: 'Kevin',
+      role: 'barber',
+      commissionRate: 25,
+      branchId: salon.body.branch_id,
+      serviceIds: [service.body.id],
+    })
     .expect(200);
   const client = await request(app)
     .post(`/api/salons/${salonId}/clients`)
@@ -90,12 +104,21 @@ async function createShop(label) {
     .set('Cookie', cookie)
     .send({ name: 'Awa Koné', phone: '+225 01020304' })
     .expect(200);
-  return { cookie, salonId, branchId: salon.body.branch_id, service: service.body, staff: staff.body, client: client.body };
+  return {
+    cookie,
+    salonId,
+    branchId: salon.body.branch_id,
+    service: service.body,
+    staff: staff.body,
+    client: client.body,
+  };
 }
 
 test('PostgreSQL réel : contrainte d’exclusion anti-chevauchement présente', async (t) => {
   if (!enabled) return t.skip('PG_URL non défini');
-  const r = await pool.query("select conname from pg_constraint where conname = 'bc_appointments_no_overlap'");
+  const r = await pool.query(
+    "select conname from pg_constraint where conname = 'bc_appointments_no_overlap'",
+  );
   assert.equal(r.rows.length, 1);
 });
 
@@ -109,7 +132,7 @@ test('PostgreSQL réel : deux réservations simultanées, une seule gagne', asyn
     staffId: shop.staff.id,
     serviceId: shop.service.id,
     startsAt: start,
-    endsAt: addMinutes(start, 40)
+    endsAt: addMinutes(start, 40),
   };
   const send = () =>
     request(app)
@@ -127,7 +150,7 @@ test('PostgreSQL réel : deux réservations simultanées, une seule gagne', asyn
 
   const count = await pool.query(
     "select count(*)::int as count from public.bc_appointments where salon_id = $1 and status <> 'cancelled'",
-    [shop.salonId]
+    [shop.salonId],
   );
   assert.equal(count.rows[0].count, 1);
 });

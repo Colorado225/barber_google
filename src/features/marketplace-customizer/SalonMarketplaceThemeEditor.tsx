@@ -1,9 +1,5 @@
 import React from 'react';
-import {
-  SalonMarketplaceLayout,
-  SalonMarketplaceViewConfig,
-  SalonCardStyle
-} from '../../types';
+import { SalonMarketplaceLayout, SalonMarketplaceViewConfig, SalonCardStyle } from '../../types';
 import { Card } from '../../components/ui/card';
 import { cn } from '../../lib/utils';
 import { Check, Sparkles, Layout, Palette, Box } from 'lucide-react';
@@ -23,20 +19,20 @@ const LAYOUT_OPTIONS: {
     id: 'classic',
     title: 'Modèle 1 — Classique',
     badge: 'Recommandé',
-    description: 'Présentation équilibrée en 2 colonnes avec carrousel et accès immédiat à la réservation.'
+    description: 'Présentation équilibrée en 2 colonnes avec carrousel et accès immédiat à la réservation.',
   },
   {
     id: 'elegant',
     title: 'Modèle 2 — Élégant',
     badge: 'Prestige',
-    description: 'Galerie photographique dominante, cartes aérées et mise en valeur raffinée du salon.'
+    description: 'Galerie photographique dominante, cartes aérées et mise en valeur raffinée du salon.',
   },
   {
     id: 'editorial',
     title: 'Modèle 3 — Éditorial',
     badge: 'Lookbook',
-    description: 'Style magazine avec asymétrie visuelle, triptyque d’artisans et focus prestations.'
-  }
+    description: 'Style magazine avec asymétrie visuelle, triptyque d’artisans et focus prestations.',
+  },
 ];
 
 const ACCENT_COLORS = [
@@ -56,7 +52,7 @@ const CARD_STYLES: { id: SalonCardStyle; label: string; desc: string }[] = [
 
 export const SalonMarketplaceThemeEditor: React.FC<SalonMarketplaceThemeEditorProps> = ({
   config,
-  onChange
+  onChange,
 }) => {
   return (
     <div className="space-y-6">
@@ -78,7 +74,7 @@ export const SalonMarketplaceThemeEditor: React.FC<SalonMarketplaceThemeEditorPr
                   'p-3.5 rounded-2xl border transition-all cursor-pointer relative',
                   isSelected
                     ? 'bg-[#1e1c18] border-[#C9A45C] shadow-md ring-1 ring-[#C9A45C]/40'
-                    : 'bg-[#18181c] border-stone-800 hover:border-stone-700'
+                    : 'bg-[#18181c] border-stone-800 hover:border-stone-700',
                 )}
               >
                 <div className="flex items-center justify-between gap-2">
@@ -94,9 +90,7 @@ export const SalonMarketplaceThemeEditor: React.FC<SalonMarketplaceThemeEditorPr
                     </div>
                   )}
                 </div>
-                <p className="text-[11px] text-stone-400 mt-1 leading-relaxed">
-                  {opt.description}
-                </p>
+                <p className="text-[11px] text-stone-400 mt-1 leading-relaxed">{opt.description}</p>
               </div>
             );
           })}
@@ -122,7 +116,7 @@ export const SalonMarketplaceThemeEditor: React.FC<SalonMarketplaceThemeEditorPr
                   'p-2 rounded-xl border flex items-center gap-2.5 text-left transition-all cursor-pointer',
                   isSelected
                     ? 'bg-[#202025] border-white/40'
-                    : 'bg-[#18181c] border-stone-800 hover:border-stone-700'
+                    : 'bg-[#18181c] border-stone-800 hover:border-stone-700',
                 )}
               >
                 <span
@@ -157,7 +151,7 @@ export const SalonMarketplaceThemeEditor: React.FC<SalonMarketplaceThemeEditorPr
                   'p-2.5 rounded-xl border text-center transition-all cursor-pointer',
                   isSelected
                     ? 'bg-[#202025] border-[#C9A45C] text-white'
-                    : 'bg-[#18181c] border-stone-800 text-stone-400 hover:border-stone-700'
+                    : 'bg-[#18181c] border-stone-800 text-stone-400 hover:border-stone-700',
                 )}
               >
                 <span className="text-xs font-semibold block">{style.label}</span>

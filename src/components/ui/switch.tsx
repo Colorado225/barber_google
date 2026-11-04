@@ -6,7 +6,12 @@ interface SwitchProps extends React.InputHTMLAttributes<HTMLInputElement> {
   className?: string;
 }
 
-export const Switch: React.FC<SwitchProps> = ({ checked = false, onCheckedChange, className = '', ...props }) => (
+export const Switch: React.FC<SwitchProps> = ({
+  checked = false,
+  onCheckedChange,
+  className = '',
+  ...props
+}) => (
   <input
     type="checkbox"
     role="switch"

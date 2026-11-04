@@ -1,8 +1,5 @@
 import React from 'react';
-import {
-  PublicSalonDetail,
-  SalonMarketplaceViewConfig
-} from '../../types';
+import { PublicSalonDetail, SalonMarketplaceViewConfig } from '../../types';
 import { ClassicSalonLayout } from '../../components/marketplace/salon/layouts/ClassicSalonLayout';
 import { ElegantSalonLayout } from '../../components/marketplace/salon/layouts/ElegantSalonLayout';
 import { EditorialSalonLayout } from '../../components/marketplace/salon/layouts/EditorialSalonLayout';
@@ -21,7 +18,7 @@ export const SalonMarketplacePreview: React.FC<SalonMarketplacePreviewProps> = (
   detail,
   config,
   viewport,
-  formatPrice
+  formatPrice,
 }) => {
   const isConstrained = viewport !== 'desktop';
 
@@ -33,7 +30,12 @@ export const SalonMarketplacePreview: React.FC<SalonMarketplacePreviewProps> = (
           <Eye className="w-4 h-4 text-[#C9A45C]" />
           <span className="font-semibold text-white">Aperçu en temps réel</span>
           <span className="text-[11px] text-stone-500">
-            — {viewport === 'desktop' ? 'Grand écran (100%)' : viewport === 'tablet' ? 'Tablette (768px)' : 'Mobile (390px)'}
+            —{' '}
+            {viewport === 'desktop'
+              ? 'Grand écran (100%)'
+              : viewport === 'tablet'
+                ? 'Tablette (768px)'
+                : 'Mobile (390px)'}
           </span>
         </div>
         <span className="text-[11px] px-2 py-0.5 rounded-full bg-stone-900 border border-stone-800 text-stone-400">
@@ -45,8 +47,10 @@ export const SalonMarketplacePreview: React.FC<SalonMarketplacePreviewProps> = (
       <div
         className={cn(
           'transition-all duration-300 w-full',
-          viewport === 'tablet' && 'max-w-[768px] border-4 border-stone-800 rounded-[32px] p-4 shadow-2xl bg-[#0d0d0e]',
-          viewport === 'mobile' && 'max-w-[390px] border-4 border-stone-800 rounded-[36px] p-3 shadow-2xl bg-[#0d0d0e]'
+          viewport === 'tablet' &&
+            'max-w-[768px] border-4 border-stone-800 rounded-[32px] p-4 shadow-2xl bg-[#0d0d0e]',
+          viewport === 'mobile' &&
+            'max-w-[390px] border-4 border-stone-800 rounded-[36px] p-3 shadow-2xl bg-[#0d0d0e]',
         )}
       >
         <div className="bg-[#0d0d0e] text-[#f7f6f2] rounded-2xl overflow-hidden p-2 sm:p-4">
@@ -72,7 +76,7 @@ export const SalonMarketplacePreview: React.FC<SalonMarketplacePreviewProps> = (
             />
           )}
 
-          {(config.layout === 'classic' || (!['elegant', 'editorial'].includes(config.layout))) && (
+          {(config.layout === 'classic' || !['elegant', 'editorial'].includes(config.layout)) && (
             <ClassicSalonLayout
               detail={detail}
               config={config}

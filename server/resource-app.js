@@ -14,11 +14,9 @@ const clientSchema = z
     name: z.string().trim().min(1).max(120),
     phone: z.string().trim().min(3).max(40),
     email: z.string().trim().email().max(254).or(z.literal('')).optional(),
-    segment: z
-      .enum(['new', 'active', 'loyal', 'vip', 'inactive', 'to_reactivate'])
-      .default('new'),
+    segment: z.enum(['new', 'active', 'loyal', 'vip', 'inactive', 'to_reactivate']).default('new'),
     favoriteService: z.string().max(120).optional(),
-    notes: z.string().max(2000).optional()
+    notes: z.string().max(2000).optional(),
   })
   .strict();
 
@@ -34,7 +32,7 @@ const stockSchema = z
     quantity: z.number().int().min(0).max(1_000_000),
     minThreshold: z.number().int().min(0).max(1_000_000),
     unitCost: z.number().int().min(0).max(1_000_000_000),
-    supplier: z.string().max(120).optional()
+    supplier: z.string().max(120).optional(),
   })
   .strict();
 
@@ -46,7 +44,7 @@ const rewardSchema = z
     category: z.enum(['free_service', 'discount', 'product', 'vip_upgrade']),
     discountPercentage: z.number().int().min(1).max(100).optional(),
     freeServiceName: z.string().max(120).optional(),
-    isActive: z.boolean().optional()
+    isActive: z.boolean().optional(),
   })
   .strict();
 
@@ -54,7 +52,7 @@ const reviewSchema = z
   .object({
     author: z.string().trim().min(1).max(120),
     rating: z.number().int().min(1).max(5),
-    comment: z.string().trim().min(1).max(1000)
+    comment: z.string().trim().min(1).max(1000),
   })
   .strict();
 
@@ -62,14 +60,14 @@ const salonSchema = z
   .object({
     organizationName: z.string().trim().min(1).max(120),
     salonName: z.string().trim().min(1).max(120),
-    branchName: z.string().trim().min(1).max(120)
+    branchName: z.string().trim().min(1).max(120),
   })
   .strict();
 
 const memberRoleSchema = z
   .object({
     role: z.enum(['owner', 'manager', 'receptionist', 'barber', 'cashier', 'accountant']),
-    reason: z.string().trim().max(500).optional()
+    reason: z.string().trim().max(500).optional(),
   })
   .strict();
 
@@ -80,7 +78,7 @@ const memberStatusSchema = z
 const onboardingSchema = z
   .object({
     step: z.enum(['email_verification', 'salon_creation', 'setup', 'completed']),
-    salonCreated: z.boolean().optional()
+    salonCreated: z.boolean().optional(),
   })
   .strict();
 
@@ -96,7 +94,7 @@ const serviceFullSchema = z
     durationMinutes: z.number().int().min(5).max(600),
     prepMinutes: z.number().int().min(0).max(120).optional(),
     popular: z.boolean().optional(),
-    isActive: z.boolean().optional()
+    isActive: z.boolean().optional(),
   })
   .strict();
 
@@ -111,7 +109,7 @@ const staffFullSchema = z
     isAvailable: z.boolean().optional(),
     isActive: z.boolean().optional(),
     branchId: z.string().uuid().nullable().optional(),
-    serviceIds: z.array(z.string().uuid()).max(200).optional()
+    serviceIds: z.array(z.string().uuid()).max(200).optional(),
   })
   .strict();
 
@@ -119,7 +117,7 @@ const scheduleSchema = z
   .object({
     weekday: z.number().int().min(0).max(6),
     startsAt: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
-    endsAt: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/)
+    endsAt: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
   })
   .strict();
 
@@ -127,7 +125,7 @@ const absenceSchema = z
   .object({
     startsOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     endsOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    reason: z.string().trim().max(500).optional()
+    reason: z.string().trim().max(500).optional(),
   })
   .strict();
 
@@ -149,7 +147,7 @@ const appointmentSchema = z
     startsAt: isoDateTime,
     endsAt: isoDateTime,
     notes: z.string().max(2000).optional(),
-    source: z.enum(['direct', 'phone', 'whatsapp']).optional()
+    source: z.enum(['direct', 'phone', 'whatsapp']).optional(),
   })
   .strict();
 
@@ -159,14 +157,22 @@ const rescheduleSchema = z
     serviceId: z.string().uuid(),
     startsAt: isoDateTime,
     endsAt: isoDateTime,
-    notes: z.string().max(2000).optional()
+    notes: z.string().max(2000).optional(),
   })
   .strict();
 
 const transitionSchema = z
   .object({
-    status: z.enum(['pending', 'confirmed', 'checked_in', 'in_progress', 'completed', 'cancelled', 'no_show']),
-    reason: z.string().trim().max(500).optional()
+    status: z.enum([
+      'pending',
+      'confirmed',
+      'checked_in',
+      'in_progress',
+      'completed',
+      'cancelled',
+      'no_show',
+    ]),
+    reason: z.string().trim().max(500).optional(),
   })
   .strict();
 
@@ -178,12 +184,21 @@ const dateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const expenseV2Schema = z
   .object({
     title: z.string().trim().min(1).max(120),
-    category: z.enum(['rent', 'electricity', 'water', 'salaries', 'products', 'maintenance', 'marketing', 'other']),
+    category: z.enum([
+      'rent',
+      'electricity',
+      'water',
+      'salaries',
+      'products',
+      'maintenance',
+      'marketing',
+      'other',
+    ]),
     amount: z.number().int().positive().max(1_000_000_000),
     date: dateOnly,
     notes: z.string().max(1000).optional(),
     branchId: z.string().uuid().nullable().optional(),
-    receiptRef: z.string().max(200).optional()
+    receiptRef: z.string().max(200).optional(),
   })
   .strict();
 
@@ -191,14 +206,14 @@ const cashOpenSchema = z
   .object({
     branchId: z.string().uuid(),
     registerId: z.string().uuid().optional(),
-    openingBalance: z.number().int().min(0).max(1_000_000_000)
+    openingBalance: z.number().int().min(0).max(1_000_000_000),
   })
   .strict();
 
 const cashCloseSchema = z
   .object({
     countedCash: z.number().int().min(0).max(1_000_000_000),
-    notes: z.string().max(1000).optional()
+    notes: z.string().max(1000).optional(),
   })
   .strict();
 
@@ -214,7 +229,7 @@ const paymentSchema = z
     paymentStatus: z.enum(['pending', 'confirmed']).optional(),
     providerReference: z.string().max(200).optional(),
     // Clé d'idempotence fournie par le client : un rejeu ne crée pas de doublon.
-    idempotencyKey: z.string().uuid()
+    idempotencyKey: z.string().uuid(),
   })
   .strict();
 
@@ -225,7 +240,7 @@ const refundSchema = z
     method: z.enum(paymentMethods),
     reason: z.string().trim().min(3).max(500),
     originalEntryId: z.string().uuid().optional(),
-    idempotencyKey: z.string().uuid()
+    idempotencyKey: z.string().uuid(),
   })
   .strict();
 
@@ -270,7 +285,7 @@ export function createResourceApp({
   operationsRepository,
   financeRepository,
   sessionRunner,
-  allowedOrigin
+  allowedOrigin,
 }) {
   if (!allowedOrigin) throw new Error('APP_ORIGIN is required');
   const app = express();
@@ -291,7 +306,10 @@ export function createResourceApp({
   });
   app.use(express.json({ limit: '32kb', strict: true }));
   // Limitation globale des routes métier (anti-abus, par IP).
-  app.use(['/api', '/api/'], createRateLimiter({ windowMs: 60 * 1000, max: 600, key: (req) => `api:${req.ip}` }));
+  app.use(
+    ['/api', '/api/'],
+    createRateLimiter({ windowMs: 60 * 1000, max: 600, key: (req) => `api:${req.ip}` }),
+  );
 
   // Sessions : l'identité vient exclusivement du cookie de session côté serveur.
   // Monté exactement sur /api pour ne pas re-s'authentifier les routes publiques
@@ -320,7 +338,7 @@ export function createResourceApp({
         if (permission) {
           const allowed = await tx.query('select barber_private.has_salon_permission($1, $2) as ok', [
             parsed.data,
-            permission
+            permission,
           ]);
           if (!allowed.rows[0]?.ok) {
             const err = new Error('Action non autorisée pour ce salon.');
@@ -344,7 +362,7 @@ export function createResourceApp({
       if (!parsed.success) {
         const issue = parsed.error.issues[0];
         const err = new Error(
-          issue ? `${issue.path.join('.') || 'données'} : ${issue.message}` : 'Données invalides.'
+          issue ? `${issue.path.join('.') || 'données'} : ${issue.message}` : 'Données invalides.',
         );
         err.status = 400;
         throw err;
@@ -367,38 +385,38 @@ export function createResourceApp({
              join public.bc_organizations o on o.id = s.organization_id
              left join public.bc_branches b on b.salon_id = s.id
             where m.user_id = (select barber_private.current_user_id()) and m.status = 'active'
-            order by s.name`
+            order by s.name`,
         );
         const permissions = await tx.query(
           `select barber_private.salon_permissions(m.salon_id) as permissions
              from public.bc_memberships m
-            where m.user_id = (select barber_private.current_user_id()) and m.status = 'active'`
+            where m.user_id = (select barber_private.current_user_id()) and m.status = 'active'`,
         );
         const bySalon = Object.fromEntries(
-          memberships.rows.map((m, i) => [m.salonId, permissions.rows[i]?.permissions || []])
+          memberships.rows.map((m, i) => [m.salonId, permissions.rows[i]?.permissions || []]),
         );
         const onboarding = storedOnboarding
           ? {
-            currentStep: storedOnboarding.currentStep,
-            emailVerified: storedOnboarding.emailVerified || Boolean(req.user.emailVerifiedAt),
-            salonCreated: storedOnboarding.salonCreated,
-            setupCompleted: storedOnboarding.setupCompleted ?? null
-          }
+              currentStep: storedOnboarding.currentStep,
+              emailVerified: storedOnboarding.emailVerified || Boolean(req.user.emailVerifiedAt),
+              salonCreated: storedOnboarding.salonCreated,
+              setupCompleted: storedOnboarding.setupCompleted ?? null,
+            }
           : {
-            currentStep: 'email_verification',
-            emailVerified: Boolean(req.user.emailVerifiedAt),
-            salonCreated: false,
-            setupCompleted: false
-          };
+              currentStep: 'email_verification',
+              emailVerified: Boolean(req.user.emailVerifiedAt),
+              salonCreated: false,
+              setupCompleted: false,
+            };
         return {
           user: {
             id: req.user.id,
             email: req.user.email,
             name: req.user.name,
-            emailVerified: Boolean(req.user.emailVerifiedAt)
+            emailVerified: Boolean(req.user.emailVerifiedAt),
           },
           memberships: memberships.rows.map((m) => ({ ...m, permissions: bySalon[m.salonId] || [] })),
-          onboarding
+          onboarding,
         };
       });
       return res.json(data);
@@ -412,7 +430,7 @@ export function createResourceApp({
     const body = requireBody(onboardingSchema)(req);
     try {
       await sessionRunner.runAs(req.user.id, (tx) =>
-        tx.query('select public.bc_onboarding_progress($1, $2)', [body.step, body.salonCreated ?? false])
+        tx.query('select public.bc_onboarding_progress($1, $2)', [body.step, body.salonCreated ?? false]),
       );
       return res.json({ ok: true });
     } catch (error) {
@@ -427,8 +445,8 @@ export function createResourceApp({
         tx.query('select * from public.bc_create_salon($1, $2, $3)', [
           body.organizationName,
           body.salonName,
-          body.branchName
-        ])
+          body.branchName,
+        ]),
       );
       return res.status(201).json(created.rows[0]);
     } catch (error) {
@@ -439,7 +457,7 @@ export function createResourceApp({
   // ----- Vue agrégée -----
   app.get(
     '/api/salons/:salonId/workspace',
-    withSalon('salon.read', (salonId, _req, repo) => repo.workspace(salonId))
+    withSalon('salon.read', (salonId, _req, repo) => repo.workspace(salonId)),
   );
 
   // ----- Membres et rôles (Lot 2) -----
@@ -454,9 +472,9 @@ export function createResourceApp({
         status: m.status,
         email: m.email,
         name: m.display_name,
-        createdAt: m.created_at
+        createdAt: m.created_at,
       }));
-    })
+    }),
   );
   app.put(
     '/api/salons/:salonId/members/:id/role',
@@ -466,10 +484,10 @@ export function createResourceApp({
         salonId,
         uuid.parse(req.params.id),
         body.role,
-        body.reason ?? ''
+        body.reason ?? '',
       ]);
       return { ok: true };
-    })
+    }),
   );
   app.put(
     '/api/salons/:salonId/members/:id/status',
@@ -479,46 +497,54 @@ export function createResourceApp({
         salonId,
         uuid.parse(req.params.id),
         body.status,
-        body.reason ?? ''
+        body.reason ?? '',
       ]);
       return { ok: true };
-    })
+    }),
   );
 
   // ----- Clients -----
-  app.get('/api/salons/:salonId/clients', withSalon('clients.read', (salonId, _req, repo) => repo.listClients(salonId)));
+  app.get(
+    '/api/salons/:salonId/clients',
+    withSalon('clients.read', (salonId, _req, repo) => repo.listClients(salonId)),
+  );
   app.post(
     '/api/salons/:salonId/clients',
-    withSalon('clients.write', (salonId, req, repo) => repo.createClient(salonId, requireBody(clientSchema)(req)))
+    withSalon('clients.write', (salonId, req, repo) =>
+      repo.createClient(salonId, requireBody(clientSchema)(req)),
+    ),
   );
   app.put(
     '/api/salons/:salonId/clients/:id',
     withSalon('clients.write', (salonId, req, repo) =>
-      repo.updateClient(salonId, uuid.parse(req.params.id), requireBody(clientSchema)(req))
-    )
+      repo.updateClient(salonId, uuid.parse(req.params.id), requireBody(clientSchema)(req)),
+    ),
   );
   app.delete(
     '/api/salons/:salonId/clients/:id',
-    withSalon('clients.write', (salonId, req, repo) => repo.deleteClient(salonId, uuid.parse(req.params.id)))
+    withSalon('clients.write', (salonId, req, repo) => repo.deleteClient(salonId, uuid.parse(req.params.id))),
   );
 
   // ----- Prestations (Lot 3 : catalogue activable) -----
-  app.get('/api/salons/:salonId/services', withSalon('salon.read', (salonId, req, _repo, tx) =>
-    operationsRepository.withRunner(tx).listServices(salonId, req.query.all === '1')
-  ));
+  app.get(
+    '/api/salons/:salonId/services',
+    withSalon('salon.read', (salonId, req, _repo, tx) =>
+      operationsRepository.withRunner(tx).listServices(salonId, req.query.all === '1'),
+    ),
+  );
   app.post(
     '/api/salons/:salonId/services',
     withSalon('catalog.write', (salonId, req, _repo, tx) =>
-      operationsRepository.withRunner(tx).saveService(salonId, null, requireBody(serviceFullSchema)(req))
-    )
+      operationsRepository.withRunner(tx).saveService(salonId, null, requireBody(serviceFullSchema)(req)),
+    ),
   );
   app.put(
     '/api/salons/:salonId/services/:id',
     withSalon('catalog.write', (salonId, req, _repo, tx) =>
       operationsRepository
         .withRunner(tx)
-        .saveService(salonId, uuid.parse(req.params.id), requireBody(serviceFullSchema)(req))
-    )
+        .saveService(salonId, uuid.parse(req.params.id), requireBody(serviceFullSchema)(req)),
+    ),
   );
   app.put(
     '/api/salons/:salonId/services/:id/activation',
@@ -527,24 +553,27 @@ export function createResourceApp({
       return operationsRepository
         .withRunner(tx)
         .setServiceActive(salonId, uuid.parse(req.params.id), body.isActive);
-    })
+    }),
   );
   app.delete(
     '/api/salons/:salonId/services/:id',
     withSalon('catalog.write', (salonId, req, _repo, tx) =>
-      operationsRepository.withRunner(tx).deleteService(salonId, uuid.parse(req.params.id))
-    )
+      operationsRepository.withRunner(tx).deleteService(salonId, uuid.parse(req.params.id)),
+    ),
   );
 
   // ----- Horaires d'ouverture par succursale (Lot 3) -----
-  app.get('/api/salons/:salonId/branches', withSalon('salon.read', (salonId, _req, _repo, tx) =>
-    operationsRepository.withRunner(tx).listBranches(salonId)
-  ));
+  app.get(
+    '/api/salons/:salonId/branches',
+    withSalon('salon.read', (salonId, _req, _repo, tx) =>
+      operationsRepository.withRunner(tx).listBranches(salonId),
+    ),
+  );
   app.get(
     '/api/salons/:salonId/branches/:branchId/hours',
     withSalon('salon.read', (salonId, req, _repo, tx) =>
-      operationsRepository.withRunner(tx).getBranchHours(salonId, req.params.branchId)
-    )
+      operationsRepository.withRunner(tx).getBranchHours(salonId, req.params.branchId),
+    ),
   );
   app.put(
     '/api/salons/:salonId/branches/:branchId/hours',
@@ -556,108 +585,125 @@ export function createResourceApp({
               weekday: z.number().int().min(0).max(6),
               opensAt: z.string().optional(),
               closesAt: z.string().optional(),
-              isOpen: z.boolean().optional()
-            })
-          )
-        })
+              isOpen: z.boolean().optional(),
+            }),
+          ),
+        }),
       )(req);
       return Promise.all(
         body.hours.map((h) =>
           operationsRepository
             .withRunner(tx)
-            .saveBranchHours(salonId, req.params.branchId, h.weekday, h.opensAt, h.closesAt, h.isOpen)
-        )
+            .saveBranchHours(salonId, req.params.branchId, h.weekday, h.opensAt, h.closesAt, h.isOpen),
+        ),
       );
-    })
+    }),
   );
 
   // ----- Équipe (Lot 3 : profil métier, horaires, absences) -----
-  app.get('/api/salons/:salonId/staff', withSalon('salon.read', (salonId, _req, _repo, tx) =>
-    operationsRepository.withRunner(tx).listStaff(salonId)
-  ));
+  app.get(
+    '/api/salons/:salonId/staff',
+    withSalon('salon.read', (salonId, _req, _repo, tx) =>
+      operationsRepository.withRunner(tx).listStaff(salonId),
+    ),
+  );
   app.post(
     '/api/salons/:salonId/staff',
     withSalon('team.write', (salonId, req, _repo, tx) =>
-      operationsRepository.withRunner(tx).saveStaff(salonId, null, requireBody(staffFullSchema)(req))
-    )
+      operationsRepository.withRunner(tx).saveStaff(salonId, null, requireBody(staffFullSchema)(req)),
+    ),
   );
   app.put(
     '/api/salons/:salonId/staff/:id',
     withSalon('team.write', (salonId, req, _repo, tx) =>
       operationsRepository
         .withRunner(tx)
-        .saveStaff(salonId, uuid.parse(req.params.id), requireBody(staffFullSchema)(req))
-    )
+        .saveStaff(salonId, uuid.parse(req.params.id), requireBody(staffFullSchema)(req)),
+    ),
   );
   app.delete(
     '/api/salons/:salonId/staff/:id',
     withSalon('team.write', (salonId, req, _repo, tx) =>
-      operationsRepository.withRunner(tx).deleteStaff(salonId, uuid.parse(req.params.id))
-    )
+      operationsRepository.withRunner(tx).deleteStaff(salonId, uuid.parse(req.params.id)),
+    ),
   );
 
-  app.get('/api/salons/:salonId/staff/:id/schedule', withSalon('staff.read', (salonId, req, _repo, tx) =>
-    operationsRepository.withRunner(tx).listSchedules(salonId, uuid.parse(req.params.id))
-  ));
+  app.get(
+    '/api/salons/:salonId/staff/:id/schedule',
+    withSalon('staff.read', (salonId, req, _repo, tx) =>
+      operationsRepository.withRunner(tx).listSchedules(salonId, uuid.parse(req.params.id)),
+    ),
+  );
   app.post(
     '/api/salons/:salonId/staff/:id/schedule',
     withSalon('team.write', (salonId, req, _repo, tx) =>
       operationsRepository
         .withRunner(tx)
-        .saveSchedule(salonId, uuid.parse(req.params.id), requireBody(scheduleSchema)(req))
-    )
+        .saveSchedule(salonId, uuid.parse(req.params.id), requireBody(scheduleSchema)(req)),
+    ),
   );
   app.delete(
     '/api/salons/:salonId/schedules/:scheduleId',
     withSalon('team.write', (salonId, req, _repo, tx) =>
-      operationsRepository.withRunner(tx).deleteSchedule(salonId, uuid.parse(req.params.scheduleId))
-    )
+      operationsRepository.withRunner(tx).deleteSchedule(salonId, uuid.parse(req.params.scheduleId)),
+    ),
   );
-  app.get('/api/salons/:salonId/staff/:id/absences', withSalon('staff.read', (salonId, req, _repo, tx) =>
-    operationsRepository.withRunner(tx).listAbsences(salonId, uuid.parse(req.params.id))
-  ));
+  app.get(
+    '/api/salons/:salonId/staff/:id/absences',
+    withSalon('staff.read', (salonId, req, _repo, tx) =>
+      operationsRepository.withRunner(tx).listAbsences(salonId, uuid.parse(req.params.id)),
+    ),
+  );
   app.post(
     '/api/salons/:salonId/staff/:id/absences',
     withSalon('team.write', (salonId, req, _repo, tx) =>
       operationsRepository
         .withRunner(tx)
-        .addAbsence(salonId, uuid.parse(req.params.id), requireBody(absenceSchema)(req))
-    )
+        .addAbsence(salonId, uuid.parse(req.params.id), requireBody(absenceSchema)(req)),
+    ),
   );
   app.delete(
     '/api/salons/:salonId/absences/:absenceId',
     withSalon('team.write', (salonId, req, _repo, tx) =>
-      operationsRepository.withRunner(tx).deleteAbsence(salonId, uuid.parse(req.params.absenceId))
-    )
+      operationsRepository.withRunner(tx).deleteAbsence(salonId, uuid.parse(req.params.absenceId)),
+    ),
   );
 
   // ----- Rendez-vous (Lot 3 : source de vérité du calendrier) -----
   app.get(
     '/api/salons/:salonId/appointments',
     withSalon('appointments.read', (salonId, req, _repo, tx) => {
-      const from = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().safeParse(req.query.from);
-      const to = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().safeParse(req.query.to);
+      const from = z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/)
+        .optional()
+        .safeParse(req.query.from);
+      const to = z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/)
+        .optional()
+        .safeParse(req.query.to);
       const staffId = uuid.optional().safeParse(req.query.staffId);
       return operationsRepository.withRunner(tx).listAppointments(salonId, {
         from: from.success ? from.data : null,
         to: to.success ? to.data : null,
-        staffId: staffId.success ? staffId.data : null
+        staffId: staffId.success ? staffId.data : null,
       });
-    })
+    }),
   );
   app.post(
     '/api/salons/:salonId/appointments',
     withSalon('appointments.write', (salonId, req, _repo, tx) =>
-      operationsRepository.withRunner(tx).bookAppointment(salonId, requireBody(appointmentSchema)(req))
-    )
+      operationsRepository.withRunner(tx).bookAppointment(salonId, requireBody(appointmentSchema)(req)),
+    ),
   );
   app.put(
     '/api/salons/:salonId/appointments/:id',
     withSalon('appointments.write', (salonId, req, _repo, tx) =>
       operationsRepository
         .withRunner(tx)
-        .rescheduleAppointment(salonId, uuid.parse(req.params.id), requireBody(rescheduleSchema)(req))
-    )
+        .rescheduleAppointment(salonId, uuid.parse(req.params.id), requireBody(rescheduleSchema)(req)),
+    ),
   );
   app.post(
     '/api/salons/:salonId/appointments/:id/transition',
@@ -666,7 +712,7 @@ export function createResourceApp({
       return operationsRepository
         .withRunner(tx)
         .transitionAppointment(salonId, uuid.parse(req.params.id), body.status, body.reason ?? null);
-    })
+    }),
   );
   app.post(
     '/api/salons/:salonId/appointments/:id/cancel',
@@ -675,25 +721,28 @@ export function createResourceApp({
       return operationsRepository
         .withRunner(tx)
         .cancelAppointment(salonId, uuid.parse(req.params.id), body.reason);
-    })
+    }),
   );
   app.get(
     '/api/salons/:salonId/appointments/:id/events',
     withSalon('appointments.read', (salonId, req, _repo, tx) =>
-      operationsRepository.withRunner(tx).listEvents(salonId, uuid.parse(req.params.id))
-    )
+      operationsRepository.withRunner(tx).listEvents(salonId, uuid.parse(req.params.id)),
+    ),
   );
   app.get(
     '/api/salons/:salonId/availability',
     withSalon('appointments.read', (salonId, req, _repo, tx) => {
-      const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).safeParse(req.query.date);
+      const date = z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/)
+        .safeParse(req.query.date);
       if (!date.success) {
         const err = new Error('date : date requise (AAAA-MM-JJ).');
         err.status = 400;
         throw err;
       }
       return operationsRepository.withRunner(tx).dayAvailability(salonId, date.data);
-    })
+    }),
   );
 
   // ----- Dépenses (Lot 4 : succursale, justificatif, responsable) -----
@@ -702,13 +751,13 @@ export function createResourceApp({
     withSalon('expenses.read', (salonId, req, _repo, tx) => {
       const range = readRange(req);
       return financeRepository.withRunner(tx).listExpenses(salonId, range);
-    })
+    }),
   );
   app.post(
     '/api/salons/:salonId/expenses',
     withSalon('expenses.manage', (salonId, req, _repo, tx) =>
-      financeRepository.withRunner(tx).addExpense(salonId, requireBody(expenseV2Schema)(req))
-    )
+      financeRepository.withRunner(tx).addExpense(salonId, requireBody(expenseV2Schema)(req)),
+    ),
   );
 
   // ----- Caisse (Lot 4) -----
@@ -716,36 +765,46 @@ export function createResourceApp({
     '/api/salons/:salonId/cash-registers',
     withSalon('cash.open', (salonId, req, _repo, tx) => {
       const branch = uuid.safeParse(req.query.branchId);
-      if (branch.success) return financeRepository.withRunner(tx).ensureDefaultRegister(salonId, branch.data).then((r) => [r]);
+      if (branch.success)
+        return financeRepository
+          .withRunner(tx)
+          .ensureDefaultRegister(salonId, branch.data)
+          .then((r) => [r]);
       return financeRepository.withRunner(tx).listRegisters(salonId);
-    })
+    }),
   );
-  app.get('/api/salons/:salonId/cash-sessions', withSalon('cash.open', (salonId, _req, _repo, tx) =>
-    financeRepository.withRunner(tx).listSessions(salonId)
-  ));
-  app.get('/api/salons/:salonId/cash-sessions/current', withSalon('cash.open', (salonId, req, _repo, tx) => {
-    const branch = uuid.safeParse(req.query.branchId);
-    return financeRepository.withRunner(tx).currentSession(salonId, branch.success ? branch.data : null);
-  }));
+  app.get(
+    '/api/salons/:salonId/cash-sessions',
+    withSalon('cash.open', (salonId, _req, _repo, tx) =>
+      financeRepository.withRunner(tx).listSessions(salonId),
+    ),
+  );
+  app.get(
+    '/api/salons/:salonId/cash-sessions/current',
+    withSalon('cash.open', (salonId, req, _repo, tx) => {
+      const branch = uuid.safeParse(req.query.branchId);
+      return financeRepository.withRunner(tx).currentSession(salonId, branch.success ? branch.data : null);
+    }),
+  );
   app.post(
     '/api/salons/:salonId/cash-sessions',
     withSalon('cash.open', (salonId, req, _repo, tx) =>
-      financeRepository.withRunner(tx).openSession(salonId, requireBody(cashOpenSchema)(req))
-    )
+      financeRepository.withRunner(tx).openSession(salonId, requireBody(cashOpenSchema)(req)),
+    ),
   );
   app.post(
     '/api/salons/:salonId/cash-sessions/:id/close',
     withSalon('cash.close', (salonId, req, _repo, tx) =>
       financeRepository
         .withRunner(tx)
-        .closeSession(salonId, uuid.parse(req.params.id), requireBody(cashCloseSchema)(req))
-    )
+        .closeSession(salonId, uuid.parse(req.params.id), requireBody(cashCloseSchema)(req)),
+    ),
   );
   app.post(
     '/api/salons/:salonId/cash-sessions/:id/reconcile',
     withSalon('salon.update', (salonId, req, _repo, tx) =>
-      financeRepository.withRunner(tx).reconcileSession(salonId, uuid.parse(req.params.id), req.body?.notes)
-    )
+      financeRepository.withRunner(tx).reconcileSession(salonId, uuid.parse(req.params.id), req.body?.notes),
+    ),
   );
 
   // ----- Encaissements et remboursements (journal immuable) -----
@@ -758,15 +817,15 @@ export function createResourceApp({
       return financeRepository.withRunner(tx).listEntries(salonId, {
         ...range,
         appointmentId: appointmentId.success ? appointmentId.data : null,
-        sessionId: sessionId.success ? sessionId.data : null
+        sessionId: sessionId.success ? sessionId.data : null,
       });
-    })
+    }),
   );
   app.post(
     '/api/salons/:salonId/payments',
     withSalon('finance.write', (salonId, req, _repo, tx) =>
-      financeRepository.withRunner(tx).createEntry(salonId, requireBody(paymentSchema)(req))
-    )
+      financeRepository.withRunner(tx).createEntry(salonId, requireBody(paymentSchema)(req)),
+    ),
   );
   app.post(
     '/api/salons/:salonId/payments/:id/confirm',
@@ -775,85 +834,108 @@ export function createResourceApp({
       return financeRepository
         .withRunner(tx)
         .confirmEntry(salonId, uuid.parse(req.params.id), body.providerReference);
-    })
+    }),
   );
   app.post(
     '/api/salons/:salonId/refunds',
     withSalon('payments.refund', (salonId, req, _repo, tx) =>
       financeRepository.withRunner(tx).createEntry(salonId, {
         ...requireBody(refundSchema)(req),
-        kind: 'refund'
-      })
-    )
+        kind: 'refund',
+      }),
+    ),
   );
   app.get(
     '/api/salons/:salonId/appointments/:id/balance',
     withSalon('payments.read', (salonId, req, _repo, tx) =>
-      financeRepository.withRunner(tx).appointmentBalance(salonId, uuid.parse(req.params.id))
-    )
+      financeRepository.withRunner(tx).appointmentBalance(salonId, uuid.parse(req.params.id)),
+    ),
   );
 
   // ----- Rapports financiers (calculés, jamais saisis) -----
-  app.get('/api/salons/:salonId/finance/summary', withSalon('payments.read', (salonId, req, _repo, tx) => {
-    const { from, to } = requireRange(req);
-    return financeRepository.withRunner(tx).summary(salonId, from, to);
-  }));
-  app.get('/api/salons/:salonId/finance/report', withSalon('reports.read', async (salonId, req, _repo, tx) => {
-    const { from, to } = requireRange(req);
-    const repo = financeRepository.withRunner(tx);
-    const [summary, methods, services, staff, daily] = await Promise.all([
-      repo.summary(salonId, from, to),
-      repo.byPaymentMethod(salonId, from, to),
-      repo.topServices(salonId, from, to),
-      repo.staffPerformance(salonId, from, to),
-      repo.dailySeries(salonId, from, to)
-    ]);
-    return { from, to, summary, methods, services, staff, daily };
-  }));
+  app.get(
+    '/api/salons/:salonId/finance/summary',
+    withSalon('payments.read', (salonId, req, _repo, tx) => {
+      const { from, to } = requireRange(req);
+      return financeRepository.withRunner(tx).summary(salonId, from, to);
+    }),
+  );
+  app.get(
+    '/api/salons/:salonId/finance/report',
+    withSalon('reports.read', async (salonId, req, _repo, tx) => {
+      const { from, to } = requireRange(req);
+      const repo = financeRepository.withRunner(tx);
+      const [summary, methods, services, staff, daily] = await Promise.all([
+        repo.summary(salonId, from, to),
+        repo.byPaymentMethod(salonId, from, to),
+        repo.topServices(salonId, from, to),
+        repo.staffPerformance(salonId, from, to),
+        repo.dailySeries(salonId, from, to),
+      ]);
+      return { from, to, summary, methods, services, staff, daily };
+    }),
+  );
 
   // ----- Stocks -----
-  app.get('/api/salons/:salonId/stock', withSalon('salon.read', (salonId, _req, repo) => repo.listStock(salonId)));
+  app.get(
+    '/api/salons/:salonId/stock',
+    withSalon('salon.read', (salonId, _req, repo) => repo.listStock(salonId)),
+  );
   app.post(
     '/api/salons/:salonId/stock',
-    withSalon('stock.write', (salonId, req, repo) => repo.saveStockItem(salonId, null, requireBody(stockSchema)(req)))
+    withSalon('stock.write', (salonId, req, repo) =>
+      repo.saveStockItem(salonId, null, requireBody(stockSchema)(req)),
+    ),
   );
   app.put(
     '/api/salons/:salonId/stock/:id',
     withSalon('stock.write', (salonId, req, repo) =>
-      repo.saveStockItem(salonId, uuid.parse(req.params.id), requireBody(stockSchema)(req))
-    )
+      repo.saveStockItem(salonId, uuid.parse(req.params.id), requireBody(stockSchema)(req)),
+    ),
   );
   app.delete(
     '/api/salons/:salonId/stock/:id',
-    withSalon('stock.write', (salonId, req, repo) => repo.deleteStockItem(salonId, uuid.parse(req.params.id)))
+    withSalon('stock.write', (salonId, req, repo) =>
+      repo.deleteStockItem(salonId, uuid.parse(req.params.id)),
+    ),
   );
 
   // ----- Fidélité -----
-  app.get('/api/salons/:salonId/rewards', withSalon('salon.read', (salonId, _req, repo) => repo.listRewards(salonId)));
+  app.get(
+    '/api/salons/:salonId/rewards',
+    withSalon('salon.read', (salonId, _req, repo) => repo.listRewards(salonId)),
+  );
   app.post(
     '/api/salons/:salonId/rewards',
-    withSalon('loyalty.write', (salonId, req, repo) => repo.saveReward(salonId, null, requireBody(rewardSchema)(req)))
+    withSalon('loyalty.write', (salonId, req, repo) =>
+      repo.saveReward(salonId, null, requireBody(rewardSchema)(req)),
+    ),
   );
   app.put(
     '/api/salons/:salonId/rewards/:id',
     withSalon('loyalty.write', (salonId, req, repo) =>
-      repo.saveReward(salonId, uuid.parse(req.params.id), requireBody(rewardSchema)(req))
-    )
+      repo.saveReward(salonId, uuid.parse(req.params.id), requireBody(rewardSchema)(req)),
+    ),
   );
   app.delete(
     '/api/salons/:salonId/rewards/:id',
-    withSalon('loyalty.write', (salonId, req, repo) => repo.deleteReward(salonId, uuid.parse(req.params.id)))
+    withSalon('loyalty.write', (salonId, req, repo) => repo.deleteReward(salonId, uuid.parse(req.params.id))),
   );
 
   // ----- Avis -----
-  app.get('/api/salons/:salonId/reviews', withSalon('salon.read', (salonId, _req, repo) => repo.listReviews(salonId)));
+  app.get(
+    '/api/salons/:salonId/reviews',
+    withSalon('salon.read', (salonId, _req, repo) => repo.listReviews(salonId)),
+  );
   app.post(
     '/api/salons/:salonId/reviews',
-    withSalon('clients.write', (salonId, req, repo) => repo.addReview(salonId, requireBody(reviewSchema)(req)))
+    withSalon('clients.write', (salonId, req, repo) =>
+      repo.addReview(salonId, requireBody(reviewSchema)(req)),
+    ),
   );
   app.delete(
     '/api/salons/:salonId/reviews/:id',
-    withSalon('clients.write', (salonId, req, repo) => repo.deleteReview(salonId, uuid.parse(req.params.id)))
+    withSalon('clients.write', (salonId, req, repo) => repo.deleteReview(salonId, uuid.parse(req.params.id))),
   );
 
   // Les routes d'administration SaaS ne sont pas exposées tant que le rôle global
@@ -874,7 +956,8 @@ export function createResourceApp({
       return res.status(409).json({ error: operationError.message, code: 'slot_conflict' });
     }
     const httpError = toHttpError(error);
-    if (error?.type === 'entity.too.large') return res.status(413).json({ error: 'Requête trop volumineuse.' });
+    if (error?.type === 'entity.too.large')
+      return res.status(413).json({ error: 'Requête trop volumineuse.' });
     if (error instanceof SyntaxError && error.status === 400) {
       return res.status(400).json({ error: 'Requête invalide.' });
     }
@@ -887,5 +970,4 @@ export function createResourceApp({
   });
 
   return { app, salonRepository, operationsRepository, financeRepository };
-
 }

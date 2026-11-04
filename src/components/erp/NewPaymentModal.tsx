@@ -25,7 +25,8 @@ export const NewPaymentModal: React.FC<NewPaymentModalProps> = ({
   defaultAmount,
   defaultClientName = '',
 }) => {
-  const { activeSalon, formatPrice, recordPayment, getAppointmentBalance, appointments, cashSession } = useApp();
+  const { activeSalon, formatPrice, recordPayment, getAppointmentBalance, appointments, cashSession } =
+    useApp();
 
   const [linkedAptId, setLinkedAptId] = useState<string>(preselectedAppointmentId || '');
   const [amount, setAmount] = useState(String(defaultAmount ?? ''));
@@ -39,13 +40,15 @@ export const NewPaymentModal: React.FC<NewPaymentModalProps> = ({
   const [submitting, setSubmitting] = useState(false);
 
   const payableAppointments = useMemo(
-    () => appointments.filter(
-      (a) => a.salonId === activeSalon.id
-        && a.paymentStatus !== 'paid'
-        && a.status !== 'cancelled'
-        && a.status !== 'no_show'
-    ),
-    [appointments, activeSalon.id]
+    () =>
+      appointments.filter(
+        (a) =>
+          a.salonId === activeSalon.id &&
+          a.paymentStatus !== 'paid' &&
+          a.status !== 'cancelled' &&
+          a.status !== 'no_show',
+      ),
+    [appointments, activeSalon.id],
   );
   const selectedApt = appointments.find((a) => a.id === linkedAptId) ?? null;
   const isCash = method === 'cash';
@@ -64,9 +67,12 @@ export const NewPaymentModal: React.FC<NewPaymentModalProps> = ({
         setAmount(String(b.outstanding > 0 ? b.outstanding : ''));
       })
       .catch((error) => {
-        if (!cancelled) setBalanceError(error instanceof Error ? error.message : 'Solde du rendez-vous indisponible.');
+        if (!cancelled)
+          setBalanceError(error instanceof Error ? error.message : 'Solde du rendez-vous indisponible.');
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [linkedAptId, getAppointmentBalance]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -131,7 +137,8 @@ export const NewPaymentModal: React.FC<NewPaymentModalProps> = ({
               </div>
               <h2 className="text-xl font-bold text-white">Nouvel Encaissement</h2>
               <p className="text-xs text-stone-400 mt-1">
-                Lié à un rendez-vous ou à un client de passage. Les paiements Mobile Money restent en attente jusqu’à vérification manuelle.
+                Lié à un rendez-vous ou à un client de passage. Les paiements Mobile Money restent en attente
+                jusqu’à vérification manuelle.
               </p>
             </div>
 
@@ -150,18 +157,30 @@ export const NewPaymentModal: React.FC<NewPaymentModalProps> = ({
                   <option value="">-- Sélectionner un rendez-vous ou passage --</option>
                   {payableAppointments.map((apt) => (
                     <option key={apt.id} value={apt.id}>
-                      {apt.source === 'walk_in' ? '[Sans RDV] ' : ''}{apt.clientName} - {apt.serviceName} ({formatPrice(apt.price)})
+                      {apt.source === 'walk_in' ? '[Sans RDV] ' : ''}
+                      {apt.clientName} - {apt.serviceName} ({formatPrice(apt.price)})
                     </option>
                   ))}
                 </select>
                 {selectedApt && (
                   <p className="text-[11px] text-stone-500 mt-1">
-                    Client : <span className="text-stone-300">{selectedApt.clientName || defaultClientName}</span>
-                    {balance && <> · Reste à payer : <span className="text-[#E5C378]">{formatPrice(balance.outstanding)}</span></>}
+                    Client :{' '}
+                    <span className="text-stone-300">{selectedApt.clientName || defaultClientName}</span>
+                    {balance && (
+                      <>
+                        {' '}
+                        · Reste à payer :{' '}
+                        <span className="text-[#E5C378]">{formatPrice(balance.outstanding)}</span>
+                      </>
+                    )}
                     {balance && balance.pending > 0 && <> · En attente : {formatPrice(balance.pending)}</>}
                   </p>
                 )}
-                {balanceError && <p role="alert" className="text-[11px] text-red-300 mt-1">{balanceError}</p>}
+                {balanceError && (
+                  <p role="alert" className="text-[11px] text-red-300 mt-1">
+                    {balanceError}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -216,7 +235,8 @@ export const NewPaymentModal: React.FC<NewPaymentModalProps> = ({
                     className="w-full bg-[#111113] border border-[#29292e] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#C9A45C]"
                   />
                   <p className="text-[10px] text-stone-500 mt-1">
-                    Cette référence ne confirme pas le paiement : un responsable devra la vérifier manuellement.
+                    Cette référence ne confirme pas le paiement : un responsable devra la vérifier
+                    manuellement.
                   </p>
                 </div>
               )}
@@ -241,34 +261,49 @@ export const NewPaymentModal: React.FC<NewPaymentModalProps> = ({
               </div>
 
               <div className="pt-2">
-                {paymentError && <p role="alert" className="mb-3 text-xs text-red-300">{paymentError}</p>}
+                {paymentError && (
+                  <p role="alert" className="mb-3 text-xs text-red-300">
+                    {paymentError}
+                  </p>
+                )}
                 <button
                   type="submit"
                   disabled={submitting}
                   className="w-full bg-[#C9A45C] hover:bg-[#d8b56d] disabled:opacity-60 text-[#101010] font-bold text-xs py-3 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>{submitting ? 'Enregistrement…' : `Valider l'encaissement${amount ? ` de ${formatPrice(Number(amount))}` : ''}`}</span>
+                  <span>
+                    {submitting
+                      ? 'Enregistrement…'
+                      : `Valider l'encaissement${amount ? ` de ${formatPrice(Number(amount))}` : ''}`}
+                  </span>
                 </button>
               </div>
             </form>
           </div>
         ) : (
           <div className="space-y-4 text-center animate-in zoom-in-95">
-            <div className={`w-14 h-14 rounded-full border mx-auto flex items-center justify-center ${
-              pending ? 'bg-amber-950 border-amber-500/40 text-amber-400' : 'bg-emerald-950 border-emerald-500/40 text-emerald-400'
-            }`}>
+            <div
+              className={`w-14 h-14 rounded-full border mx-auto flex items-center justify-center ${
+                pending
+                  ? 'bg-amber-950 border-amber-500/40 text-amber-400'
+                  : 'bg-emerald-950 border-emerald-500/40 text-emerald-400'
+              }`}
+            >
               {pending ? <Clock className="w-8 h-8" /> : <CheckCircle2 className="w-8 h-8" />}
             </div>
 
             <div>
-              <span className={`text-[10px] font-bold uppercase tracking-widest ${pending ? 'text-amber-400' : 'text-emerald-400'}`}>
+              <span
+                className={`text-[10px] font-bold uppercase tracking-widest ${pending ? 'text-amber-400' : 'text-emerald-400'}`}
+              >
                 {pending ? 'EN ATTENTE DE VÉRIFICATION' : 'ENCAISSEMENT CONFIRMÉ'}
               </span>
               <h3 className="text-xl font-bold text-white mt-1">Ticket #{createdReceipt.reference}</h3>
               {pending && (
                 <p className="text-xs text-stone-400 mt-1">
-                  Ce paiement n’est pas encore comptabilisé. Vérifiez la référence opérateur depuis la caisse pour le confirmer.
+                  Ce paiement n’est pas encore comptabilisé. Vérifiez la référence opérateur depuis la caisse
+                  pour le confirmer.
                 </p>
               )}
             </div>
@@ -277,11 +312,27 @@ export const NewPaymentModal: React.FC<NewPaymentModalProps> = ({
               <div className="text-center pb-2 border-b border-[#232326] font-sans">
                 <div className="font-bold text-white text-sm">{activeSalon.name}</div>
               </div>
-              <div className="flex justify-between"><span>Date & Heure :</span><span className="text-white">{createdReceipt.date} {createdReceipt.time}</span></div>
-              <div className="flex justify-between"><span>Client :</span><span className="text-white font-bold">{createdReceipt.clientName}</span></div>
-              <div className="flex justify-between"><span>Mode :</span><span className="text-white font-bold uppercase">{createdReceipt.method.replace('_', ' ')}</span></div>
+              <div className="flex justify-between">
+                <span>Date & Heure :</span>
+                <span className="text-white">
+                  {createdReceipt.date} {createdReceipt.time}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span>Client :</span>
+                <span className="text-white font-bold">{createdReceipt.clientName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Mode :</span>
+                <span className="text-white font-bold uppercase">
+                  {createdReceipt.method.replace('_', ' ')}
+                </span>
+              </div>
               {createdReceipt.providerReference && (
-                <div className="flex justify-between"><span>Réf. opérateur :</span><span className="text-[#C9A45C] font-bold">{createdReceipt.providerReference}</span></div>
+                <div className="flex justify-between">
+                  <span>Réf. opérateur :</span>
+                  <span className="text-[#C9A45C] font-bold">{createdReceipt.providerReference}</span>
+                </div>
               )}
               <div className="pt-2 border-t border-[#232326] flex justify-between text-sm font-sans font-extrabold text-white">
                 <span>{pending ? 'MONTANT EN ATTENTE :' : 'TOTAL PAYÉ :'}</span>

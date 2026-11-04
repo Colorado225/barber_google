@@ -41,9 +41,7 @@ export const ResetPasswordPage: React.FC = () => {
           </p>
         )}
         {done ? (
-          <p className="text-sm text-emerald-300">
-            Mot de passe mis à jour. Redirection vers la connexion…
-          </p>
+          <p className="text-sm text-emerald-300">Mot de passe mis à jour. Redirection vers la connexion…</p>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             {[

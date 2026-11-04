@@ -8,32 +8,32 @@ toutes vertes le 2026-11-04.
 
 ## 1. Source de vérité commune — VÉRIFIÉ
 
-| Donnée | Source unique | Consommation marketplace |
-| --- | --- | --- |
-| Salon, succursales | `salons`, `branches` | `marketplace_list_salons`, `marketplace_salon_detail` |
-| Prestations, prix, durées, préparation | `services` (bigint XOF) | détail public en temps réel ; prix recalculé et **snapshoté** à la réservation (`appointments.amount`) |
-| Personnel public | `staff` (actif + disponible + sélection publiée de la vitrine) | champs restreints (id, nom, rôle, spécialités, service_ids) |
-| Horaires / absences | `branch_hours`, `staff_schedules`, `staff_absences` | moteur commun `private.is_slot_available` |
-| Rendez-vous | `appointments` (+ `appointment_events` append-only) | création directe par RPC, `source='marketplace'` |
-| Clients | `clients` (auto-link téléphone normalisé CI) | `private.ensure_client_for_contact` |
-| Avis | `reviews` (verified) | note publique = moyenne des avis vérifiés |
+| Donnée                                 | Source unique                                                  | Consommation marketplace                                                                               |
+| -------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Salon, succursales                     | `salons`, `branches`                                           | `marketplace_list_salons`, `marketplace_salon_detail`                                                  |
+| Prestations, prix, durées, préparation | `services` (bigint XOF)                                        | détail public en temps réel ; prix recalculé et **snapshoté** à la réservation (`appointments.amount`) |
+| Personnel public                       | `staff` (actif + disponible + sélection publiée de la vitrine) | champs restreints (id, nom, rôle, spécialités, service_ids)                                            |
+| Horaires / absences                    | `branch_hours`, `staff_schedules`, `staff_absences`            | moteur commun `private.is_slot_available`                                                              |
+| Rendez-vous                            | `appointments` (+ `appointment_events` append-only)            | création directe par RPC, `source='marketplace'`                                                       |
+| Clients                                | `clients` (auto-link téléphone normalisé CI)                   | `private.ensure_client_for_contact`                                                                    |
+| Avis                                   | `reviews` (verified)                                           | note publique = moyenne des avis vérifiés                                                              |
 
 Aucune table « marketplace » dupliquée. **Conforme §10.1.**
 
 ## 2. Critères d'acceptation du Lot 4 — état audité
 
-| Scénario | État | Preuve / écart |
-| --- | --- | --- |
-| A — Prestation ERP → fiche publique (prix/durée) | ✅ VÉRIFIÉ | `supabase-marketplace` + synchro tarifaire temps réel testée (`supabase-marketplace-customizer`) |
-| B — Employé indisponible → créneaux masqués | ✅ VÉRIFIÉ | `is_slot_available` (absences) partagé ; `supabase-operations`, journey |
-| C — Réservation publique → RDV dans l'ERP sans ressaisie | ✅ VÉRIFIÉ | `marketplace_book_appointment` atomique ; journey de bout en bout |
-| D — Confirmation ERP → même statut côté client | ✅ VÉRIFIÉ | `transition_appointment` + `marketplace_booking_by_token`/`get_booking` lisent la même table |
-| E — Annulation client → planning à jour, historique conservé | ✅ VÉRIFIÉ | `marketplace_cancel_booking` (jeton), `appointment_events` |
-| F — RDV terminé → historique client + invitation avis | ⚠️ PARTIEL | Avis vérifié possible via jeton (`marketplace_submit_review`) ; **l'invitation par notification ne part pas** (fournisseurs non configurés, F2) |
-| G — Paiement confirmé → journal financier | ✅ VÉRIFIÉ | `record_payment`/`confirm_pending_payment` ; le non-espèces reste `pending` tant qu'un humain ne confirme pas (conforme §9.7/§17.6) |
-| H — Concurrence (2 résas même créneau) | ✅ en intégration / ⚠️ prod À VÉRIFIER | Testé sous PGlite via `is_slot_available` ; en production s'y ajoute la contrainte d'exclusion `btree_gist` **si** l'extension est active sur le projet lié (F9) |
-| I — Isolation inter-salons | ✅ VÉRIFIÉ | `has_salon_permission` + RLS ; tests d'isolation dans operations/finance/marketplace/customizer |
-| J — Panne notification ≠ perte de réservation | ✅ VÉRIFIÉ | File persistante découplée (`appointment_notifications`), statuts honnêtes (`skipped: provider_not_configured`), retry via `claim_due_notifications` + pg_cron |
+| Scénario                                                     | État                                   | Preuve / écart                                                                                                                                                   |
+| ------------------------------------------------------------ | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A — Prestation ERP → fiche publique (prix/durée)             | ✅ VÉRIFIÉ                             | `supabase-marketplace` + synchro tarifaire temps réel testée (`supabase-marketplace-customizer`)                                                                 |
+| B — Employé indisponible → créneaux masqués                  | ✅ VÉRIFIÉ                             | `is_slot_available` (absences) partagé ; `supabase-operations`, journey                                                                                          |
+| C — Réservation publique → RDV dans l'ERP sans ressaisie     | ✅ VÉRIFIÉ                             | `marketplace_book_appointment` atomique ; journey de bout en bout                                                                                                |
+| D — Confirmation ERP → même statut côté client               | ✅ VÉRIFIÉ                             | `transition_appointment` + `marketplace_booking_by_token`/`get_booking` lisent la même table                                                                     |
+| E — Annulation client → planning à jour, historique conservé | ✅ VÉRIFIÉ                             | `marketplace_cancel_booking` (jeton), `appointment_events`                                                                                                       |
+| F — RDV terminé → historique client + invitation avis        | ⚠️ PARTIEL                             | Avis vérifié possible via jeton (`marketplace_submit_review`) ; **l'invitation par notification ne part pas** (fournisseurs non configurés, F2)                  |
+| G — Paiement confirmé → journal financier                    | ✅ VÉRIFIÉ                             | `record_payment`/`confirm_pending_payment` ; le non-espèces reste `pending` tant qu'un humain ne confirme pas (conforme §9.7/§17.6)                              |
+| H — Concurrence (2 résas même créneau)                       | ✅ en intégration / ⚠️ prod À VÉRIFIER | Testé sous PGlite via `is_slot_available` ; en production s'y ajoute la contrainte d'exclusion `btree_gist` **si** l'extension est active sur le projet lié (F9) |
+| I — Isolation inter-salons                                   | ✅ VÉRIFIÉ                             | `has_salon_permission` + RLS ; tests d'isolation dans operations/finance/marketplace/customizer                                                                  |
+| J — Panne notification ≠ perte de réservation                | ✅ VÉRIFIÉ                             | File persistante découplée (`appointment_notifications`), statuts honnêtes (`skipped: provider_not_configured`), retry via `claim_due_notifications` + pg_cron   |
 
 ## 3. Détails des contrats vérifiés
 

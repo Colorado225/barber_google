@@ -93,11 +93,11 @@ const router = createBrowserRouter([
         path: 'reinitialiser',
         element: <ResetPasswordPage />,
       },
-          {
-            path: 'vitrine',
-            element: <ShopView />,
-          },
-        ],
+      {
+        path: 'vitrine',
+        element: <ShopView />,
+      },
+    ],
   },
 ]);
 

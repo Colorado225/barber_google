@@ -9,11 +9,7 @@ import { SalonDetailModal } from './components/marketplace/SalonDetailModal';
 const AppContent: React.FC = () => {
   // `useInRouterContext` permet de rendre le shell hors routeur (tests SSR).
   const routed = useInRouterContext();
-  const {
-    mode,
-    selectedSalonForModal,
-    setSelectedSalonForModal
-  } = useOptionalApp();
+  const { mode, selectedSalonForModal, setSelectedSalonForModal } = useOptionalApp();
 
   return (
     <div className="min-h-screen bg-[#0d0d0e] text-[#f7f6f2] flex flex-col font-sans selection:bg-[#C9A45C] selection:text-[#101010]">
@@ -21,16 +17,11 @@ const AppContent: React.FC = () => {
       <Navbar />
 
       {/* vue de la route courante. Hors routeur (tests SSR) on affiche la marketplace. */}
-      <main className="flex-1 flex flex-col">
-        {routed ? <Outlet /> : <MarketplaceHome />}
-      </main>
+      <main className="flex-1 flex flex-col">{routed ? <Outlet /> : <MarketplaceHome />}</main>
 
       {/* Global Overlays & Modals */}
       {selectedSalonForModal && (
-        <SalonDetailModal
-          salon={selectedSalonForModal}
-          onClose={() => setSelectedSalonForModal(null)}
-        />
+        <SalonDetailModal salon={selectedSalonForModal} onClose={() => setSelectedSalonForModal(null)} />
       )}
 
       <ToastContainer />

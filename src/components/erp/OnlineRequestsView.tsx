@@ -3,7 +3,18 @@ import { useApp } from '../../context/AppContext';
 import { useOptionalAuth } from '../../context/AuthContext';
 import { Appointment } from '../../types';
 import { bookingPortalPath } from '../../lib/bookingVault';
-import { Inbox, CheckCircle2, Ban, Clock, Phone, Mail, Scissors, UserCheck, RefreshCw, ExternalLink } from 'lucide-react';
+import {
+  Inbox,
+  CheckCircle2,
+  Ban,
+  Clock,
+  Phone,
+  Mail,
+  Scissors,
+  UserCheck,
+  RefreshCw,
+  ExternalLink,
+} from 'lucide-react';
 
 type Filter = 'pending' | 'upcoming' | 'history' | 'all';
 
@@ -29,10 +40,8 @@ function ageLabel(iso: string): string {
 
 /** Boîte de réception des réservations venues de la marketplace. */
 export const OnlineRequestsView: React.FC = () => {
-  const {
-    activeSalon, appointments, clients, formatPrice,
-    updateAppointmentStatus, reloadWorkspace,
-  } = useApp();
+  const { activeSalon, appointments, clients, formatPrice, updateAppointmentStatus, reloadWorkspace } =
+    useApp();
   const { hasPermission } = useOptionalAuth();
   const canWrite = hasPermission('appointments.write', activeSalon.id);
 
@@ -40,17 +49,29 @@ export const OnlineRequestsView: React.FC = () => {
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const online = useMemo(
-    () => appointments
-      .filter((a) => a.salonId === activeSalon.id && a.source === 'marketplace')
-      .sort((a, b) => (b.createdAt ?? b.startsAt).localeCompare(a.createdAt ?? a.startsAt)),
+    () =>
+      appointments
+        .filter((a) => a.salonId === activeSalon.id && a.source === 'marketplace')
+        .sort((a, b) => (b.createdAt ?? b.startsAt).localeCompare(a.createdAt ?? a.startsAt)),
     [appointments, activeSalon.id],
   );
 
   const pending = online.filter((a) => a.status === 'pending');
-  const upcoming = online.filter((a) => a.status === 'confirmed' || a.status === 'checked_in' || a.status === 'in_progress');
-  const history = online.filter((a) => a.status === 'completed' || a.status === 'cancelled' || a.status === 'no_show');
+  const upcoming = online.filter(
+    (a) => a.status === 'confirmed' || a.status === 'checked_in' || a.status === 'in_progress',
+  );
+  const history = online.filter(
+    (a) => a.status === 'completed' || a.status === 'cancelled' || a.status === 'no_show',
+  );
 
-  const rows = filter === 'pending' ? pending : filter === 'upcoming' ? upcoming : filter === 'history' ? history : online;
+  const rows =
+    filter === 'pending'
+      ? pending
+      : filter === 'upcoming'
+        ? upcoming
+        : filter === 'history'
+          ? history
+          : online;
   const clientName = (apt: Appointment) => clients.find((c) => c.id === apt.clientId)?.name;
 
   const confirm = async (apt: Appointment) => {
@@ -59,7 +80,10 @@ export const OnlineRequestsView: React.FC = () => {
     setBusyId(null);
   };
   const refuse = (apt: Appointment) => {
-    const reason = window.prompt(`Motif du refus pour ${apt.clientName} (obligatoire) :`, 'Créneau indisponible');
+    const reason = window.prompt(
+      `Motif du refus pour ${apt.clientName} (obligatoire) :`,
+      'Créneau indisponible',
+    );
     if (!reason || reason.trim().length < 3) return;
     setBusyId(apt.id);
     updateAppointmentStatus(apt.id, 'cancelled', reason.trim());
@@ -78,8 +102,10 @@ export const OnlineRequestsView: React.FC = () => {
             </p>
           </div>
         </div>
-        <button onClick={() => void reloadWorkspace(activeSalon.id)}
-          className="inline-flex items-center gap-2 rounded-xl border border-[#2a2a2b] bg-[#161619] px-3 py-2 text-xs font-semibold text-stone-300 hover:text-white">
+        <button
+          onClick={() => void reloadWorkspace(activeSalon.id)}
+          className="inline-flex items-center gap-2 rounded-xl border border-[#2a2a2b] bg-[#161619] px-3 py-2 text-xs font-semibold text-stone-300 hover:text-white"
+        >
           <RefreshCw className="h-4 w-4" /> Actualiser
         </button>
       </header>
@@ -99,10 +125,15 @@ export const OnlineRequestsView: React.FC = () => {
 
       <div className="flex flex-wrap gap-2">
         {FILTERS.map((item) => (
-          <button key={item.id} onClick={() => setFilter(item.id)}
+          <button
+            key={item.id}
+            onClick={() => setFilter(item.id)}
             className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
-              filter === item.id ? 'bg-[#C9A45C] text-[#101010]' : 'bg-[#1a1a1d] text-stone-400 hover:text-white'
-            }`}>
+              filter === item.id
+                ? 'bg-[#C9A45C] text-[#101010]'
+                : 'bg-[#1a1a1d] text-stone-400 hover:text-white'
+            }`}
+          >
             {item.label}
           </button>
         ))}
@@ -110,7 +141,8 @@ export const OnlineRequestsView: React.FC = () => {
 
       {rows.length === 0 ? (
         <p className="rounded-xl border border-[#27272c] bg-[#161619] p-6 text-sm text-stone-400">
-          Aucune demande dans cette catégorie. Les réservations en ligne apparaissent ici dès qu’un client réserve sur la marketplace.
+          Aucune demande dans cette catégorie. Les réservations en ligne apparaissent ici dès qu’un client
+          réserve sur la marketplace.
         </p>
       ) : (
         <ul className="space-y-3">
@@ -134,8 +166,16 @@ export const OnlineRequestsView: React.FC = () => {
                     {apt.staffName && <span className="text-stone-400"> · avec {apt.staffName}</span>}
                   </p>
                   <div className="mt-1 flex flex-wrap gap-3 text-[11px] text-stone-500">
-                    {apt.clientPhone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" /> {apt.clientPhone}</span>}
-                    {apt.clientEmail && <span className="flex items-center gap-1"><Mail className="h-3 w-3" /> {apt.clientEmail}</span>}
+                    {apt.clientPhone && (
+                      <span className="flex items-center gap-1">
+                        <Phone className="h-3 w-3" /> {apt.clientPhone}
+                      </span>
+                    )}
+                    {apt.clientEmail && (
+                      <span className="flex items-center gap-1">
+                        <Mail className="h-3 w-3" /> {apt.clientEmail}
+                      </span>
+                    )}
                     <span className="flex items-center gap-1">
                       <UserCheck className="h-3 w-3" />
                       {apt.clientId ? `CRM : ${clientName(apt) ?? 'fiche liée'}` : 'CRM : non rattaché'}
@@ -147,12 +187,18 @@ export const OnlineRequestsView: React.FC = () => {
 
                 {canWrite && apt.status === 'pending' && (
                   <div className="flex shrink-0 gap-2">
-                    <button onClick={() => void confirm(apt)} disabled={busyId === apt.id}
-                      className="inline-flex items-center gap-1 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-50">
+                    <button
+                      onClick={() => void confirm(apt)}
+                      disabled={busyId === apt.id}
+                      className="inline-flex items-center gap-1 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-50"
+                    >
                       <CheckCircle2 className="h-4 w-4" /> Confirmer
                     </button>
-                    <button onClick={() => refuse(apt)} disabled={busyId === apt.id}
-                      className="inline-flex items-center gap-1 rounded-xl bg-red-900/40 px-3 py-2 text-xs font-semibold text-red-300 hover:bg-red-900/60 disabled:opacity-50">
+                    <button
+                      onClick={() => refuse(apt)}
+                      disabled={busyId === apt.id}
+                      className="inline-flex items-center gap-1 rounded-xl bg-red-900/40 px-3 py-2 text-xs font-semibold text-red-300 hover:bg-red-900/60 disabled:opacity-50"
+                    >
                       <Ban className="h-4 w-4" /> Refuser
                     </button>
                   </div>
@@ -171,7 +217,8 @@ export const OnlineRequestsView: React.FC = () => {
       <p className="text-[11px] text-stone-500 flex items-center gap-1">
         <ExternalLink className="h-3 w-3" />
         Le client suit sa demande depuis son lien personnel
-        <code className="text-stone-400">{bookingPortalPath('<jeton>')}</code> : toute confirmation ou annulation y est visible immédiatement.
+        <code className="text-stone-400">{bookingPortalPath('<jeton>')}</code> : toute confirmation ou
+        annulation y est visible immédiatement.
       </p>
     </section>
   );

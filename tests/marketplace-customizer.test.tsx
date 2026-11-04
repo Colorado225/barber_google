@@ -2,9 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import {
-  getDefaultCustomizerConfig
-} from '../src/lib/marketplace-customizer';
+import { getDefaultCustomizerConfig } from '../src/lib/marketplace-customizer';
 import { ClassicSalonLayout } from '../src/components/marketplace/salon/layouts/ClassicSalonLayout';
 import { ElegantSalonLayout } from '../src/components/marketplace/salon/layouts/ElegantSalonLayout';
 import { EditorialSalonLayout } from '../src/components/marketplace/salon/layouts/EditorialSalonLayout';
@@ -112,7 +110,7 @@ test('2. Modèle 1 Classique : rendu HTML avec prix ERP et staff visible', () =>
       detail={MOCK_DETAIL}
       config={config}
       formatPrice={(amt) => `${amt.toLocaleString('fr-FR')} FCFA`}
-    />
+    />,
   );
 
   assert.ok(html.includes('Barbershop Premium'));
@@ -133,7 +131,7 @@ test('3. Modèle 2 Élégant et Modèle 3 Éditorial : rendu sans erreur et resp
       detail={MOCK_DETAIL}
       config={configElegant}
       formatPrice={(amt) => `${amt.toLocaleString('fr-FR')} FCFA`}
-    />
+    />,
   );
   assert.ok(htmlElegant.includes('Barbershop Premium'));
   assert.ok(htmlElegant.includes('Galerie officielle'));
@@ -147,7 +145,7 @@ test('3. Modèle 2 Élégant et Modèle 3 Éditorial : rendu sans erreur et resp
       detail={MOCK_DETAIL}
       config={configEditorial}
       formatPrice={(amt) => `${amt.toLocaleString('fr-FR')} FCFA`}
-    />
+    />,
   );
   assert.ok(htmlEditorial.includes('Barbershop Premium'));
   assert.ok(htmlEditorial.includes('Dégradé Américain'));
@@ -157,7 +155,7 @@ test('4. Sections conditionnelles : désactiver les avis masque la section sans 
   const configWithoutReviews: SalonMarketplaceViewConfig = {
     ...getDefaultCustomizerConfig('salon-123'),
     sections: getDefaultCustomizerConfig('salon-123').sections.map((s) =>
-      s.id === 'reviews' ? { ...s, enabled: false } : s
+      s.id === 'reviews' ? { ...s, enabled: false } : s,
     ),
   };
 
@@ -166,7 +164,7 @@ test('4. Sections conditionnelles : désactiver les avis masque la section sans 
       detail={MOCK_DETAIL}
       config={configWithoutReviews}
       formatPrice={(amt) => `${amt.toLocaleString('fr-FR')} FCFA`}
-    />
+    />,
   );
 
   assert.ok(!html.includes('Avis certifiés par les clients'));
@@ -186,7 +184,7 @@ test('5. Personnel visible : un membre non sélectionné n’apparaît pas dans 
       detail={MOCK_DETAIL}
       config={configWithSingleStaff}
       formatPrice={(amt) => `${amt.toLocaleString('fr-FR')} FCFA`}
-    />
+    />,
   );
 
   assert.ok(html.includes('Yves'));
@@ -210,7 +208,7 @@ test('6. Synchronisation tarifaire ERP : une hausse de prix est immédiatement v
       detail={updatedDetail}
       config={config}
       formatPrice={(amt) => `${amt.toLocaleString('fr-FR')} FCFA`}
-    />
+    />,
   );
 
   const normalized = html.replace(/[\u202F\u00A0]/g, ' ');
@@ -229,15 +227,11 @@ test('7. Ordre des sections : la position configurée pilote l’ordre de rendu'
           ? { ...s, position: 6 }
           : s.id === 'hero'
             ? { ...s, position: 0 }
-            : { ...s, position: s.position + 10 }
+            : { ...s, position: s.position + 10 },
     ),
   };
   const html = renderToStaticMarkup(
-    <ClassicSalonLayout
-      detail={MOCK_DETAIL}
-      config={config}
-      formatPrice={(amt) => `${amt} FCFA`}
-    />
+    <ClassicSalonLayout detail={MOCK_DETAIL} config={config} formatPrice={(amt) => `${amt} FCFA`} />,
   );
   const reviewsIdx = html.indexOf('Meilleur barbier de Cocody');
   const servicesIdx = html.indexOf('Prestations en vedette');
@@ -251,11 +245,7 @@ test('8. Galerie : seules les images sélectionnées sont affichées, dans l’o
     featuredGalleryImageIds: ['https://example.com/photo2.jpg'],
   };
   const html = renderToStaticMarkup(
-    <ClassicSalonLayout
-      detail={MOCK_DETAIL}
-      config={config}
-      formatPrice={(amt) => `${amt} FCFA`}
-    />
+    <ClassicSalonLayout detail={MOCK_DETAIL} config={config} formatPrice={(amt) => `${amt} FCFA`} />,
   );
   assert.ok(html.includes('https://example.com/photo2.jpg'));
   assert.ok(!html.includes('https://example.com/photo1.jpg'));

@@ -1,16 +1,16 @@
-import { useEffect, useRef } from "react";
-import { Salon } from "../types";
+import { useEffect, useRef } from 'react';
+import { Salon } from '../types';
 import {
   buildSalonBookingPath,
   findSalonByLinkKey,
   readSalonKeyFromPath,
   readSalonKeyFromSearch,
-} from "../lib/salonLink";
+} from '../lib/salonLink';
 
 interface DeepLinkOptions {
   salons: Salon[];
   setSelectedSalonForModal: (salon: Salon | null) => void;
-  setMode: (mode: "marketplace" | "erp") => void;
+  setMode: (mode: 'marketplace' | 'erp') => void;
   /** Notified when the link points to an unknown salon. */
   onNotFound?: () => void;
 }
@@ -20,12 +20,7 @@ interface DeepLinkOptions {
  * link such as `/salons/le-roi-du-degrade` (a QR code scan).
  * Legacy `/?salon=<slug>` links keep working.
  */
-export function useSalonDeepLink({
-  salons,
-  setSelectedSalonForModal,
-  setMode,
-  onNotFound,
-}: DeepLinkOptions) {
+export function useSalonDeepLink({ salons, setSelectedSalonForModal, setMode, onNotFound }: DeepLinkOptions) {
   const onNotFoundRef = useRef(onNotFound);
   onNotFoundRef.current = onNotFound;
 
@@ -42,18 +37,18 @@ export function useSalonDeepLink({
         return;
       }
 
-      setMode("marketplace");
+      setMode('marketplace');
       setSelectedSalonForModal(salon);
 
       // Replace the URL with the canonical public path without reloading.
       const canonicalPath = buildSalonBookingPath(salon);
       if (window.location.pathname + window.location.search !== canonicalPath) {
-        window.history.replaceState({}, "", canonicalPath);
+        window.history.replaceState({}, '', canonicalPath);
       }
     };
 
     openFromUrl();
-    window.addEventListener("popstate", openFromUrl);
-    return () => window.removeEventListener("popstate", openFromUrl);
+    window.addEventListener('popstate', openFromUrl);
+    return () => window.removeEventListener('popstate', openFromUrl);
   }, [salons, setMode, setSelectedSalonForModal]);
 }

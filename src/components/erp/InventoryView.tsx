@@ -32,13 +32,13 @@ export const InventoryView: React.FC = () => {
                 {low ? ' · à réapprovisionner' : ''}
               </span>
             );
-          }
+          },
         },
         {
           header: 'Coût unitaire',
           render: (r) => (r.unitCost ? formatPrice(r.unitCost) : '—'),
-          className: 'text-[#E5C378] font-semibold'
-        }
+          className: 'text-[#E5C378] font-semibold',
+        },
       ]}
     />
   );

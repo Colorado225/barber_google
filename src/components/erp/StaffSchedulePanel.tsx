@@ -28,7 +28,7 @@ interface Absence {
  */
 export const StaffSchedulePanel: React.FC<{ member: StaffMember; onClose: () => void }> = ({
   member,
-  onClose
+  onClose,
 }) => {
   const { activeSalon, addToast } = useApp();
   const [schedules, setSchedules] = useState<Schedule[]>([]);
@@ -68,7 +68,7 @@ export const StaffSchedulePanel: React.FC<{ member: StaffMember; onClose: () => 
       await api.staff.addSchedule(member.id, {
         weekday: Number(shift.weekday),
         startsAt: shift.startsAt,
-        endsAt: shift.endsAt
+        endsAt: shift.endsAt,
       });
       await load();
       addToast('Plage horaire enregistrée.', 'success');
@@ -84,7 +84,7 @@ export const StaffSchedulePanel: React.FC<{ member: StaffMember; onClose: () => 
       await api.staff.addAbsence(member.id, {
         startsOn: absence.startsOn,
         endsOn: absence.endsOn || absence.startsOn,
-        reason: absence.reason
+        reason: absence.reason,
       });
       setAbsence({ startsOn: '', endsOn: '', reason: '' });
       await load();
@@ -138,11 +138,7 @@ export const StaffSchedulePanel: React.FC<{ member: StaffMember; onClose: () => 
                       {WEEKDAYS[s.weekday]} · {s.startsAt} – {s.endsAt}
                     </span>
                     <button
-                      onClick={() =>
-                        void salonApi(activeSalon.id)
-                          .staff.removeSchedule(s.id)
-                          .then(load)
-                      }
+                      onClick={() => void salonApi(activeSalon.id).staff.removeSchedule(s.id).then(load)}
                       title="Supprimer cette plage"
                       className="text-stone-500 hover:text-red-400 cursor-pointer"
                     >
@@ -206,11 +202,7 @@ export const StaffSchedulePanel: React.FC<{ member: StaffMember; onClose: () => 
                       {a.reason ? ` · ${a.reason}` : ''}
                     </span>
                     <button
-                      onClick={() =>
-                        void salonApi(activeSalon.id)
-                          .staff.removeAbsence(a.id)
-                          .then(load)
-                      }
+                      onClick={() => void salonApi(activeSalon.id).staff.removeAbsence(a.id).then(load)}
                       title="Supprimer cette absence"
                       className="text-stone-500 hover:text-red-400 cursor-pointer"
                     >

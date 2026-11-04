@@ -9,7 +9,12 @@ interface WalkInViewProps {
 }
 
 const todayAbidjan = () =>
-  new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Abidjan', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Africa/Abidjan',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
 
 function minutesSince(iso?: string): number | null {
   if (!iso) return null;
@@ -19,21 +24,20 @@ function minutesSince(iso?: string): number | null {
 
 /** File d'attente et prestations des clients arrivés sans rendez-vous. */
 export const WalkInView: React.FC<WalkInViewProps> = ({ onOpenNewWalkIn, onOpenPayment }) => {
-  const {
-    activeSalon, appointments, staff, formatPrice,
-    startWalkIn, completeWalkIn, cancelAppointment,
-  } = useApp();
+  const { activeSalon, appointments, staff, formatPrice, startWalkIn, completeWalkIn, cancelAppointment } =
+    useApp();
 
   const [staffChoice, setStaffChoice] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const today = todayAbidjan();
   const walkIns = useMemo(
-    () => appointments
-      .filter((a) => a.salonId === activeSalon.id && a.source === 'walk_in')
-      .filter((a) => a.status === 'checked_in' || a.status === 'in_progress' || a.date === today)
-      .sort((a, b) => (a.arrivalAt ?? a.startsAt ?? '').localeCompare(b.arrivalAt ?? b.startsAt ?? '')),
-    [appointments, activeSalon.id, today]
+    () =>
+      appointments
+        .filter((a) => a.salonId === activeSalon.id && a.source === 'walk_in')
+        .filter((a) => a.status === 'checked_in' || a.status === 'in_progress' || a.date === today)
+        .sort((a, b) => (a.arrivalAt ?? a.startsAt ?? '').localeCompare(b.arrivalAt ?? b.startsAt ?? '')),
+    [appointments, activeSalon.id, today],
   );
 
   const waiting = walkIns.filter((a) => a.status === 'checked_in');
@@ -41,7 +45,8 @@ export const WalkInView: React.FC<WalkInViewProps> = ({ onOpenNewWalkIn, onOpenP
   const completed = walkIns.filter((a) => a.status === 'completed');
 
   const eligibleStaff = (serviceId: string) =>
-    staff.filter((m) => m.salonId === activeSalon.id && m.isActive !== false && m.isAvailable)
+    staff
+      .filter((m) => m.salonId === activeSalon.id && m.isActive !== false && m.isAvailable)
       .filter((m) => (m.serviceIds?.length ?? 0) === 0 || m.serviceIds?.includes(serviceId));
 
   const handleStart = async (apt: Appointment) => {
@@ -67,24 +72,51 @@ export const WalkInView: React.FC<WalkInViewProps> = ({ onOpenNewWalkIn, onOpenP
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-sm font-bold text-white truncate">{apt.clientName}</p>
-            <p className="text-xs text-stone-400 truncate">{apt.serviceName} · {formatPrice(apt.price)}</p>
+            <p className="text-xs text-stone-400 truncate">
+              {apt.serviceName} · {formatPrice(apt.price)}
+            </p>
             {apt.clientPhone && <p className="text-[11px] text-stone-500">{apt.clientPhone}</p>}
           </div>
-          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
-            apt.status === 'in_progress' ? 'bg-purple-950 text-purple-300'
-              : apt.status === 'checked_in' ? 'bg-amber-950 text-amber-300'
-              : 'bg-emerald-950 text-emerald-300'
-          }`}>
-            {apt.status === 'in_progress' ? 'Au fauteuil' : apt.status === 'checked_in' ? 'En attente' : 'Terminé'}
+          <span
+            className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+              apt.status === 'in_progress'
+                ? 'bg-purple-950 text-purple-300'
+                : apt.status === 'checked_in'
+                  ? 'bg-amber-950 text-amber-300'
+                  : 'bg-emerald-950 text-emerald-300'
+            }`}
+          >
+            {apt.status === 'in_progress'
+              ? 'Au fauteuil'
+              : apt.status === 'checked_in'
+                ? 'En attente'
+                : 'Terminé'}
           </span>
         </div>
 
         <div className="flex flex-wrap items-center gap-3 text-[11px] text-stone-400">
-          {apt.status === 'checked_in' && waitMin !== null && <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> attente {waitMin} min</span>}
-          {apt.status === 'in_progress' && serviceMin !== null && <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> en cours {serviceMin} min</span>}
-          {apt.staffName && <span>Coiffeur : <span className="text-stone-200">{apt.staffName}</span></span>}
+          {apt.status === 'checked_in' && waitMin !== null && (
+            <span className="flex items-center gap-1">
+              <Clock className="w-3 h-3" /> attente {waitMin} min
+            </span>
+          )}
+          {apt.status === 'in_progress' && serviceMin !== null && (
+            <span className="flex items-center gap-1">
+              <Clock className="w-3 h-3" /> en cours {serviceMin} min
+            </span>
+          )}
+          {apt.staffName && (
+            <span>
+              Coiffeur : <span className="text-stone-200">{apt.staffName}</span>
+            </span>
+          )}
           {apt.status === 'completed' && (
-            <span>Paiement : <span className={apt.paymentStatus === 'paid' ? 'text-emerald-300' : 'text-amber-300'}>{apt.paymentStatus === 'paid' ? 'réglé' : 'à encaisser'}</span></span>
+            <span>
+              Paiement :{' '}
+              <span className={apt.paymentStatus === 'paid' ? 'text-emerald-300' : 'text-amber-300'}>
+                {apt.paymentStatus === 'paid' ? 'réglé' : 'à encaisser'}
+              </span>
+            </span>
           )}
         </div>
 
@@ -97,7 +129,11 @@ export const WalkInView: React.FC<WalkInViewProps> = ({ onOpenNewWalkIn, onOpenP
               aria-label={`Coiffeur pour ${apt.clientName}`}
             >
               <option value="">Premier disponible</option>
-              {options.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+              {options.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
             </select>
             <button
               onClick={() => handleStart(apt)}
@@ -176,7 +212,10 @@ export const WalkInView: React.FC<WalkInViewProps> = ({ onOpenNewWalkIn, onOpenP
         <div className="text-center py-16 bg-[#151516] rounded-xl border border-[#2a2a2b] text-stone-400">
           <DoorOpen className="w-12 h-12 mx-auto mb-4 opacity-50" />
           <p>Aucun client de passage pour le moment.</p>
-          <button onClick={onOpenNewWalkIn} className="mt-3 text-xs text-[#C9A45C] font-semibold hover:underline">
+          <button
+            onClick={onOpenNewWalkIn}
+            className="mt-3 text-xs text-[#C9A45C] font-semibold hover:underline"
+          >
             Accueillir le premier client
           </button>
         </div>
@@ -184,15 +223,27 @@ export const WalkInView: React.FC<WalkInViewProps> = ({ onOpenNewWalkIn, onOpenP
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
           <section className="space-y-3">
             <h2 className="text-sm font-bold text-white">File d’attente ({waiting.length})</h2>
-            {waiting.length === 0 ? <p className="text-xs text-stone-500">Personne en attente.</p> : waiting.map(renderCard)}
+            {waiting.length === 0 ? (
+              <p className="text-xs text-stone-500">Personne en attente.</p>
+            ) : (
+              waiting.map(renderCard)
+            )}
           </section>
           <section className="space-y-3">
             <h2 className="text-sm font-bold text-white">Prestations en cours ({inProgress.length})</h2>
-            {inProgress.length === 0 ? <p className="text-xs text-stone-500">Aucune prestation en cours.</p> : inProgress.map(renderCard)}
+            {inProgress.length === 0 ? (
+              <p className="text-xs text-stone-500">Aucune prestation en cours.</p>
+            ) : (
+              inProgress.map(renderCard)
+            )}
           </section>
           <section className="space-y-3">
             <h2 className="text-sm font-bold text-white">Terminés / à encaisser ({completed.length})</h2>
-            {completed.length === 0 ? <p className="text-xs text-stone-500">Aucune prestation terminée aujourd’hui.</p> : completed.map(renderCard)}
+            {completed.length === 0 ? (
+              <p className="text-xs text-stone-500">Aucune prestation terminée aujourd’hui.</p>
+            ) : (
+              completed.map(renderCard)
+            )}
           </section>
         </div>
       )}

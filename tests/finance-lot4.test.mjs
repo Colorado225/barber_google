@@ -29,7 +29,7 @@ const MIGRATIONS = [
   '20261103030000_lot2_account_security.sql',
   '20261103040000_lot3_operations.sql',
   '20261103060000_lot3_fitions.sql',
-  '20261103050000_lot4_finance.sql'
+  '20261103050000_lot4_finance.sql',
 ];
 
 let db;
@@ -45,8 +45,16 @@ async function createAccount(email, name = 'QA User') {
     .set('Origin', ORIGIN)
     .send({ name, email, password: PASSWORD })
     .expect(201);
-  await request(app).post('/api/auth/verify-email').set('Origin', ORIGIN).send({ token: signup.body.token }).expect(200);
-  const login = await request(app).post('/api/auth/login').set('Origin', ORIGIN).send({ email, password: PASSWORD }).expect(200);
+  await request(app)
+    .post('/api/auth/verify-email')
+    .set('Origin', ORIGIN)
+    .send({ token: signup.body.token })
+    .expect(200);
+  const login = await request(app)
+    .post('/api/auth/login')
+    .set('Origin', ORIGIN)
+    .send({ email, password: PASSWORD })
+    .expect(200);
   const rows = await db.query('select user_id from public.bc_auth_accounts where email = $1', [email]);
   return { cookie: cookieOf(login), userId: rows.rows[0].user_id };
 }
@@ -91,10 +99,19 @@ async function createShop(label, { price = 10000 } = {}) {
       staffId: staff.body.id,
       serviceId: service.body.id,
       startsAt: slot(date, '10:00'),
-      endsAt: addMinutes(slot(date, '10:00'), 60)
+      endsAt: addMinutes(slot(date, '10:00'), 60),
     })
     .expect(200);
-  return { owner, salonId, branchId, service: service.body, staff: staff.body, client: client.body, appointment: appointment.body, date };
+  return {
+    owner,
+    salonId,
+    branchId,
+    service: service.body,
+    staff: staff.body,
+    client: client.body,
+    appointment: appointment.body,
+    date,
+  };
 }
 
 const pay = (shop, body) =>
@@ -118,8 +135,8 @@ before(async () => {
       allowedOrigin: ORIGIN,
       secureCookie: true,
       exposeTokens: true,
-      rateLimits: { global: 100000, login: 100000, mail: 100000 }
-    })
+      rateLimits: { global: 100000, login: 100000, mail: 100000 },
+    }),
   );
   app.use(
     createResourceApp({
@@ -128,8 +145,8 @@ before(async () => {
       operationsRepository: createOperationsRepository(db),
       financeRepository: createFinanceRepository(db),
       sessionRunner: createSessionRunner(db),
-      allowedOrigin: ORIGIN
-    }).app
+      allowedOrigin: ORIGIN,
+    }).app,
   );
 });
 
@@ -218,7 +235,7 @@ test('caisse : une seule ouverture réussit en cas de concurrence', async () => 
 
   const count = await db.query(
     "select count(*)::int as n from public.bc_cash_sessions where salon_id = $1 and status = 'open'",
-    [shop.salonId]
+    [shop.salonId],
   );
   assert.equal(count.rows[0].n, 1);
 });
@@ -259,14 +276,17 @@ test('idempotence : un rejeu avec la même clé ne crée pas de doublon', async 
   const key = randomUUID();
   const results = await Promise.all([
     pay(shop, { amount: 3000, method: 'cash', idempotencyKey: key }),
-    pay(shop, { amount: 3000, method: 'cash', idempotencyKey: key })
+    pay(shop, { amount: 3000, method: 'cash', idempotencyKey: key }),
   ]);
   const ok = results.filter((r) => r.status === 200).length;
   const conflicts = results.filter((r) => r.status === 409).length;
   assert.equal(ok, 1);
   assert.equal(conflicts, 1);
 
-  const rows = await db.query('select count(*)::int as n from public.bc_payment_entries where idempotency_key = $1', [key]);
+  const rows = await db.query(
+    'select count(*)::int as n from public.bc_payment_entries where idempotency_key = $1',
+    [key],
+  );
   assert.equal(rows.rows[0].n, 1);
 });
 
@@ -274,7 +294,7 @@ test('encaissements concurrents : le solde restant ne peut pas être dépassé',
   const shop = await createShop('race-pay', { price: 5000 });
   // 6 paiements simultanés de 1000 : au plus 5 peuvent passer (5000 facturés).
   const sends = Array.from({ length: 6 }, () =>
-    pay(shop, { amount: 1000, method: 'cash', idempotencyKey: randomUUID() })
+    pay(shop, { amount: 1000, method: 'cash', idempotencyKey: randomUUID() }),
   );
   const results = await Promise.all(sends);
   const ok = results.filter((r) => r.status === 200).length;
@@ -282,7 +302,7 @@ test('encaissements concurrents : le solde restant ne peut pas être dépassé',
 
   const sum = await db.query(
     "select coalesce(sum(amount),0)::int as total from public.bc_payment_entries where appointment_id = $1 and payment_status = 'confirmed'",
-    [shop.appointment.id]
+    [shop.appointment.id],
   );
   assert.equal(sum.rows[0].total, 5000);
 });
@@ -298,7 +318,7 @@ test('paiement électronique : reste en attente sans preuve fournisseur', async 
     amount: 5000,
     method: 'manual_mobile',
     paymentStatus: 'pending',
-    idempotencyKey: randomUUID()
+    idempotencyKey: randomUUID(),
   }).expect(200);
   assert.equal(pending.body.paymentStatus, 'pending');
 
@@ -341,14 +361,22 @@ test('paiement électronique : reste en attente sans preuve fournisseur', async 
 
 test('remboursements partiels traçables, journal immuable', async () => {
   const shop = await createShop('refund');
-  const payment = await pay(shop, { amount: 10000, method: 'cash', idempotencyKey: randomUUID() }).expect(200);
+  const payment = await pay(shop, { amount: 10000, method: 'cash', idempotencyKey: randomUUID() }).expect(
+    200,
+  );
 
   // Motif obligatoire.
   await request(app)
     .post(`/api/salons/${shop.salonId}/refunds`)
     .set('Origin', ORIGIN)
     .set('Cookie', shop.owner.cookie)
-    .send({ appointmentId: shop.appointment.id, amount: 2000, method: 'cash', reason: 'x', idempotencyKey: randomUUID() })
+    .send({
+      appointmentId: shop.appointment.id,
+      amount: 2000,
+      method: 'cash',
+      reason: 'x',
+      idempotencyKey: randomUUID(),
+    })
     .expect(400);
 
   const refund = await request(app)
@@ -361,7 +389,7 @@ test('remboursements partiels traçables, journal immuable', async () => {
       method: 'cash',
       reason: 'Prestation interrompue',
       originalEntryId: payment.body.id,
-      idempotencyKey: randomUUID()
+      idempotencyKey: randomUUID(),
     })
     .expect(200);
   assert.equal(refund.body.kind, 'refund');
@@ -380,15 +408,24 @@ test('remboursements partiels traçables, journal immuable', async () => {
     .post(`/api/salons/${shop.salonId}/refunds`)
     .set('Origin', ORIGIN)
     .set('Cookie', shop.owner.cookie)
-    .send({ appointmentId: shop.appointment.id, amount: 9999, method: 'cash', reason: 'Trop', idempotencyKey: randomUUID() })
+    .send({
+      appointmentId: shop.appointment.id,
+      amount: 9999,
+      method: 'cash',
+      reason: 'Trop',
+      idempotencyKey: randomUUID(),
+    })
     .expect(400);
 
   // Le journal refuse toute modification ou suppression, même en SQL direct.
   await assert.rejects(
-    db.query("update public.bc_payment_entries set amount = 1 where id = $1", [payment.body.id]),
-    /immutable/i
+    db.query('update public.bc_payment_entries set amount = 1 where id = $1', [payment.body.id]),
+    /immutable/i,
   );
-  await assert.rejects(db.query('delete from public.bc_payment_entries where id = $1', [payment.body.id]), /immutable/i);
+  await assert.rejects(
+    db.query('delete from public.bc_payment_entries where id = $1', [payment.body.id]),
+    /immutable/i,
+  );
 
   // L'historique reste lisible et complet.
   const entries = await request(app)
@@ -416,7 +453,7 @@ test('dépenses : succursale, justificatif, responsable, période', async () => 
       date: shop.date,
       notes: 'Facture fournisseur',
       branchId: shop.branchId,
-      receiptRef: 'FAC-2026-0142'
+      receiptRef: 'FAC-2026-0142',
     })
     .expect(200);
   assert.equal(created.body.amount, 12000);
@@ -466,7 +503,7 @@ test('rapports : CA facturé, encaissé, restant, dépenses et solde net disting
     outstanding: 2000,
     refunds: 0,
     expenses: 1500,
-    netBalance: 6500
+    netBalance: 6500,
   });
 
   const report = await request(app)
@@ -516,7 +553,7 @@ test('permissions : un barbier ne peut ni encaisser ni rembourser', async () => 
   const barber = await createAccount('barber-fin@example.test', 'Barbier');
   await db.query("insert into public.bc_memberships(salon_id,user_id,role) values ($1,$2,'barber')", [
     shop.salonId,
-    barber.userId
+    barber.userId,
   ]);
   await request(app)
     .post(`/api/salons/${shop.salonId}/payments`)
@@ -528,6 +565,12 @@ test('permissions : un barbier ne peut ni encaisser ni rembourser', async () => 
     .post(`/api/salons/${shop.salonId}/refunds`)
     .set('Origin', ORIGIN)
     .set('Cookie', barber.cookie)
-    .send({ appointmentId: shop.appointment.id, amount: 100, method: 'cash', reason: 'Test', idempotencyKey: randomUUID() })
+    .send({
+      appointmentId: shop.appointment.id,
+      amount: 100,
+      method: 'cash',
+      reason: 'Test',
+      idempotencyKey: randomUUID(),
+    })
     .expect(403);
 });

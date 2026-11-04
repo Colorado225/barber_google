@@ -1,17 +1,13 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
-import {
-  SalonMarketplaceSettingsRecord,
-  SalonMarketplaceViewConfig,
-  PublicSalonDetail
-} from '../../types';
+import { SalonMarketplaceSettingsRecord, SalonMarketplaceViewConfig, PublicSalonDetail } from '../../types';
 import {
   getCustomizerConfig,
   saveCustomizerDraft,
   publishCustomizer,
   unpublishCustomizer,
   revertCustomizerDraft,
-  getDefaultCustomizerConfig
+  getDefaultCustomizerConfig,
 } from '../../lib/marketplace-customizer';
 import { listSalonBranches, getBranchHours } from '../../lib/branch-hours';
 import { SalonMarketplaceToolbar, ViewportMode } from './SalonMarketplaceToolbar';
@@ -19,33 +15,18 @@ import { SalonMarketplaceThemeEditor } from './SalonMarketplaceThemeEditor';
 import { SalonMarketplaceContentEditor } from './SalonMarketplaceContentEditor';
 import { SalonMarketplaceSectionsEditor } from './SalonMarketplaceSectionsEditor';
 import { SalonMarketplacePreview } from './SalonMarketplacePreview';
-import {
-  Globe,
-  Palette,
-  FileText,
-  SlidersHorizontal,
-  Loader2,
-  AlertCircle,
-  Sparkles
-} from 'lucide-react';
+import { Globe, Palette, FileText, SlidersHorizontal, Loader2, AlertCircle, Sparkles } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 export const SalonMarketplaceCustomizer: React.FC = () => {
-  const {
-    activeSalon,
-    services,
-    staff,
-    reviews,
-    formatPrice,
-    addToast
-  } = useApp();
+  const { activeSalon, services, staff, reviews, formatPrice, addToast } = useApp();
 
   const [settings, setSettings] = useState<SalonMarketplaceSettingsRecord | null>(null);
   const [draftConfig, setDraftConfig] = useState<SalonMarketplaceViewConfig>(() =>
-    getDefaultCustomizerConfig(activeSalon?.id)
+    getDefaultCustomizerConfig(activeSalon?.id),
   );
   const [initialConfig, setInitialConfig] = useState<SalonMarketplaceViewConfig>(() =>
-    getDefaultCustomizerConfig(activeSalon?.id)
+    getDefaultCustomizerConfig(activeSalon?.id),
   );
 
   const [loading, setLoading] = useState(true);
@@ -64,7 +45,13 @@ export const SalonMarketplaceCustomizer: React.FC = () => {
     if (!activeSalon?.id) return;
     let cancelled = false;
     const weekdayOf: Record<string, number> = {
-      Lundi: 1, Mardi: 2, Mercredi: 3, Jeudi: 4, Vendredi: 5, Samedi: 6, Dimanche: 0
+      Lundi: 1,
+      Mardi: 2,
+      Mercredi: 3,
+      Jeudi: 4,
+      Vendredi: 5,
+      Samedi: 6,
+      Dimanche: 0,
     };
     listSalonBranches(activeSalon.id)
       .then(async (branches) => {
@@ -82,13 +69,13 @@ export const SalonMarketplaceCustomizer: React.FC = () => {
                   weekday: weekdayOf[h.day] ?? 1,
                   isOpen: h.isOpen,
                   opensAt: h.isOpen ? h.open : null,
-                  closesAt: h.isOpen ? h.close : null
-                }))
+                  closesAt: h.isOpen ? h.close : null,
+                })),
               };
             } catch {
               return { id: b.id, name: b.name, timezone: 'Africa/Abidjan', hours: [] };
             }
-          })
+          }),
         );
         if (!cancelled) setPreviewBranches(withHours);
       })
@@ -124,11 +111,7 @@ export const SalonMarketplaceCustomizer: React.FC = () => {
           const fallback = getDefaultCustomizerConfig(activeSalon.id);
           setDraftConfig(fallback);
           setInitialConfig(fallback);
-          setError(
-            err instanceof Error
-              ? err.message
-              : "Impossible de charger la configuration de vitrine."
-          );
+          setError(err instanceof Error ? err.message : 'Impossible de charger la configuration de vitrine.');
         }
       })
       .finally(() => {
@@ -158,9 +141,12 @@ export const SalonMarketplaceCustomizer: React.FC = () => {
       const updated = await saveCustomizerDraft(activeSalon.id, draftConfig);
       setSettings(updated);
       setInitialConfig(draftConfig);
-      addToast("Brouillon de la vitrine enregistré avec succès.", 'success');
+      addToast('Brouillon de la vitrine enregistré avec succès.', 'success');
     } catch (err) {
-      addToast((err instanceof Error ? err.message : '') || "Erreur lors de l'enregistrement du brouillon.", 'error');
+      addToast(
+        (err instanceof Error ? err.message : '') || "Erreur lors de l'enregistrement du brouillon.",
+        'error',
+      );
     } finally {
       setSaving(false);
     }
@@ -177,9 +163,13 @@ export const SalonMarketplaceCustomizer: React.FC = () => {
       const updated = await publishCustomizer(activeSalon.id);
       setSettings(updated);
       setInitialConfig(draftConfig);
-      addToast("Votre vitrine est désormais publiée et visible sur la marketplace !", 'success');
+      addToast('Votre vitrine est désormais publiée et visible sur la marketplace !', 'success');
     } catch (err) {
-      addToast((err instanceof Error ? err.message : '') || "Impossible de publier la vitrine. Vérifiez l'adresse, téléphone et photo de couverture.", 'error');
+      addToast(
+        (err instanceof Error ? err.message : '') ||
+          "Impossible de publier la vitrine. Vérifiez l'adresse, téléphone et photo de couverture.",
+        'error',
+      );
     } finally {
       setPublishing(false);
     }
@@ -191,9 +181,9 @@ export const SalonMarketplaceCustomizer: React.FC = () => {
       setPublishing(true);
       await unpublishCustomizer(activeSalon.id);
       setSettings((prev) => (prev ? { ...prev, isPublished: false } : null));
-      addToast("La vitrine a été dépubliée de la marketplace.", 'info');
+      addToast('La vitrine a été dépubliée de la marketplace.', 'info');
     } catch (err) {
-      addToast((err instanceof Error ? err.message : '') || "Erreur lors de la dépublication.", 'error');
+      addToast((err instanceof Error ? err.message : '') || 'Erreur lors de la dépublication.', 'error');
     } finally {
       setPublishing(false);
     }
@@ -208,7 +198,7 @@ export const SalonMarketplaceCustomizer: React.FC = () => {
       const cfg = reverted.draftConfig || getDefaultCustomizerConfig(activeSalon.id);
       setDraftConfig(cfg);
       setInitialConfig(cfg);
-      addToast("Modifications non enregistrées annulées.", 'info');
+      addToast('Modifications non enregistrées annulées.', 'info');
     } catch (err) {
       addToast((err instanceof Error ? err.message : '') || "Erreur lors de l'annulation.", 'error');
     } finally {
@@ -234,12 +224,12 @@ export const SalonMarketplaceCustomizer: React.FC = () => {
       staff: salonStaff
         .filter((st) => (draftConfig.visibleStaffIds ?? []).includes(st.id))
         .map((st) => ({
-        id: st.id,
-        name: st.name,
-        role: st.role,
-        specialties: st.specialties,
-        serviceIds: st.serviceIds,
-      })),
+          id: st.id,
+          name: st.name,
+          role: st.role,
+          specialties: st.specialties,
+          serviceIds: st.serviceIds,
+        })),
       reviews: salonReviews,
       branches: previewBranches,
       rating:
@@ -256,9 +246,7 @@ export const SalonMarketplaceCustomizer: React.FC = () => {
     };
   }, [activeSalon, services, staff, reviews, draftConfig, previewBranches]);
 
-  const publicUrl = activeSalon.slug
-    ? `/salons/${activeSalon.slug}`
-    : `/salons/${activeSalon.id}`;
+  const publicUrl = activeSalon.slug ? `/salons/${activeSalon.slug}` : `/salons/${activeSalon.id}`;
 
   if (loading) {
     return (
@@ -320,9 +308,7 @@ export const SalonMarketplaceCustomizer: React.FC = () => {
               onClick={() => setActiveTab('theme')}
               className={cn(
                 'py-2 px-2.5 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer',
-                activeTab === 'theme'
-                  ? 'bg-[#222228] text-white shadow'
-                  : 'text-stone-400 hover:text-white'
+                activeTab === 'theme' ? 'bg-[#222228] text-white shadow' : 'text-stone-400 hover:text-white',
               )}
             >
               <Palette className="w-3.5 h-3.5" />
@@ -336,7 +322,7 @@ export const SalonMarketplaceCustomizer: React.FC = () => {
                 'py-2 px-2.5 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer',
                 activeTab === 'content'
                   ? 'bg-[#222228] text-white shadow'
-                  : 'text-stone-400 hover:text-white'
+                  : 'text-stone-400 hover:text-white',
               )}
             >
               <FileText className="w-3.5 h-3.5" />
@@ -350,7 +336,7 @@ export const SalonMarketplaceCustomizer: React.FC = () => {
                 'py-2 px-2.5 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer',
                 activeTab === 'sections'
                   ? 'bg-[#222228] text-white shadow'
-                  : 'text-stone-400 hover:text-white'
+                  : 'text-stone-400 hover:text-white',
               )}
             >
               <SlidersHorizontal className="w-3.5 h-3.5" />
@@ -361,10 +347,7 @@ export const SalonMarketplaceCustomizer: React.FC = () => {
           {/* Active Tab Panel */}
           <div className="pt-1">
             {activeTab === 'theme' && (
-              <SalonMarketplaceThemeEditor
-                config={draftConfig}
-                onChange={handleConfigChange}
-              />
+              <SalonMarketplaceThemeEditor config={draftConfig} onChange={handleConfigChange} />
             )}
 
             {activeTab === 'content' && (
@@ -379,10 +362,7 @@ export const SalonMarketplaceCustomizer: React.FC = () => {
             )}
 
             {activeTab === 'sections' && (
-              <SalonMarketplaceSectionsEditor
-                config={draftConfig}
-                onChange={handleConfigChange}
-              />
+              <SalonMarketplaceSectionsEditor config={draftConfig} onChange={handleConfigChange} />
             )}
           </div>
         </div>

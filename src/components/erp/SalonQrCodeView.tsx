@@ -15,18 +15,11 @@ import {
   Info,
   Eye,
   MapPin,
-  Lock
+  Lock,
 } from 'lucide-react';
 
 export const SalonQrCodeView: React.FC = () => {
-  const {
-    activeSalon,
-    setMode,
-    setSelectedSalonForModal,
-    services,
-    formatPrice,
-    addToast
-  } = useApp();
+  const { activeSalon, setMode, setSelectedSalonForModal, services, formatPrice, addToast } = useApp();
   const { hasPermission } = useOptionalAuth();
 
   const [copied, setCopied] = useState(false);
@@ -35,7 +28,7 @@ export const SalonQrCodeView: React.FC = () => {
 
   const bookingUrl = useMemo(
     () => buildSalonBookingUrl(activeSalon),
-    [activeSalon.id, activeSalon.slug, activeSalon.name]
+    [activeSalon.id, activeSalon.slug, activeSalon.name],
   );
   const publicPath = buildSalonBookingPath(activeSalon);
 
@@ -55,7 +48,7 @@ export const SalonQrCodeView: React.FC = () => {
       addToast('Lien de réservation copié !', 'success');
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      addToast("Impossible de copier le lien automatiquement. Sélectionnez-le manuellement.", 'error');
+      addToast('Impossible de copier le lien automatiquement. Sélectionnez-le manuellement.', 'error');
     }
   };
 
@@ -145,9 +138,9 @@ export const SalonQrCodeView: React.FC = () => {
         <div className="p-3.5 rounded-xl bg-amber-950/40 border border-amber-600/30 text-amber-200 text-xs flex items-start gap-2.5">
           <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
           <span>
-            Votre vitrine est en <strong className="text-white">brouillon</strong> : ce QR code
-            pointera vers une fiche qui n’est pas encore publique. Publiez la vitrine avant de
-            diffuser l’affiche à vos clients.
+            Votre vitrine est en <strong className="text-white">brouillon</strong> : ce QR code pointera vers
+            une fiche qui n’est pas encore publique. Publiez la vitrine avant de diffuser l’affiche à vos
+            clients.
           </span>
         </div>
       )}
@@ -156,8 +149,8 @@ export const SalonQrCodeView: React.FC = () => {
         <div className="p-3.5 rounded-xl bg-amber-950/40 border border-amber-600/30 text-amber-200 text-xs flex items-start gap-2.5">
           <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
           <span>
-            Aucune prestation active : la fiche publique ne peut pas encore recevoir de réservation.
-            Ajoutez au moins une prestation dans « Prestations &amp; Tarifs ».
+            Aucune prestation active : la fiche publique ne peut pas encore recevoir de réservation. Ajoutez
+            au moins une prestation dans « Prestations &amp; Tarifs ».
           </span>
         </div>
       )}
@@ -166,8 +159,8 @@ export const SalonQrCodeView: React.FC = () => {
         <div className="p-3.5 rounded-xl bg-[#18181b] border border-[#2d2d33] text-stone-300 text-xs flex items-start gap-2.5">
           <Lock className="w-4 h-4 text-stone-400 shrink-0 mt-0.5" />
           <span>
-            Consultation uniquement : la gestion de la vitrine publique est réservée au propriétaire
-            et au manager du salon.
+            Consultation uniquement : la gestion de la vitrine publique est réservée au propriétaire et au
+            manager du salon.
           </span>
         </div>
       )}
@@ -175,11 +168,7 @@ export const SalonQrCodeView: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* QR CARD */}
         <div className="bg-[#151516] rounded-2xl border border-[#2a2a2b] p-6 flex flex-col items-center text-center">
-          <div
-            id="salon-qr-code"
-            ref={qrWrapperRef}
-            className="p-5 bg-white rounded-2xl shadow-2xl"
-          >
+          <div id="salon-qr-code" ref={qrWrapperRef} className="p-5 bg-white rounded-2xl shadow-2xl">
             <QRCodeSVG
               value={bookingUrl}
               size={qrSize}
@@ -224,15 +213,14 @@ export const SalonQrCodeView: React.FC = () => {
             {[
               { size: 180, label: 'S' },
               { size: 260, label: 'M' },
-              { size: 340, label: 'L' }
+              { size: 340, label: 'L' },
             ].map((preset) => (
               <button
                 key={preset.size}
                 onClick={() => setQrSize(preset.size)}
-                className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-colors cursor-pointer ${qrSize === preset.size
-                  ? 'bg-[#C9A45C] text-[#101010]'
-                  : 'text-[#a9a9a9] hover:text-white'
-                  }`}
+                className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-colors cursor-pointer ${
+                  qrSize === preset.size ? 'bg-[#C9A45C] text-[#101010]' : 'text-[#a9a9a9] hover:text-white'
+                }`}
               >
                 {preset.label}
               </button>
@@ -299,7 +287,7 @@ export const SalonQrCodeView: React.FC = () => {
                 'En affiche A5 sur le comptoir et près des fauteuils',
                 'Sur les cartes de visite et les tickets de caisse',
                 'En story et bio Instagram, TikTok ou WhatsApp Business',
-                'Sur les vitrines des succursales et flyers de quartier'
+                'Sur les vitrines des succursales et flyers de quartier',
               ].map((tip) => (
                 <li key={tip} className="flex items-start gap-2">
                   <Check className="w-3.5 h-3.5 text-[#C9A45C] shrink-0 mt-0.5" />
@@ -313,10 +301,11 @@ export const SalonQrCodeView: React.FC = () => {
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-white">Aperçu de la fiche cible</h3>
               <span
-                className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isPublished
-                  ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-600/40'
-                  : 'bg-amber-950/80 text-amber-300 border border-amber-600/40'
-                  }`}
+                className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                  isPublished
+                    ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-600/40'
+                    : 'bg-amber-950/80 text-amber-300 border border-amber-600/40'
+                }`}
               >
                 {isPublished ? 'Publié' : 'Brouillon'}
               </span>

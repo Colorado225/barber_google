@@ -31,9 +31,7 @@ export const Navbar: React.FC = () => {
         <span className="text-xl font-bold tracking-tight text-white">
           Barber<span className="text-[#C9A45C]">Cuts</span>
         </span>
-        <span className="text-[10px] text-[#8A8A8A] uppercase tracking-wider font-medium">
-          Marketplace
-        </span>
+        <span className="text-[10px] text-[#8A8A8A] uppercase tracking-wider font-medium">Marketplace</span>
       </div>
     </button>
   );
@@ -108,13 +106,25 @@ export const Navbar: React.FC = () => {
               <Link to="/" onClick={() => setMobileMenuOpen(false)} className="py-2 text-sm text-stone-200">
                 Explorer les salons
               </Link>
-              <Link to="/connexion" onClick={() => setMobileMenuOpen(false)} className="py-2 text-sm text-stone-200">
+              <Link
+                to="/connexion"
+                onClick={() => setMobileMenuOpen(false)}
+                className="py-2 text-sm text-stone-200"
+              >
                 Connexion
               </Link>
-              <Link to="/inscription" onClick={() => setMobileMenuOpen(false)} className="py-2 text-sm text-stone-200">
+              <Link
+                to="/inscription"
+                onClick={() => setMobileMenuOpen(false)}
+                className="py-2 text-sm text-stone-200"
+              >
                 Inscrire un salon
               </Link>
-              <Link to="/app/tableau-de-bord" onClick={() => setMobileMenuOpen(false)} className="py-2 text-sm text-[#C9A45C]">
+              <Link
+                to="/app/tableau-de-bord"
+                onClick={() => setMobileMenuOpen(false)}
+                className="py-2 text-sm text-[#C9A45C]"
+              >
                 Espace professionnel
               </Link>
             </>

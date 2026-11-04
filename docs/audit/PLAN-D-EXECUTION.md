@@ -8,12 +8,12 @@ chaque fin de lot (§18 du master prompt). Arrêt après le Lot 4.
 
 ## Pré-requis humain (bloquant, avant Lot 1 code)
 
-| Action | Qui | Pourquoi |
-| --- | --- | --- |
-| `npm run supabase:db:linked:push` sur le projet lié | Exploitant (poste lié) | Régularise F1/S1 : crée `publish_marketplace_customizer`, enregistre l'historique `…140000/…140100` (migrations idempotentes vérifiées) |
-| Confirmer l'hébergement frontend réel + aucun `server/` Express déployé | Exploitant | F10/S2 |
-| Décider jeton de suivi (accepter non-révocable ou rotation) | Produit | S3 |
-| Comptes fournisseurs notifications (Resend et/ou WhatsApp Meta + modèles approuvés) | Exploitant | F2/S5 (Lot 4) |
+| Action                                                                              | Qui                    | Pourquoi                                                                                                                                |
+| ----------------------------------------------------------------------------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run supabase:db:linked:push` sur le projet lié                                 | Exploitant (poste lié) | Régularise F1/S1 : crée `publish_marketplace_customizer`, enregistre l'historique `…140000/…140100` (migrations idempotentes vérifiées) |
+| Confirmer l'hébergement frontend réel + aucun `server/` Express déployé             | Exploitant             | F10/S2                                                                                                                                  |
+| Décider jeton de suivi (accepter non-révocable ou rotation)                         | Produit                | S3                                                                                                                                      |
+| Comptes fournisseurs notifications (Resend et/ou WhatsApp Meta + modèles approuvés) | Exploitant             | F2/S5 (Lot 4)                                                                                                                           |
 
 ## Lot 1 — Stabilisation technique
 
@@ -148,9 +148,9 @@ de la feuille de route ; **arrêt** (Lots 5–9 non commencés).
 
 ## Risques du plan
 
-| Risque | Atténuation |
-| --- | --- |
+| Risque                                                         | Atténuation                                                                                               |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | `db push` non exécuté → Lots 1/4 bloqués sur la preuve en réel | Pré-requis humain explicite ; le code et les tests peuvent avancer, la validation « réel » attend le push |
-| Commit Prettier massif polluant l'historique | Commit isolé, aucun mélange fonctionnel |
-| Retrait Express révélant un consommateur inconnu | Gel + archivage d'abord (Lot 1), retrait seulement au Lot 2 après confirmation d'exploitation |
-| Modèles WhatsApp Meta : délais d'approbation externes | Resend (e-mail) en premier canal ; WhatsApp ensuite |
+| Commit Prettier massif polluant l'historique                   | Commit isolé, aucun mélange fonctionnel                                                                   |
+| Retrait Express révélant un consommateur inconnu               | Gel + archivage d'abord (Lot 1), retrait seulement au Lot 2 après confirmation d'exploitation             |
+| Modèles WhatsApp Meta : délais d'approbation externes          | Resend (e-mail) en premier canal ; WhatsApp ensuite                                                       |

@@ -30,7 +30,7 @@ const ROLE_LABELS: Record<string, string> = {
   barber: 'Barbier Professionnel',
   colorist: 'Coloriste Expert',
   stylist: 'Styliste Coiffeur',
-  manager: 'Manager & Coiffeur'
+  manager: 'Manager & Coiffeur',
 };
 
 export const SalonTeamShowcase: React.FC<SalonTeamShowcaseProps> = ({
@@ -38,11 +38,10 @@ export const SalonTeamShowcase: React.FC<SalonTeamShowcaseProps> = ({
   visibleStaffIds = [],
   cardStyle = 'rounded-3xl',
   accentColor = '#C9A45C',
-  onSelectStaff
+  onSelectStaff,
 }) => {
-  const visibleList = visibleStaffIds.length > 0
-    ? staff.filter((m) => visibleStaffIds.includes(m.id))
-    : staff;
+  const visibleList =
+    visibleStaffIds.length > 0 ? staff.filter((m) => visibleStaffIds.includes(m.id)) : staff;
 
   const [expanded, setExpanded] = useState(false);
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
@@ -51,7 +50,12 @@ export const SalonTeamShowcase: React.FC<SalonTeamShowcaseProps> = ({
 
   if (displayStaff.length === 0) {
     return (
-      <Card className={cn('p-5 border border-stone-800 bg-[#161619] text-center text-stone-400 text-xs min-h-[180px] flex items-center justify-center', cardStyle)}>
+      <Card
+        className={cn(
+          'p-5 border border-stone-800 bg-[#161619] text-center text-stone-400 text-xs min-h-[180px] flex items-center justify-center',
+          cardStyle,
+        )}
+      >
         <p>L'équipe sera bientôt présentée.</p>
       </Card>
     );
@@ -62,7 +66,7 @@ export const SalonTeamShowcase: React.FC<SalonTeamShowcaseProps> = ({
       onClick={() => setExpanded((prev) => !prev)}
       className={cn(
         'relative bg-[#161619] border border-stone-800 p-4 cursor-pointer overflow-hidden shadow-lg flex flex-col justify-between group transition-all duration-300',
-        cardStyle
+        cardStyle,
       )}
     >
       {/* Top Banner / Counter */}
@@ -88,17 +92,15 @@ export const SalonTeamShowcase: React.FC<SalonTeamShowcaseProps> = ({
           const isSelected = selectedStaffId === member.id;
 
           // Fan-out positions for stacked presentation
-          const offsetClass = i === 0
-            ? '-translate-x-12 -rotate-6'
-            : i === 1
-            ? 'z-10 scale-105'
-            : 'translate-x-12 rotate-6';
+          const offsetClass =
+            i === 0 ? '-translate-x-12 -rotate-6' : i === 1 ? 'z-10 scale-105' : 'translate-x-12 rotate-6';
 
-          const hoverClass = i === 0
-            ? 'group-hover:-translate-x-14 group-hover:-rotate-12'
-            : i === 1
-            ? 'group-hover:scale-110'
-            : 'group-hover:translate-x-14 group-hover:rotate-12';
+          const hoverClass =
+            i === 0
+              ? 'group-hover:-translate-x-14 group-hover:-rotate-12'
+              : i === 1
+                ? 'group-hover:scale-110'
+                : 'group-hover:translate-x-14 group-hover:rotate-12';
 
           return (
             <div
@@ -112,16 +114,11 @@ export const SalonTeamShowcase: React.FC<SalonTeamShowcaseProps> = ({
                 'absolute size-18 rounded-2xl overflow-hidden border-2 shadow-xl transition-all duration-500 cursor-pointer',
                 isSelected ? 'border-amber-400 ring-2 ring-amber-400/50 scale-110 z-20' : 'border-stone-700',
                 offsetClass,
-                hoverClass
+                hoverClass,
               )}
             >
               {avatarUrl ? (
-                <img
-                  src={avatarUrl}
-                  alt={member.name}
-                  loading="lazy"
-                  className="size-full object-cover"
-                />
+                <img src={avatarUrl} alt={member.name} loading="lazy" className="size-full object-cover" />
               ) : (
                 <div
                   aria-hidden="true"
@@ -144,7 +141,9 @@ export const SalonTeamShowcase: React.FC<SalonTeamShowcaseProps> = ({
           {displayStaff.map((m) => m.name.split(' ')[0]).join(', ')}
         </p>
         <p className="text-[11px] text-stone-400">
-          {displayStaff[0]?.role ? ROLE_LABELS[displayStaff[0].role] ?? 'Artisan expert' : 'Artisans experts'}
+          {displayStaff[0]?.role
+            ? (ROLE_LABELS[displayStaff[0].role] ?? 'Artisan expert')
+            : 'Artisans experts'}
         </p>
       </div>
     </Card>

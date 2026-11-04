@@ -17,11 +17,11 @@ import {
   Scissors,
   Smartphone,
   CalendarCheck,
-  ArrowRight
+  ArrowRight,
 } from 'lucide-react';
 
 const HERO_VIDEO_SRC = `/assets/video/${encodeURI(
-  'Modern Classics Barbershop 📍Charlotte,NC Elite design for the future of barber industry.mp4'
+  'Modern Classics Barbershop 📍Charlotte,NC Elite design for the future of barber industry.mp4',
 )}`;
 
 export const MarketplaceHome: React.FC = () => {
@@ -32,7 +32,7 @@ export const MarketplaceHome: React.FC = () => {
     addToast,
     setSelectedSalonForModal,
     marketplaceLoading,
-    marketplaceError
+    marketplaceError,
   } = useOptionalApp();
 
   // QR code links (/?salon=<slug>) open the salon's booking profile directly.
@@ -40,14 +40,15 @@ export const MarketplaceHome: React.FC = () => {
     salons,
     setSelectedSalonForModal,
     setMode,
-    onNotFound: () =>
-      addToast("Ce lien QR ne correspond à aucun salon publié.", 'error')
+    onNotFound: () => addToast('Ce lien QR ne correspond à aucun salon publié.', 'error'),
   });
 
   // Réservations faites depuis cet appareil : le suivi reste accessible même
   // après fermeture de la fenêtre de confirmation, sans compte client.
   const [savedBookings, setSavedBookings] = useState<SavedBooking[]>([]);
-  useEffect(() => { setSavedBookings(listSavedBookings()); }, []);
+  useEffect(() => {
+    setSavedBookings(listSavedBookings());
+  }, []);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCommune, setSelectedCommune] = useState('all');
@@ -57,7 +58,7 @@ export const MarketplaceHome: React.FC = () => {
     () =>
       typeof window !== 'undefined' &&
       typeof window.matchMedia === 'function' &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches,
   );
 
   useEffect(() => {
@@ -72,8 +73,12 @@ export const MarketplaceHome: React.FC = () => {
 
   const communes = useMemo(
     () =>
-      [...new Set(salons.map((salon) => salon.commune).filter((commune): commune is string => Boolean(commune)))].sort(),
-    [salons]
+      [
+        ...new Set(
+          salons.map((salon) => salon.commune).filter((commune): commune is string => Boolean(commune)),
+        ),
+      ].sort(),
+    [salons],
   );
 
   const filteredSalons = useMemo(() => {
@@ -86,8 +91,7 @@ export const MarketplaceHome: React.FC = () => {
         (salon.commune ?? '').toLowerCase().includes(searchQuery.toLowerCase());
 
       const matchCommune =
-        selectedCommune === 'all' ||
-        (salon.commune ?? '').toLowerCase() === selectedCommune.toLowerCase();
+        selectedCommune === 'all' || (salon.commune ?? '').toLowerCase() === selectedCommune.toLowerCase();
 
       return matchQuery && matchCommune;
     });
@@ -107,7 +111,7 @@ export const MarketplaceHome: React.FC = () => {
         .map((part) => part.charAt(0))
         .join('')
         .slice(0, 2)
-        .toUpperCase()
+        .toUpperCase(),
     }));
   }, [reviews]);
 
@@ -133,8 +137,14 @@ export const MarketplaceHome: React.FC = () => {
             onError={() => setVideoUnavailable(true)}
           />
         )}
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#0d0d0e]/95 via-[#0d0d0e]/75 to-[#0d0d0e]/45" />
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0d0d0e] via-[#0d0d0e]/10 to-transparent" />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#0d0d0e]/95 via-[#0d0d0e]/75 to-[#0d0d0e]/45"
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0d0d0e] via-[#0d0d0e]/10 to-transparent"
+        />
 
         <div className="relative z-10 mx-auto flex min-h-[620px] w-full max-w-7xl items-center px-4 py-16 sm:px-6 sm:py-20 lg:px-8 md:min-h-[680px]">
           <div className="w-full max-w-4xl">
@@ -146,13 +156,12 @@ export const MarketplaceHome: React.FC = () => {
             <h1 className="max-w-3xl text-5xl font-extrabold leading-[0.98] tracking-[-0.04em] text-white sm:text-6xl lg:text-7xl">
               Votre style mérite
               <br className="hidden sm:block" />{' '}
-              <span className="font-serif-luxury font-normal italic text-[#d9b66e]">
-                l’excellence.
-              </span>
+              <span className="font-serif-luxury font-normal italic text-[#d9b66e]">l’excellence.</span>
             </h1>
 
             <p className="mt-6 max-w-2xl text-base leading-relaxed text-stone-200 sm:text-lg">
-              Parcourez les salons qui ont publié leurs informations sur Barber Cuts. Recherchez par nom ou commune pour explorer les résultats disponibles.
+              Parcourez les salons qui ont publié leurs informations sur Barber Cuts. Recherchez par nom ou
+              commune pour explorer les résultats disponibles.
             </p>
 
             <form
@@ -167,17 +176,19 @@ export const MarketplaceHome: React.FC = () => {
                   stickyHeader && window.getComputedStyle(stickyHeader).position === 'sticky'
                     ? stickyHeader.getBoundingClientRect().height
                     : 0;
-                const top =
-                  salonSection.getBoundingClientRect().top + window.scrollY - headerOffset - 16;
+                const top = salonSection.getBoundingClientRect().top + window.scrollY - headerOffset - 16;
 
                 window.scrollTo({
                   top,
-                  behavior: prefersReducedMotion ? 'auto' : 'smooth'
+                  behavior: prefersReducedMotion ? 'auto' : 'smooth',
                 });
               }}
             >
               <div className="relative flex min-w-0 flex-1 items-center rounded-xl border border-transparent transition focus-within:border-[#C9A45C]/60 focus-within:bg-white/[0.03] focus-within:ring-2 focus-within:ring-[#C9A45C]/25">
-                <Search aria-hidden="true" className="pointer-events-none absolute left-4 h-4 w-4 text-[#d9b66e]" />
+                <Search
+                  aria-hidden="true"
+                  className="pointer-events-none absolute left-4 h-4 w-4 text-[#d9b66e]"
+                />
                 <label htmlFor="marketplace-search" className="sr-only">
                   Rechercher un salon par nom ou commune
                 </label>
@@ -194,7 +205,10 @@ export const MarketplaceHome: React.FC = () => {
               <div aria-hidden="true" className="hidden h-9 w-px bg-white/10 sm:block" />
 
               <div className="relative w-full rounded-xl border border-transparent transition focus-within:border-[#C9A45C]/60 focus-within:bg-white/[0.03] focus-within:ring-2 focus-within:ring-[#C9A45C]/25 sm:w-56">
-                <MapPin aria-hidden="true" className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#d9b66e]" />
+                <MapPin
+                  aria-hidden="true"
+                  className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#d9b66e]"
+                />
                 <label htmlFor="marketplace-commune" className="sr-only">
                   Filtrer les salons par commune
                 </label>
@@ -204,14 +218,19 @@ export const MarketplaceHome: React.FC = () => {
                   onChange={(event) => setSelectedCommune(event.target.value)}
                   className="w-full cursor-pointer appearance-none rounded-xl bg-transparent py-4 pl-11 pr-10 text-sm text-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#C9A45C]/75"
                 >
-                  <option value="all" className="bg-[#17171a] text-white">Toutes les communes</option>
+                  <option value="all" className="bg-[#17171a] text-white">
+                    Toutes les communes
+                  </option>
                   {communes.map((commune) => (
                     <option key={commune} value={commune} className="bg-[#17171a] text-white">
                       {commune}
                     </option>
                   ))}
                 </select>
-                <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+                <ChevronDown
+                  aria-hidden="true"
+                  className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400"
+                />
               </div>
 
               <button
@@ -238,20 +257,28 @@ export const MarketplaceHome: React.FC = () => {
               <CalendarCheck className="w-5 h-5 text-[#C9A45C]" />
               <div>
                 <p className="text-sm font-bold text-white">
-                  {savedBookings.length === 1 ? 'Votre réservation est enregistrée' : `${savedBookings.length} réservations sur cet appareil`}
+                  {savedBookings.length === 1
+                    ? 'Votre réservation est enregistrée'
+                    : `${savedBookings.length} réservations sur cet appareil`}
                 </p>
                 <p className="text-xs text-stone-400">
-                  {savedBookings[0].salonName} · {savedBookings[0].serviceName} — suivi, annulation et avis après la prestation.
+                  {savedBookings[0].salonName} · {savedBookings[0].serviceName} — suivi, annulation et avis
+                  après la prestation.
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Link to={bookingPortalPath(savedBookings[0].token)}
-                className="px-4 py-2 rounded-xl bg-[#C9A45C] hover:bg-[#d8b46c] text-[#101010] text-xs font-bold inline-flex items-center gap-1.5">
+              <Link
+                to={bookingPortalPath(savedBookings[0].token)}
+                className="px-4 py-2 rounded-xl bg-[#C9A45C] hover:bg-[#d8b46c] text-[#101010] text-xs font-bold inline-flex items-center gap-1.5"
+              >
                 Suivre ma réservation <ArrowRight className="w-3.5 h-3.5" />
               </Link>
               {savedBookings.length > 1 && (
-                <Link to="/mes-reservations" className="px-3 py-2 rounded-xl bg-[#232328] text-stone-300 text-xs font-semibold">
+                <Link
+                  to="/mes-reservations"
+                  className="px-3 py-2 rounded-xl bg-[#232328] text-stone-300 text-xs font-semibold"
+                >
                   Tout voir
                 </Link>
               )}
@@ -267,20 +294,19 @@ export const MarketplaceHome: React.FC = () => {
               <Sparkles className="w-3.5 h-3.5" />
               ÉTABLISSEMENTS
             </span>
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-white mt-1">
-              Salons publiés
-            </h2>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-white mt-1">Salons publiés</h2>
           </div>
           <span className="text-xs text-stone-400 hidden sm:inline">
             {filteredSalons.length} établissement(s)
           </span>
         </div>
 
-        {marketplaceLoading && (
-          <p className="text-sm text-stone-400 mb-4">Chargement des salons publiés…</p>
-        )}
+        {marketplaceLoading && <p className="text-sm text-stone-400 mb-4">Chargement des salons publiés…</p>}
         {marketplaceError && (
-          <p role="alert" className="text-sm text-red-300 bg-red-950/30 border border-red-500/30 rounded-lg p-3 mb-4">
+          <p
+            role="alert"
+            className="text-sm text-red-300 bg-red-950/30 border border-red-500/30 rounded-lg p-3 mb-4"
+          >
             {marketplaceError}
           </p>
         )}
@@ -320,7 +346,8 @@ export const MarketplaceHome: React.FC = () => {
             </div>
             <h3 className="text-base font-bold text-white mb-1.5">Trouvez</h3>
             <p className="text-xs text-stone-400 leading-relaxed">
-              Comparez les salons réputés, leurs prestations, photos réelles et avis vérifiés près de chez vous.
+              Comparez les salons réputés, leurs prestations, photos réelles et avis vérifiés près de chez
+              vous.
             </p>
           </div>
 
@@ -356,9 +383,7 @@ export const MarketplaceHome: React.FC = () => {
       <section className="py-14 bg-[#111113] border-t border-[#1f1f23]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="mb-8">
-            <span className="text-[11px] uppercase tracking-wider text-[#C9A45C] font-semibold">
-              AVIS
-            </span>
+            <span className="text-[11px] uppercase tracking-wider text-[#C9A45C] font-semibold">AVIS</span>
             <h2 className="text-2xl sm:text-3xl font-extrabold text-white mt-1">
               Ils réservent avec Barber Cuts
             </h2>
@@ -385,9 +410,7 @@ export const MarketplaceHome: React.FC = () => {
                         <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />
                       ))}
                     </div>
-                    <p className="text-sm text-stone-200 leading-relaxed italic mb-4">
-                      « {rev.comment} »
-                    </p>
+                    <p className="text-sm text-stone-200 leading-relaxed italic mb-4">« {rev.comment} »</p>
                   </div>
 
                   <div className="flex items-center justify-between text-xs pt-3 border-t border-[#242429]">
@@ -409,9 +432,7 @@ export const MarketplaceHome: React.FC = () => {
               <Quote className="w-3.5 h-3.5" />
               TÉMOIGNAGES
             </span>
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-white mt-1">
-              Ils nous font confiance
-            </h2>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-white mt-1">Ils nous font confiance</h2>
             <p className="text-xs text-stone-400 mt-2 max-w-xl leading-relaxed">
               Des clients satisfaits et des gérants de salons qui font grandir leur activité avec Barber Cuts.
             </p>
@@ -424,10 +445,9 @@ export const MarketplaceHome: React.FC = () => {
                 key={testimony.id}
                 onClick={() => setActiveTestimony(index)}
                 aria-label={`Voir le témoignage de ${testimony.name}`}
-                className={`w-2.5 h-2.5 rounded-full transition-all cursor-pointer ${activeTestimony === index
-                    ? 'bg-[#C9A45C] w-6'
-                    : 'bg-[#3a3a40] hover:bg-[#57575f]'
-                  }`}
+                className={`w-2.5 h-2.5 rounded-full transition-all cursor-pointer ${
+                  activeTestimony === index ? 'bg-[#C9A45C] w-6' : 'bg-[#3a3a40] hover:bg-[#57575f]'
+                }`}
               />
             ))}
           </div>
@@ -481,19 +501,18 @@ export const MarketplaceHome: React.FC = () => {
               <button
                 key={testimony.id}
                 onClick={() => setActiveTestimony(index)}
-                className={`text-left bg-[#151518] border rounded-2xl p-5 transition-all cursor-pointer ${activeTestimony === index
+                className={`text-left bg-[#151518] border rounded-2xl p-5 transition-all cursor-pointer ${
+                  activeTestimony === index
                     ? 'border-[#C9A45C]/50 shadow-[0_0_20px_rgba(201,164,92,0.08)]'
                     : 'border-[#26262b] hover:border-[#3d3d44]'
-                  }`}
+                }`}
               >
                 <div className="flex items-center gap-1 mb-2">
                   {Array.from({ length: testimony.rating }).map((_, i) => (
                     <Star key={i} className="w-3 h-3 fill-amber-400 text-amber-400" />
                   ))}
                 </div>
-                <p className="text-xs text-stone-300 leading-relaxed line-clamp-3 mb-3">
-                  {testimony.quote}
-                </p>
+                <p className="text-xs text-stone-300 leading-relaxed line-clamp-3 mb-3">{testimony.quote}</p>
                 <div className="flex items-center gap-2.5">
                   <div className="w-7 h-7 rounded-full bg-[#24242a] border border-[#3a3a42] text-[11px] font-bold text-stone-200 flex items-center justify-center shrink-0">
                     {testimony.initials}
@@ -520,7 +539,8 @@ export const MarketplaceHome: React.FC = () => {
               Développez votre salon avec notre ERP SaaS tout-en-un.
             </h2>
             <p className="text-sm text-stone-300 leading-relaxed">
-              Planning en direct, gestion de caisse et Mobile Money, relances automatiques WhatsApp, fidélisation CRM, gestion des stocks et multi-succursales.
+              Planning en direct, gestion de caisse et Mobile Money, relances automatiques WhatsApp,
+              fidélisation CRM, gestion des stocks et multi-succursales.
             </p>
 
             <div className="flex flex-wrap items-center gap-4 pt-3">
@@ -543,7 +563,6 @@ export const MarketplaceHome: React.FC = () => {
 
       {/* FOOTER */}
 
-
       <footer className="mt-auto bg-[#0a0a0c] border-t border-[#1a1a1d] py-12 text-xs text-stone-400">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
@@ -562,14 +581,19 @@ export const MarketplaceHome: React.FC = () => {
             </div>
 
             <div>
-              <h4 className="text-xs font-bold text-[#C9A45C] uppercase tracking-wider mb-3">
-                CLIENTS
-              </h4>
+              <h4 className="text-xs font-bold text-[#C9A45C] uppercase tracking-wider mb-3">CLIENTS</h4>
               <ul className="space-y-2">
-                <li><a href="#salons-section" className="hover:text-white transition-colors">Trouver un salon</a></li>
+                <li>
+                  <a href="#salons-section" className="hover:text-white transition-colors">
+                    Trouver un salon
+                  </a>
+                </li>
                 {communes.map((commune) => (
                   <li key={commune}>
-                    <button onClick={() => setSelectedCommune(commune)} className="hover:text-white transition-colors">
+                    <button
+                      onClick={() => setSelectedCommune(commune)}
+                      className="hover:text-white transition-colors"
+                    >
                       Salons à {commune}
                     </button>
                   </li>
@@ -583,16 +607,20 @@ export const MarketplaceHome: React.FC = () => {
               </h4>
               <ul className="space-y-2">
                 <li>
-                  <a href="/inscription" className="hover:text-white transition-colors">Inscrire un établissement</a>
+                  <a href="/inscription" className="hover:text-white transition-colors">
+                    Inscrire un établissement
+                  </a>
                 </li>
-                <li><a href="/app/tableau-de-bord" className="hover:text-white transition-colors">Espace professionnel</a></li>
+                <li>
+                  <a href="/app/tableau-de-bord" className="hover:text-white transition-colors">
+                    Espace professionnel
+                  </a>
+                </li>
               </ul>
             </div>
 
             <div>
-              <h4 className="text-xs font-bold text-[#C9A45C] uppercase tracking-wider mb-3">
-                INFORMATIONS
-              </h4>
+              <h4 className="text-xs font-bold text-[#C9A45C] uppercase tracking-wider mb-3">INFORMATIONS</h4>
               <p className="text-xs text-stone-400 leading-relaxed">
                 Les établissements affichés proviennent des données publiées dans la plateforme.
               </p>

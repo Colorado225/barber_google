@@ -21,8 +21,7 @@ export class SlotConflictError extends Error {
 const num = (value) => (value === null || value === undefined ? 0 : Number(value));
 const isoDate = (value) =>
   !value ? '' : value instanceof Date ? value.toISOString().slice(0, 10) : String(value).slice(0, 10);
-const isoDateTime = (value) =>
-  value instanceof Date ? value.toISOString() : value ? String(value) : '';
+const isoDateTime = (value) => (value instanceof Date ? value.toISOString() : value ? String(value) : '');
 const hhmm = (value) => (value ? String(value).slice(0, 5) : '');
 
 // ----- Mappers -----
@@ -36,7 +35,7 @@ const mapService = (r) => ({
   durationMinutes: num(r.duration_minutes),
   prepMinutes: num(r.prep_minutes),
   popular: Boolean(r.popular),
-  isActive: r.is_active === undefined ? true : Boolean(r.is_active)
+  isActive: r.is_active === undefined ? true : Boolean(r.is_active),
 });
 
 const mapStaff = (r) => ({
@@ -54,7 +53,7 @@ const mapStaff = (r) => ({
   isAvailable: Boolean(r.is_available),
   isActive: r.is_active === undefined ? true : Boolean(r.is_active),
   serviceIds: r.service_ids || [],
-  userId: r.user_id || null
+  userId: r.user_id || null,
 });
 
 const mapAppointment = (r) => ({
@@ -78,7 +77,7 @@ const mapAppointment = (r) => ({
   notes: r.notes || '',
   source: r.source,
   paymentStatus: r.payment_status || 'unpaid',
-  createdAt: isoDateTime(r.created_at)
+  createdAt: isoDateTime(r.created_at),
 });
 
 const mapSchedule = (r) => ({
@@ -86,7 +85,7 @@ const mapSchedule = (r) => ({
   staffId: r.staff_id,
   weekday: num(r.weekday),
   startsAt: hhmm(r.starts_at),
-  endsAt: hhmm(r.ends_at)
+  endsAt: hhmm(r.ends_at),
 });
 
 const mapAbsence = (r) => ({
@@ -94,7 +93,7 @@ const mapAbsence = (r) => ({
   staffId: r.staff_id,
   startsOn: isoDate(r.starts_on),
   endsOn: isoDate(r.ends_on),
-  reason: r.reason || ''
+  reason: r.reason || '',
 });
 
 /** Traduit une erreur PostgreSQL de conflit en erreur HTTP 409. */
@@ -110,7 +109,9 @@ export function toOperationError(error) {
 
 export function createOperationsRepository(db) {
   const queries = (runner) => {
-    const q = runner ? (text, params) => runner.query(text, params) : (text, params) => db.query(text, params);
+    const q = runner
+      ? (text, params) => runner.query(text, params)
+      : (text, params) => db.query(text, params);
 
     // ===================== Prestations =====================
     const listServices = async (salonId, includeInactive = false) => {
@@ -118,7 +119,7 @@ export function createOperationsRepository(db) {
         `select * from public.bc_services
           where salon_id = $1 ${includeInactive ? '' : 'and is_active'}
           order by name`,
-        [salonId]
+        [salonId],
       );
       return r.rows.map(mapService);
     };
@@ -133,7 +134,7 @@ export function createOperationsRepository(db) {
         data.price,
         data.durationMinutes,
         data.popular ?? false,
-        data.prepMinutes ?? 0
+        data.prepMinutes ?? 0,
       ]);
       const rows = await listServices(salonId, true);
       return rows.find((s) => s.id === r.rows[0].id);
@@ -160,23 +161,20 @@ export function createOperationsRepository(db) {
     const listStaff = async (salonId) => (await q(staffSelect, [salonId])).rows.map(mapStaff);
 
     const saveStaff = async (salonId, id, data) => {
-      const r = await q(
-        'select public.bc_save_staff_profile($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) as id',
-        [
-          salonId,
-          id ?? null,
-          data.name,
-          data.role,
-          data.phone ?? '',
-          data.email ?? '',
-          data.specialties ?? [],
-          data.commissionRate,
-          data.isAvailable ?? true,
-          data.branchId ?? null,
-          data.isActive ?? true,
-          data.serviceIds ?? []
-        ]
-      );
+      const r = await q('select public.bc_save_staff_profile($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) as id', [
+        salonId,
+        id ?? null,
+        data.name,
+        data.role,
+        data.phone ?? '',
+        data.email ?? '',
+        data.specialties ?? [],
+        data.commissionRate,
+        data.isAvailable ?? true,
+        data.branchId ?? null,
+        data.isActive ?? true,
+        data.serviceIds ?? [],
+      ]);
       const rows = await listStaff(salonId);
       return rows.find((s) => s.id === r.rows[0].id);
     };
@@ -191,7 +189,7 @@ export function createOperationsRepository(db) {
         `select * from public.bc_staff_schedules
           where salon_id = $1 ${staffId ? 'and staff_id = $2' : ''}
           order by staff_id, weekday, starts_at`,
-        staffId ? [salonId, staffId] : [salonId]
+        staffId ? [salonId, staffId] : [salonId],
       );
       return r.rows.map(mapSchedule);
     };
@@ -202,7 +200,7 @@ export function createOperationsRepository(db) {
         staffId,
         data.weekday,
         data.startsAt,
-        data.endsAt
+        data.endsAt,
       ]);
       const rows = await listSchedules(salonId, staffId);
       return rows.find((s) => s.id === r.rows[0].id);
@@ -218,7 +216,7 @@ export function createOperationsRepository(db) {
         `select * from public.bc_staff_absences
           where salon_id = $1 ${staffId ? 'and staff_id = $2' : ''}
           order by starts_on desc`,
-        staffId ? [salonId, staffId] : [salonId]
+        staffId ? [salonId, staffId] : [salonId],
       );
       return r.rows.map(mapAbsence);
     };
@@ -229,7 +227,7 @@ export function createOperationsRepository(db) {
         staffId,
         data.startsOn,
         data.endsOn,
-        data.reason ?? ''
+        data.reason ?? '',
       ]);
       const rows = await listAbsences(salonId, staffId);
       return rows.find((a) => a.id === r.rows[0].id);
@@ -274,7 +272,7 @@ export function createOperationsRepository(db) {
       return r.rows.map((row) => ({
         ...mapAppointment({ ...row, client_phone: row.client_phone || '' }),
         clientName: row.client_name_real || row.client_name,
-        time: hhmm(row.starts_local)
+        time: hhmm(row.starts_local),
       }));
     };
 
@@ -296,7 +294,7 @@ export function createOperationsRepository(db) {
         data.startsAt,
         data.endsAt,
         data.notes ?? '',
-        data.source ?? 'direct'
+        data.source ?? 'direct',
       ]);
       return getAppointment(salonId, r.rows[0].id);
     };
@@ -308,7 +306,7 @@ export function createOperationsRepository(db) {
         data.serviceId,
         data.startsAt,
         data.endsAt,
-        data.notes ?? ''
+        data.notes ?? '',
       ]);
       return getAppointment(salonId, id);
     };
@@ -329,13 +327,13 @@ export function createOperationsRepository(db) {
            from public.bc_appointment_events
           where salon_id = $1 and appointment_id = $2
           order by created_at`,
-        [salonId, id]
+        [salonId, id],
       );
       return r.rows.map((e) => ({
         previousStatus: e.previous_status,
         newStatus: e.new_status,
         reason: e.reason || '',
-        at: isoDateTime(e.created_at)
+        at: isoDateTime(e.created_at),
       }));
     };
 
@@ -348,7 +346,7 @@ export function createOperationsRepository(db) {
         byStaff.get(row.staff_id).push({
           startsAt: isoDateTime(row.starts_at),
           endsAt: isoDateTime(row.ends_at),
-          available: Boolean(row.available)
+          available: Boolean(row.available),
         });
       }
       return Object.fromEntries(byStaff);
@@ -359,7 +357,7 @@ export function createOperationsRepository(db) {
         q('select id, name from public.bc_salons where id = $1', [salonId]),
         listServices(salonId, true),
         listStaff(salonId),
-        listAppointments(salonId, { from: isoDate(new Date()) })
+        listAppointments(salonId, { from: isoDate(new Date()) }),
       ]);
       if (!salon.rows.length) return null;
       return { salon: { id: salon.rows[0].id, name: salon.rows[0].name }, services, staff, appointments };
@@ -367,7 +365,9 @@ export function createOperationsRepository(db) {
 
     /** Succursales du salon. */
     const listBranches = async (salonId) => {
-      const r = await q('select id, name from public.bc_branches where salon_id = $1 order by name', [salonId]);
+      const r = await q('select id, name from public.bc_branches where salon_id = $1 order by name', [
+        salonId,
+      ]);
       return r.rows.map((row) => ({ id: row.id, name: row.name }));
     };
 
@@ -375,20 +375,25 @@ export function createOperationsRepository(db) {
     const getBranchHours = async (salonId, branchId) => {
       const r = await q(
         'select weekday, opens_at, closes_at, is_open from public.bc_branch_hours where salon_id = $1 and branch_id = $2 order by weekday',
-        [salonId, branchId]
+        [salonId, branchId],
       );
       return r.rows.map((row) => ({
         weekday: num(row.weekday),
         opensAt: hhmm(row.opens_at),
         closesAt: hhmm(row.closes_at),
-        isOpen: Boolean(row.is_open)
+        isOpen: Boolean(row.is_open),
       }));
     };
 
     /** Sauvegarde (ou supprime si fermée) la plage horaire d'un jour de la semaine. */
     const saveBranchHours = async (salonId, branchId, weekday, opensAt, closesAt, isOpen) => {
       await q('select public.bc_save_branch_hours($1,$2,$3,$4,$5,$6)', [
-        salonId, branchId, weekday, opensAt ?? null, closesAt ?? null, isOpen
+        salonId,
+        branchId,
+        weekday,
+        opensAt ?? null,
+        closesAt ?? null,
+        isOpen,
       ]);
     };
 
@@ -417,7 +422,7 @@ export function createOperationsRepository(db) {
       listBranches,
       getBranchHours,
       saveBranchHours,
-      workspace
+      workspace,
     };
   };
 

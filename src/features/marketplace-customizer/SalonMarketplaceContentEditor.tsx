@@ -1,10 +1,5 @@
 import React from 'react';
-import {
-  Salon,
-  SalonMarketplaceViewConfig,
-  Service,
-  StaffMember
-} from '../../types';
+import { Salon, SalonMarketplaceViewConfig, Service, StaffMember } from '../../types';
 import { Switch } from '../../components/ui/switch';
 import { cn } from '../../lib/utils';
 import {
@@ -17,7 +12,7 @@ import {
   Check,
   Building2,
   Images,
-  Star
+  Star,
 } from 'lucide-react';
 
 interface SalonMarketplaceContentEditorProps {
@@ -30,16 +25,14 @@ interface SalonMarketplaceContentEditorProps {
   formatPrice?: (amount: number) => string;
 }
 
-export const SalonMarketplaceContentEditor: React.FC<
-  SalonMarketplaceContentEditorProps
-> = ({
+export const SalonMarketplaceContentEditor: React.FC<SalonMarketplaceContentEditorProps> = ({
   salon,
   config,
   services,
   staff,
   branches = [],
   onChange,
-  formatPrice = (amt) => `${amt.toLocaleString('fr-FR')} FCFA`
+  formatPrice = (amt) => `${amt.toLocaleString('fr-FR')} FCFA`,
 }) => {
   const activeServices = services.filter((s) => s.isActive !== false);
   const activeStaff = staff.filter((s) => s.isActive !== false);
@@ -54,9 +47,7 @@ export const SalonMarketplaceContentEditor: React.FC<
 
   const toggleVisibleStaff = (staffId: string) => {
     const current = config.visibleStaffIds || [];
-    const next = current.includes(staffId)
-      ? current.filter((id) => id !== staffId)
-      : [...current, staffId];
+    const next = current.includes(staffId) ? current.filter((id) => id !== staffId) : [...current, staffId];
     onChange({ visibleStaffIds: next });
   };
 
@@ -64,10 +55,10 @@ export const SalonMarketplaceContentEditor: React.FC<
   // sélectionnées s'affichent dans cet ordre ; la première = couverture.
   const availableImages: string[] = [
     ...(salon.coverImage ? [salon.coverImage] : []),
-    ...(salon.gallery ?? []).filter((src: string) => src && src !== salon.coverImage)
+    ...(salon.gallery ?? []).filter((src: string) => src && src !== salon.coverImage),
   ];
-  const selectedImages: string[] = (config.featuredGalleryImageIds ?? []).filter(
-    (src: string) => availableImages.includes(src)
+  const selectedImages: string[] = (config.featuredGalleryImageIds ?? []).filter((src: string) =>
+    availableImages.includes(src),
   );
 
   const toggleGalleryImage = (src: string) => {
@@ -79,7 +70,7 @@ export const SalonMarketplaceContentEditor: React.FC<
 
   const makeCover = (src: string) => {
     onChange({
-      featuredGalleryImageIds: [src, ...selectedImages.filter((s) => s !== src)]
+      featuredGalleryImageIds: [src, ...selectedImages.filter((s) => s !== src)],
     });
   };
 
@@ -94,9 +85,7 @@ export const SalonMarketplaceContentEditor: React.FC<
 
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-medium text-stone-300 mb-1">
-              Slogan public (Tagline)
-            </label>
+            <label className="block text-xs font-medium text-stone-300 mb-1">Slogan public (Tagline)</label>
             <input
               type="text"
               value={config.customTagline ?? salon.tagline ?? ''}
@@ -108,9 +97,7 @@ export const SalonMarketplaceContentEditor: React.FC<
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-stone-300 mb-1">
-              Description publique
-            </label>
+            <label className="block text-xs font-medium text-stone-300 mb-1">Description publique</label>
             <textarea
               rows={3}
               value={config.customDescription ?? salon.description ?? ''}
@@ -137,15 +124,14 @@ export const SalonMarketplaceContentEditor: React.FC<
           </span>
         </div>
         <p className="text-xs text-stone-400 leading-relaxed">
-          Choisissez les photos affichées dans le carrousel public. La première
-          sélectionnée sert de couverture (étoile pour la définir). Sans
-          sélection, toutes les photos du profil sont affichées. Les photos se
-          gèrent dans les paramètres du salon.
+          Choisissez les photos affichées dans le carrousel public. La première sélectionnée sert de
+          couverture (étoile pour la définir). Sans sélection, toutes les photos du profil sont affichées. Les
+          photos se gèrent dans les paramètres du salon.
         </p>
         {availableImages.length === 0 ? (
           <p className="text-xs text-amber-300 bg-amber-400/10 border border-amber-400/20 rounded-xl px-3 py-2">
-            Aucune photo dans le profil du salon. Ajoutez une couverture et des
-            photos depuis les paramètres du salon pour personnaliser la galerie.
+            Aucune photo dans le profil du salon. Ajoutez une couverture et des photos depuis les paramètres
+            du salon pour personnaliser la galerie.
           </p>
         ) : (
           <div className="grid grid-cols-3 gap-2">
@@ -159,12 +145,14 @@ export const SalonMarketplaceContentEditor: React.FC<
                     type="button"
                     onClick={() => toggleGalleryImage(src)}
                     aria-pressed={isSelected}
-                    aria-label={isSelected ? 'Retirer cette photo de la vitrine' : 'Afficher cette photo sur la vitrine'}
+                    aria-label={
+                      isSelected ? 'Retirer cette photo de la vitrine' : 'Afficher cette photo sur la vitrine'
+                    }
                     className={cn(
                       'block w-full aspect-[4/3] rounded-xl overflow-hidden border-2 transition-all cursor-pointer',
                       isSelected
                         ? 'border-[#C9A45C] opacity-100'
-                        : 'border-stone-800 opacity-50 hover:opacity-80'
+                        : 'border-stone-800 opacity-50 hover:opacity-80',
                     )}
                   >
                     <img src={src} alt="" loading="lazy" className="size-full object-cover" />
@@ -206,12 +194,14 @@ export const SalonMarketplaceContentEditor: React.FC<
             <h3 className="text-sm font-bold text-white">Prestations en vedette</h3>
           </div>
           <span className="text-[11px] text-stone-400">
-            {config.featuredServiceIds?.length || 0} sélectionnée{config.featuredServiceIds?.length > 1 ? 's' : ''}
+            {config.featuredServiceIds?.length || 0} sélectionnée
+            {config.featuredServiceIds?.length > 1 ? 's' : ''}
           </span>
         </div>
 
         <p className="text-xs text-stone-400 leading-relaxed">
-          Sélectionnez les prestations à afficher prioritairement sur votre vitrine (tarifs issus de votre catalogue).
+          Sélectionnez les prestations à afficher prioritairement sur votre vitrine (tarifs issus de votre
+          catalogue).
         </p>
 
         <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1 scrollbar-thin">
@@ -225,7 +215,7 @@ export const SalonMarketplaceContentEditor: React.FC<
                   'p-2.5 rounded-xl border flex items-center justify-between gap-3 text-xs transition-all cursor-pointer',
                   isSelected
                     ? 'bg-[#201e19] border-[#C9A45C]/60 text-white'
-                    : 'bg-[#18181c] border-stone-800 text-stone-400 hover:border-stone-700'
+                    : 'bg-[#18181c] border-stone-800 text-stone-400 hover:border-stone-700',
                 )}
               >
                 <div className="flex items-center gap-2 min-w-0">
@@ -234,7 +224,7 @@ export const SalonMarketplaceContentEditor: React.FC<
                       'size-4 rounded flex items-center justify-center shrink-0 border',
                       isSelected
                         ? 'bg-[#C9A45C] border-[#C9A45C] text-[#101010]'
-                        : 'border-stone-700 bg-stone-900'
+                        : 'border-stone-700 bg-stone-900',
                     )}
                   >
                     {isSelected && <Check className="size-3 stroke-[3]" />}
@@ -265,7 +255,8 @@ export const SalonMarketplaceContentEditor: React.FC<
         </div>
 
         <p className="text-xs text-stone-400 leading-relaxed">
-          Choisissez les membres d'équipe qui apparaissent publiquement. Vos données privées restent protégées.
+          Choisissez les membres d'équipe qui apparaissent publiquement. Vos données privées restent
+          protégées.
         </p>
 
         <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1 scrollbar-thin">
@@ -279,7 +270,7 @@ export const SalonMarketplaceContentEditor: React.FC<
                   'p-2.5 rounded-xl border flex items-center justify-between gap-3 text-xs transition-all cursor-pointer',
                   isSelected
                     ? 'bg-[#201e19] border-[#C9A45C]/60 text-white'
-                    : 'bg-[#18181c] border-stone-800 text-stone-400 hover:border-stone-700'
+                    : 'bg-[#18181c] border-stone-800 text-stone-400 hover:border-stone-700',
                 )}
               >
                 <div className="flex items-center gap-2 min-w-0">
@@ -288,7 +279,7 @@ export const SalonMarketplaceContentEditor: React.FC<
                       'size-4 rounded flex items-center justify-center shrink-0 border',
                       isSelected
                         ? 'bg-[#C9A45C] border-[#C9A45C] text-[#101010]'
-                        : 'border-stone-700 bg-stone-900'
+                        : 'border-stone-700 bg-stone-900',
                     )}
                   >
                     {isSelected && <Check className="size-3 stroke-[3]" />}
@@ -296,9 +287,7 @@ export const SalonMarketplaceContentEditor: React.FC<
                   <span className="font-medium text-white truncate">{member.name}</span>
                 </div>
 
-                <span className="text-[11px] text-stone-400 capitalize">
-                  {member.role.replace('_', ' ')}
-                </span>
+                <span className="text-[11px] text-stone-400 capitalize">{member.role.replace('_', ' ')}</span>
               </div>
             );
           })}
@@ -313,14 +302,12 @@ export const SalonMarketplaceContentEditor: React.FC<
             <h3 className="text-sm font-bold text-white">Succursale mise en avant</h3>
           </div>
           <p className="text-xs text-stone-400 leading-relaxed">
-            Les horaires de cette succursale sont affichés par défaut sur la
-            vitrine. Les visiteurs peuvent toujours consulter les autres succursales.
+            Les horaires de cette succursale sont affichés par défaut sur la vitrine. Les visiteurs peuvent
+            toujours consulter les autres succursales.
           </p>
           <select
             value={config.featuredBranchId ?? ''}
-            onChange={(e) =>
-              onChange({ featuredBranchId: e.target.value || undefined })
-            }
+            onChange={(e) => onChange({ featuredBranchId: e.target.value || undefined })}
             className="w-full bg-[#18181c] border border-stone-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#C9A45C] cursor-pointer"
             aria-label="Succursale mise en avant"
           >
@@ -347,10 +334,7 @@ export const SalonMarketplaceContentEditor: React.FC<
                 <p className="text-[10px] text-stone-400">{salon.address || 'Non renseignée'}</p>
               </div>
             </div>
-            <Switch
-              checked={config.showAddress}
-              onCheckedChange={(val) => onChange({ showAddress: val })}
-            />
+            <Switch checked={config.showAddress} onCheckedChange={(val) => onChange({ showAddress: val })} />
           </div>
 
           <div className="flex items-center justify-between p-3 rounded-xl bg-[#18181c] border border-stone-800">
@@ -361,10 +345,7 @@ export const SalonMarketplaceContentEditor: React.FC<
                 <p className="text-[10px] text-stone-400">{salon.phone || 'Non renseigné'}</p>
               </div>
             </div>
-            <Switch
-              checked={config.showPhone}
-              onCheckedChange={(val) => onChange({ showPhone: val })}
-            />
+            <Switch checked={config.showPhone} onCheckedChange={(val) => onChange({ showPhone: val })} />
           </div>
 
           <div className="flex items-center justify-between p-3 rounded-xl bg-[#18181c] border border-stone-800">

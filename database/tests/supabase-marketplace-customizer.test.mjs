@@ -32,7 +32,8 @@ async function asAdmin() {
   await db.exec('reset role');
 }
 
-const readMigration = (name) => readFile(new URL(`../../supabase/migrations/${name}`, import.meta.url), 'utf8');
+const readMigration = (name) =>
+  readFile(new URL(`../../supabase/migrations/${name}`, import.meta.url), 'utf8');
 
 test('migrations apply cleanly and seed tenants with services and staff', async () => {
   await db.exec(`
@@ -44,7 +45,10 @@ test('migrations apply cleanly and seed tenants with services and staff', async 
       select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid
     $$;
   `);
-  await db.query('insert into auth.users(id, email_confirmed_at) values ($1, now()), ($2, now()), ($3, now())', [ownerA, managerA, ownerB]);
+  await db.query(
+    'insert into auth.users(id, email_confirmed_at) values ($1, now()), ($2, now()), ($3, now())',
+    [ownerA, managerA, ownerB],
+  );
 
   const migrations = [
     '20261103160000_supabase_core.sql',
@@ -69,55 +73,60 @@ test('migrations apply cleanly and seed tenants with services and staff', async 
 
   // Create Salon A and Salon B
   await asUser(ownerA);
-  const a = await db.query("select * from public.create_salon('Organisation A', 'Barbershop Elite', 'Plateau')");
+  const a = await db.query(
+    "select * from public.create_salon('Organisation A', 'Barbershop Elite', 'Plateau')",
+  );
   salonA = a.rows[0].salon_id;
   branchA = a.rows[0].branch_id;
 
   await asUser(ownerB);
-  const b = await db.query("select * from public.create_salon('Organisation B', 'Salon Cocody', 'Principal')");
+  const b = await db.query(
+    "select * from public.create_salon('Organisation B', 'Salon Cocody', 'Principal')",
+  );
   salonB = b.rows[0].salon_id;
 
   // Insert services
   await asAdmin();
   const scA = await db.query(
     "insert into public.services(salon_id, name, category, price, duration_minutes, is_active, popular) values ($1, 'Dégradé Laser', 'coupe', 5000, 30, true, true) returning id",
-    [salonA]
+    [salonA],
   );
   serviceCoupeA = scA.rows[0].id;
 
   const sbA = await db.query(
     "insert into public.services(salon_id, name, category, price, duration_minutes, is_active) values ($1, 'Barbe Royale', 'barbe', 3500, 20, true) returning id",
-    [salonA]
+    [salonA],
   );
   serviceBarbeA = sbA.rows[0].id;
 
   const scB = await db.query(
     "insert into public.services(salon_id, name, category, price, duration_minutes, is_active) values ($1, 'Coupe B', 'coupe', 4000, 30, true) returning id",
-    [salonB]
+    [salonB],
   );
   serviceCoupeB = scB.rows[0].id;
 
   // Insert staff
   const stA1 = await db.query(
     "insert into public.staff(salon_id, branch_id, name, role, specialties, is_active, is_available) values ($1, $2, 'Kouassi Yves', 'master_barber', '{dégradé,barbe}', true, true) returning id",
-    [salonA, branchA]
+    [salonA, branchA],
   );
   staffKouassiA = stA1.rows[0].id;
 
   const stA2 = await db.query(
     "insert into public.staff(salon_id, branch_id, name, role, specialties, is_active, is_available) values ($1, $2, 'Ali Traoré', 'barber', '{tresses}', true, true) returning id",
-    [salonA, branchA]
+    [salonA, branchA],
   );
   staffAliA = stA2.rows[0].id;
 
   const stB = await db.query(
     "insert into public.staff(salon_id, name, role, is_active, is_available) values ($1, 'Moussa B', 'barber', true, true) returning id",
-    [salonB]
+    [salonB],
   );
   staffMoussaB = stB.rows[0].id;
 
   // Setup basic public profile for Salon A so it can publish
-  await db.query(`
+  await db.query(
+    `
     update public.salons set
       slug = 'barbershop-elite',
       address = 'Boulevard lagunaire, Plateau',
@@ -127,7 +136,9 @@ test('migrations apply cleanly and seed tenants with services and staff', async 
       cover_url = 'https://example.com/cover.jpg',
       tagline = 'Le temple du dégradé premium'
     where id = $1
-  `, [salonA]);
+  `,
+    [salonA],
+  );
 });
 
 test('première configuration : un salon sans personnalisation reçoit le modèle par défaut', async () => {
@@ -171,7 +182,10 @@ test('changement de modèle et sauvegarde brouillon : les données métier reste
     customDescription: 'Une expérience de coiffure inégalée',
   };
 
-  const saveRes = await db.query('select public.save_marketplace_customizer_draft($1, $2::jsonb) as res', [salonA, JSON.stringify(newDraft)]);
+  const saveRes = await db.query('select public.save_marketplace_customizer_draft($1, $2::jsonb) as res', [
+    salonA,
+    JSON.stringify(newDraft),
+  ]);
   const saved = saveRes.rows[0].res;
 
   assert.equal(saved.layout, 'elegant');
@@ -189,12 +203,16 @@ test('isolation multi-tenant : le propriétaire B ne peut ni lire ni modifier la
 
   await assert.rejects(
     async () => db.query('select public.get_marketplace_customizer_config($1)', [salonA]),
-    (err) => err.code === '42501'
+    (err) => err.code === '42501',
   );
 
   await assert.rejects(
-    async () => db.query('select public.save_marketplace_customizer_draft($1, $2::jsonb)', [salonA, JSON.stringify({ layout: 'classic' })]),
-    (err) => err.code === '42501'
+    async () =>
+      db.query('select public.save_marketplace_customizer_draft($1, $2::jsonb)', [
+        salonA,
+        JSON.stringify({ layout: 'classic' }),
+      ]),
+    (err) => err.code === '42501',
   );
 });
 
@@ -203,26 +221,28 @@ test('données invalides : rejet strict si un service ou un membre appartient à
 
   // Tentative d'inclure une prestation du salon B
   await assert.rejects(
-    async () => db.query('select public.save_marketplace_customizer_draft($1, $2::jsonb)', [
-      salonA,
-      JSON.stringify({
-        layout: 'classic',
-        featuredServiceIds: [serviceCoupeB], // service de salon B
-      }),
-    ]),
-    (err) => err.code === '22023'
+    async () =>
+      db.query('select public.save_marketplace_customizer_draft($1, $2::jsonb)', [
+        salonA,
+        JSON.stringify({
+          layout: 'classic',
+          featuredServiceIds: [serviceCoupeB], // service de salon B
+        }),
+      ]),
+    (err) => err.code === '22023',
   );
 
   // Tentative d'inclure un employé du salon B
   await assert.rejects(
-    async () => db.query('select public.save_marketplace_customizer_draft($1, $2::jsonb)', [
-      salonA,
-      JSON.stringify({
-        layout: 'classic',
-        visibleStaffIds: [staffMoussaB], // staff de salon B
-      }),
-    ]),
-    (err) => err.code === '22023'
+    async () =>
+      db.query('select public.save_marketplace_customizer_draft($1, $2::jsonb)', [
+        salonA,
+        JSON.stringify({
+          layout: 'classic',
+          visibleStaffIds: [staffMoussaB], // staff de salon B
+        }),
+      ]),
+    (err) => err.code === '22023',
   );
 });
 
@@ -237,14 +257,18 @@ test('publication : rend la vitrine publique et synchronise les prestations vede
   assert.equal(published.published_config.layout, 'elegant');
 
   // Vérifier la table salons
-  const s = await db.query('select is_published, featured_service_ids from public.salons where id = $1', [salonA]);
+  const s = await db.query('select is_published, featured_service_ids from public.salons where id = $1', [
+    salonA,
+  ]);
   assert.equal(s.rows[0].is_published, true);
   assert.deepEqual(s.rows[0].featured_service_ids, [serviceCoupeA, serviceBarbeA]);
 });
 
 test('vitrine publique (anon) : retourne les données réelles et filtre le personnel selon la config', async () => {
   await asAnon();
-  const detailRes = await db.query('select public.marketplace_salon_detail($1) as detail', ['barbershop-elite']);
+  const detailRes = await db.query('select public.marketplace_salon_detail($1) as detail', [
+    'barbershop-elite',
+  ]);
   const detail = detailRes.rows[0].detail;
 
   assert.ok(detail);
@@ -269,7 +293,9 @@ test('synchronisation tarifaire en temps réel : une mise à jour ERP est imméd
 
   // Consultation publique immédiate sans re-sauvegarder le customizer
   await asAnon();
-  const detailRes = await db.query('select public.marketplace_salon_detail($1) as detail', ['barbershop-elite']);
+  const detailRes = await db.query('select public.marketplace_salon_detail($1) as detail', [
+    'barbershop-elite',
+  ]);
   const detail = detailRes.rows[0].detail;
 
   const coupe = detail.services.find((s) => s.id === serviceCoupeA);
@@ -286,43 +312,63 @@ test('durcissement : validation stricte et normalisation de la configuration', a
       { id: 'reviews', enabled: true, position: 0 },
       { id: 'hero', enabled: true, position: 1 },
       { id: 'section_inconnue', enabled: true, position: 2 },
-      { id: 'hero', enabled: false, position: 3 }
+      { id: 'hero', enabled: false, position: 3 },
     ],
     featuredServiceIds: [serviceCoupeA],
     visibleStaffIds: [staffKouassiA],
     featuredGalleryImageIds: ['https://example.com/cover.jpg'],
     featuredBranchId: branchA,
-    customTagline: 'Nouveau brouillon non publié'
+    customTagline: 'Nouveau brouillon non publié',
   };
-  const saveRes = await db.query('select public.save_marketplace_customizer_draft($1, $2::jsonb) as res', [salonA, JSON.stringify(base)]);
+  const saveRes = await db.query('select public.save_marketplace_customizer_draft($1, $2::jsonb) as res', [
+    salonA,
+    JSON.stringify(base),
+  ]);
   const draft = saveRes.rows[0].res.draft_config;
   // Sections canoniques : 7, inconnue écartée, doublon supprimé, positions 0..6
   assert.equal(draft.sections.length, 7);
-  assert.deepEqual(draft.sections.map((x) => x.position), [0, 1, 2, 3, 4, 5, 6]);
+  assert.deepEqual(
+    draft.sections.map((x) => x.position),
+    [0, 1, 2, 3, 4, 5, 6],
+  );
   assert.equal(draft.sections[0].id, 'reviews');
   assert.equal(draft.sections.filter((x) => x.id === 'hero').length, 1);
   assert.equal(draft.featuredBranchId, branchA);
 
   // Couleur invalide (injection CSS) rejetée
   await assert.rejects(
-    async () => db.query('select public.save_marketplace_customizer_draft($1, $2::jsonb)', [salonA, JSON.stringify({ ...base, accentColor: 'red; } body{display:none' })]),
-    (err) => err.code === '22023'
+    async () =>
+      db.query('select public.save_marketplace_customizer_draft($1, $2::jsonb)', [
+        salonA,
+        JSON.stringify({ ...base, accentColor: 'red; } body{display:none' }),
+      ]),
+    (err) => err.code === '22023',
   );
   // Image ne appartenant pas au salon rejetée
   await assert.rejects(
-    async () => db.query('select public.save_marketplace_customizer_draft($1, $2::jsonb)', [salonA, JSON.stringify({ ...base, featuredGalleryImageIds: ['https://evil.example/x.jpg'] })]),
-    (err) => err.code === '22023'
+    async () =>
+      db.query('select public.save_marketplace_customizer_draft($1, $2::jsonb)', [
+        salonA,
+        JSON.stringify({ ...base, featuredGalleryImageIds: ['https://evil.example/x.jpg'] }),
+      ]),
+    (err) => err.code === '22023',
   );
   // Slogan trop long rejeté
   await assert.rejects(
-    async () => db.query('select public.save_marketplace_customizer_draft($1, $2::jsonb)', [salonA, JSON.stringify({ ...base, customTagline: 'x'.repeat(161) })]),
-    (err) => err.code === '22023'
+    async () =>
+      db.query('select public.save_marketplace_customizer_draft($1, $2::jsonb)', [
+        salonA,
+        JSON.stringify({ ...base, customTagline: 'x'.repeat(161) }),
+      ]),
+    (err) => err.code === '22023',
   );
 });
 
-test('brouillon non public : la vitrine continue d\'afficher la configuration publiée', async () => {
+test("brouillon non public : la vitrine continue d'afficher la configuration publiée", async () => {
   await asAnon();
-  const detailRes = await db.query('select public.marketplace_salon_detail($1) as detail', ['barbershop-elite']);
+  const detailRes = await db.query('select public.marketplace_salon_detail($1) as detail', [
+    'barbershop-elite',
+  ]);
   const detail = detailRes.rows[0].detail;
   // Le brouillon 'editorial' enregistré ci-dessus ne doit pas fuiter.
   assert.equal(detail.customizer.layout, 'elegant');
@@ -340,7 +386,7 @@ test('revert et dépublication : réinitialise le draft et désactive la vitrine
   await asAnon();
   await assert.rejects(
     async () => db.query('select public.marketplace_salon_detail($1)', ['barbershop-elite']),
-    (err) => err.code === '22023'
+    (err) => err.code === '22023',
   );
 
   // 2. Revert draft
@@ -350,7 +396,7 @@ test('revert et dépublication : réinitialise le draft et désactive la vitrine
   assert.equal(rev.rows[0].res.draft_config.layout, 'elegant'); // restauré depuis published_config
 });
 
-test('personnel : une sélection publiée vide masque toute l\'équipe de la vitrine', async () => {
+test("personnel : une sélection publiée vide masque toute l'équipe de la vitrine", async () => {
   await asUser(ownerA);
   const cfg = {
     layout: 'classic',
@@ -358,13 +404,18 @@ test('personnel : une sélection publiée vide masque toute l\'équipe de la vit
     sections: [{ id: 'hero', enabled: true, position: 0 }],
     featuredServiceIds: [serviceCoupeA],
     visibleStaffIds: [],
-    featuredGalleryImageIds: []
+    featuredGalleryImageIds: [],
   };
-  await db.query('select public.save_marketplace_customizer_draft($1, $2::jsonb)', [salonA, JSON.stringify(cfg)]);
+  await db.query('select public.save_marketplace_customizer_draft($1, $2::jsonb)', [
+    salonA,
+    JSON.stringify(cfg),
+  ]);
   await db.query('select public.publish_marketplace_customizer($1)', [salonA]);
 
   await asAnon();
-  const detailRes = await db.query('select public.marketplace_salon_detail($1) as detail', ['barbershop-elite']);
+  const detailRes = await db.query('select public.marketplace_salon_detail($1) as detail', [
+    'barbershop-elite',
+  ]);
   assert.equal(detailRes.rows[0].detail.staff.length, 0);
   assert.equal(detailRes.rows[0].detail.customizer.layout, 'classic');
 });

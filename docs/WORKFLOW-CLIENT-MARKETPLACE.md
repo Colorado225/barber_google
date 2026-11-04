@@ -205,12 +205,12 @@ Après-service
 
 Le trigger `appointments_enqueue_notifications` met en file :
 
-| Événement | Canal | Kind |
-| --- | --- | --- |
-| Réservation créée | e-mail + WhatsApp | `booking_received` |
-| Réservation confirmée | e-mail + WhatsApp | `booking_confirmed` |
-| Réservation annulée | e-mail + WhatsApp | `booking_cancelled` |
-| Rappel 24 h | e-mail uniquement, si RDV > 24 h et e-mail fourni | `reminder_24h` |
+| Événement             | Canal                                             | Kind                |
+| --------------------- | ------------------------------------------------- | ------------------- |
+| Réservation créée     | e-mail + WhatsApp                                 | `booking_received`  |
+| Réservation confirmée | e-mail + WhatsApp                                 | `booking_confirmed` |
+| Réservation annulée   | e-mail + WhatsApp                                 | `booking_cancelled` |
+| Rappel 24 h           | e-mail uniquement, si RDV > 24 h et e-mail fourni | `reminder_24h`      |
 
 ### 7.2 Ce qui n’est pas encore branché
 
@@ -266,13 +266,13 @@ completed / cancelled / no_show = états finaux
 
 ## 10. Rôles impliqués
 
-| Action | Rôles |
-| --- | --- |
-| Réserver en ligne | Client anonyme, sans compte |
+| Action                                                   | Rôles                        |
+| -------------------------------------------------------- | ---------------------------- |
+| Réserver en ligne                                        | Client anonyme, sans compte  |
 | Confirmer / accueil / démarrage / fin / annulation salon | owner, manager, receptionist |
-| Encaisser | owner, manager, cashier |
-| Confirmer un paiement Mobile Money | rôle habilité caisse |
-| Modérer les avis | owner, manager |
+| Encaisser                                                | owner, manager, cashier      |
+| Confirmer un paiement Mobile Money                       | rôle habilité caisse         |
+| Modérer les avis                                         | owner, manager               |
 
 ---
 
