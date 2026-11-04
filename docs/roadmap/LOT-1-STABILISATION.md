@@ -18,42 +18,42 @@ externe : le `db push` de régularisation (action exploitant).
 
 ## B. Modifications réalisées
 
-| Fichier(s) | Modification | Justification |
-| --- | --- | --- |
-| `tsconfig.json` | `strict`, `noFallthroughCasesInSwitch`, `noImplicitReturns`, `forceConsistentCasingInFileNames` = true | Mesures `tsc` : tous ces flags passaient déjà à **0 erreur** — activation sans campagne de réécriture |
-| `src/components/erp/ErpLayout.tsx` | `icon: any` → `LucideIcon` | Typage réel des items de navigation |
-| `src/features/marketplace-customizer/SalonMarketplaceCustomizer.tsx` | 4× `catch (err: any)` → `unknown` + `instanceof Error` | Erreurs API typées, pas d'accès aveugle à `.message` |
-| `DashboardView.tsx`, `NewAppointmentModal.tsx` | casts `as any` → unions réelles (`typeof`, `PaymentMethod`) | Contrats UI explicites |
-| `SalonProfileSettingsView.tsx` | `handleHourChange` générique `<K extends keyof OpeningHour>` | Valeur typée selon le champ modifié |
-| 129 fichiers | Prettier appliqué (commit isolé `b957d44`, aucun changement logique) | `format:check` était rouge sur 131 fichiers |
-| `.prettierignore` | `public/` ajouté | Assets de référence, déjà exclus de `tsconfig` |
-| `.github/workflows/ci.yml` | Étape `Format` (`format:check`) | Empêche toute régression de style |
-| `server/README.md` (nouveau) | Gel documenté de la pile Express | F3/S2 de l'audit : plus d'ambiguïté sur la source de vérité |
+| Fichier(s)                                                           | Modification                                                                                           | Justification                                                                                         |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| `tsconfig.json`                                                      | `strict`, `noFallthroughCasesInSwitch`, `noImplicitReturns`, `forceConsistentCasingInFileNames` = true | Mesures `tsc` : tous ces flags passaient déjà à **0 erreur** — activation sans campagne de réécriture |
+| `src/components/erp/ErpLayout.tsx`                                   | `icon: any` → `LucideIcon`                                                                             | Typage réel des items de navigation                                                                   |
+| `src/features/marketplace-customizer/SalonMarketplaceCustomizer.tsx` | 4× `catch (err: any)` → `unknown` + `instanceof Error`                                                 | Erreurs API typées, pas d'accès aveugle à `.message`                                                  |
+| `DashboardView.tsx`, `NewAppointmentModal.tsx`                       | casts `as any` → unions réelles (`typeof`, `PaymentMethod`)                                            | Contrats UI explicites                                                                                |
+| `SalonProfileSettingsView.tsx`                                       | `handleHourChange` générique `<K extends keyof OpeningHour>`                                           | Valeur typée selon le champ modifié                                                                   |
+| 129 fichiers                                                         | Prettier appliqué (commit isolé `b957d44`, aucun changement logique)                                   | `format:check` était rouge sur 131 fichiers                                                           |
+| `.prettierignore`                                                    | `public/` ajouté                                                                                       | Assets de référence, déjà exclus de `tsconfig`                                                        |
+| `.github/workflows/ci.yml`                                           | Étape `Format` (`format:check`)                                                                        | Empêche toute régression de style                                                                     |
+| `server/README.md` (nouveau)                                         | Gel documenté de la pile Express                                                                       | F3/S2 de l'audit : plus d'ambiguïté sur la source de vérité                                           |
 
 `any` résiduels (5, justifiés) : `src/components/ui/motion-preset.tsx`
 (interop `motion` : composants dynamiques typés `any` par la lib).
 
 ## C. Étude `strict` (mesures exactes, tsc 7)
 
-| Flag | Erreurs | Décision |
-| --- | --- | --- |
-| `--strict` (dont strictNullChecks, noImplicitAny, strictFunctionTypes) | **0** | ✅ activé |
-| `--noFallthroughCasesInSwitch` | 0 | ✅ activé |
-| `--noImplicitReturns` | 0 | ✅ activé |
-| `--forceConsistentCasingInFileNames` | 0 | ✅ activé |
-| `--noUncheckedIndexedAccess` | **44** | ⏸️ reporté : campagne dédiée (accès indexés dans de nombreux composants) ; à traiter par domaine, pas en masse |
+| Flag                                                                   | Erreurs | Décision                                                                                                       |
+| ---------------------------------------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------- |
+| `--strict` (dont strictNullChecks, noImplicitAny, strictFunctionTypes) | **0**   | ✅ activé                                                                                                      |
+| `--noFallthroughCasesInSwitch`                                         | 0       | ✅ activé                                                                                                      |
+| `--noImplicitReturns`                                                  | 0       | ✅ activé                                                                                                      |
+| `--forceConsistentCasingInFileNames`                                   | 0       | ✅ activé                                                                                                      |
+| `--noUncheckedIndexedAccess`                                           | **44**  | ⏸️ reporté : campagne dédiée (accès indexés dans de nombreux composants) ; à traiter par domaine, pas en masse |
 
 ## D. Base de données — vérifications production (lecture seule, 2026-11-04)
 
 Projet lié `barber_google` (`rozsykrjrncbupzmauzj`), requête catalogues :
 
-| Contrôle | Résultat |
-| --- | --- |
-| Extension `btree_gist` | ✅ installée |
-| Contrainte d'exclusion (anti-chevauchement) sur `appointments` | ✅ présente → **la garantie dure du scénario H est active en production** (F9 levé positivement) |
-| Policies RLS publiques | 59 (cohérent avec les migrations) |
-| Dernière migration enregistrée | `20261104130500` |
-| RPC `publish_marketplace_customizer` | ❌ **toujours absente** — le `db push` de régularisation n'a pas encore été exécuté par l'exploitation |
+| Contrôle                                                       | Résultat                                                                                               |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Extension `btree_gist`                                         | ✅ installée                                                                                           |
+| Contrainte d'exclusion (anti-chevauchement) sur `appointments` | ✅ présente → **la garantie dure du scénario H est active en production** (F9 levé positivement)       |
+| Policies RLS publiques                                         | 59 (cohérent avec les migrations)                                                                      |
+| Dernière migration enregistrée                                 | `20261104130500`                                                                                       |
+| RPC `publish_marketplace_customizer`                           | ❌ **toujours absente** — le `db push` de régularisation n'a pas encore été exécuté par l'exploitation |
 
 Aucune migration créée dans ce lot. La régularisation reste l'action
 exploitant documentée dans `docs/LOT-4.2-VITRINES-MARKETPLACE.md`
@@ -81,13 +81,13 @@ d'`AppContext` dans ce lot, conformément au plan) :
 
 Après chaque commit du lot :
 
-| Commande | Résultat |
-| --- | --- |
-| `npm run typecheck` (strict) | ✅ 0 erreur |
-| `npm run lint` | ✅ |
-| `npm run format:check` | ✅ propre (était : 131 fichiers en écart) |
-| `npm test` | ✅ 115 + 16 réussis, 0 échec, 2 ignorés |
-| `npm run build` | ✅ |
+| Commande                     | Résultat                                  |
+| ---------------------------- | ----------------------------------------- |
+| `npm run typecheck` (strict) | ✅ 0 erreur                               |
+| `npm run lint`               | ✅                                        |
+| `npm run format:check`       | ✅ propre (était : 131 fichiers en écart) |
+| `npm test`                   | ✅ 115 + 16 réussis, 0 échec, 2 ignorés   |
+| `npm run build`              | ✅                                        |
 
 Décision `tests/operations-lot3.pg.test.mjs` (2 ignorés) : cette suite
 exerce la **pile Express legacy** sur PostgreSQL réel. Ne pas ajouter de
