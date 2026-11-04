@@ -60,6 +60,7 @@ test('migrations apply cleanly and seed tenants with services and staff', async 
     '20261104110100_marketplace_booking.sql',
     '20261104110200_appointment_notifications.sql',
     '20261104140000_marketplace_customizer.sql',
+    '20261104140100_marketplace_customizer_hardening.sql',
   ];
 
   for (const m of migrations) {
@@ -254,6 +255,7 @@ test('vitrine publique (anon) : retourne les données réelles et filtre le pers
 
   // Seul Kouassi est visible selon visibleStaffIds: [staffKouassiA]
   assert.equal(detail.staff.length, 1);
+  assert.ok(!detail.staff.some((m) => m.id === staffAliA));
   assert.equal(detail.staff[0].name, 'Kouassi Yves');
   // Les champs privés (téléphone, commissions) ne sont pas exposés
   assert.equal(detail.staff[0].phone, undefined);
@@ -275,6 +277,58 @@ test('synchronisation tarifaire en temps réel : une mise à jour ERP est imméd
   assert.equal(Number(coupe.price), 6000); // 6000 XOF direct !
 });
 
+test('durcissement : validation stricte et normalisation de la configuration', async () => {
+  await asUser(ownerA);
+  const base = {
+    layout: 'editorial',
+    accentColor: '#10B981',
+    sections: [
+      { id: 'reviews', enabled: true, position: 0 },
+      { id: 'hero', enabled: true, position: 1 },
+      { id: 'section_inconnue', enabled: true, position: 2 },
+      { id: 'hero', enabled: false, position: 3 }
+    ],
+    featuredServiceIds: [serviceCoupeA],
+    visibleStaffIds: [staffKouassiA],
+    featuredGalleryImageIds: ['https://example.com/cover.jpg'],
+    featuredBranchId: branchA,
+    customTagline: 'Nouveau brouillon non publié'
+  };
+  const saveRes = await db.query('select public.save_marketplace_customizer_draft($1, $2::jsonb) as res', [salonA, JSON.stringify(base)]);
+  const draft = saveRes.rows[0].res.draft_config;
+  // Sections canoniques : 7, inconnue écartée, doublon supprimé, positions 0..6
+  assert.equal(draft.sections.length, 7);
+  assert.deepEqual(draft.sections.map((x) => x.position), [0, 1, 2, 3, 4, 5, 6]);
+  assert.equal(draft.sections[0].id, 'reviews');
+  assert.equal(draft.sections.filter((x) => x.id === 'hero').length, 1);
+  assert.equal(draft.featuredBranchId, branchA);
+
+  // Couleur invalide (injection CSS) rejetée
+  await assert.rejects(
+    async () => db.query('select public.save_marketplace_customizer_draft($1, $2::jsonb)', [salonA, JSON.stringify({ ...base, accentColor: 'red; } body{display:none' })]),
+    (err) => err.code === '22023'
+  );
+  // Image ne appartenant pas au salon rejetée
+  await assert.rejects(
+    async () => db.query('select public.save_marketplace_customizer_draft($1, $2::jsonb)', [salonA, JSON.stringify({ ...base, featuredGalleryImageIds: ['https://evil.example/x.jpg'] })]),
+    (err) => err.code === '22023'
+  );
+  // Slogan trop long rejeté
+  await assert.rejects(
+    async () => db.query('select public.save_marketplace_customizer_draft($1, $2::jsonb)', [salonA, JSON.stringify({ ...base, customTagline: 'x'.repeat(161) })]),
+    (err) => err.code === '22023'
+  );
+});
+
+test('brouillon non public : la vitrine continue d\'afficher la configuration publiée', async () => {
+  await asAnon();
+  const detailRes = await db.query('select public.marketplace_salon_detail($1) as detail', ['barbershop-elite']);
+  const detail = detailRes.rows[0].detail;
+  // Le brouillon 'editorial' enregistré ci-dessus ne doit pas fuiter.
+  assert.equal(detail.customizer.layout, 'elegant');
+  assert.equal(detail.customizer.accentColor, '#D97706');
+});
+
 test('revert et dépublication : réinitialise le draft et désactive la vitrine', async () => {
   await asUser(ownerA);
 
@@ -294,6 +348,25 @@ test('revert et dépublication : réinitialise le draft et désactive la vitrine
   const rev = await db.query('select public.revert_marketplace_customizer_draft($1) as res', [salonA]);
   assert.ok(rev.rows[0].res.draft_config);
   assert.equal(rev.rows[0].res.draft_config.layout, 'elegant'); // restauré depuis published_config
+});
+
+test('personnel : une sélection publiée vide masque toute l\'équipe de la vitrine', async () => {
+  await asUser(ownerA);
+  const cfg = {
+    layout: 'classic',
+    accentColor: '#C9A45C',
+    sections: [{ id: 'hero', enabled: true, position: 0 }],
+    featuredServiceIds: [serviceCoupeA],
+    visibleStaffIds: [],
+    featuredGalleryImageIds: []
+  };
+  await db.query('select public.save_marketplace_customizer_draft($1, $2::jsonb)', [salonA, JSON.stringify(cfg)]);
+  await db.query('select public.publish_marketplace_customizer($1)', [salonA]);
+
+  await asAnon();
+  const detailRes = await db.query('select public.marketplace_salon_detail($1) as detail', ['barbershop-elite']);
+  assert.equal(detailRes.rows[0].detail.staff.length, 0);
+  assert.equal(detailRes.rows[0].detail.customizer.layout, 'classic');
 });
 
 after(async () => {

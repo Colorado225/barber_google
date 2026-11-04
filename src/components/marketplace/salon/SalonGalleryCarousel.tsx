@@ -6,30 +6,31 @@ import { SalonCardStyle } from '../../../types';
 interface SalonGalleryCarouselProps {
   coverImage?: string;
   gallery?: string[];
+  /** Images déjà résolues (sélection du propriétaire) — prioritaires. */
+  images?: string[];
   salonName: string;
   cardStyle?: SalonCardStyle;
   className?: string;
 }
 
-const DEFAULT_BARBER_IMAGES = [
-  'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=1200&q=80',
-  'https://images.unsplash.com/photo-1599351431202-1e0f0137899a?auto=format&fit=crop&w=1200&q=80',
-  'https://images.unsplash.com/photo-1622286342621-4bd786c2447c?auto=format&fit=crop&w=1200&q=80',
-];
-
 export const SalonGalleryCarousel: React.FC<SalonGalleryCarouselProps> = ({
   coverImage,
   gallery = [],
+  images: resolvedImages,
   salonName,
   cardStyle = 'rounded-3xl',
   className = ''
 }) => {
-  const images = [
-    ...(coverImage ? [coverImage] : []),
-    ...gallery.filter((src) => src !== coverImage),
-  ];
+  const images =
+    resolvedImages ??
+    [
+      ...(coverImage ? [coverImage] : []),
+      ...gallery.filter((src) => src !== coverImage),
+    ];
 
-  const displayImages = images.length > 0 ? images : DEFAULT_BARBER_IMAGES;
+  // Aucune image de démonstration externe : un salon sans photo affiche un
+  // panneau neutre à son nom plutôt que les photos d'un autre établissement.
+  const displayImages = images;
   const [index, setIndex] = useState(0);
 
   const goPrev = () => setIndex((prev) => (prev - 1 + displayImages.length) % displayImages.length);
@@ -43,6 +44,15 @@ export const SalonGalleryCarousel: React.FC<SalonGalleryCarouselProps> = ({
         className
       )}
     >
+      {/* État vide : panneau neutre au nom du salon */}
+      {displayImages.length === 0 && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-[#1b1b1f] to-[#101012] text-stone-500">
+          <ImageIcon className="w-10 h-10" aria-hidden="true" />
+          <p className="text-sm font-medium text-stone-300">{salonName}</p>
+          <p className="text-xs">Photos du salon bientôt disponibles</p>
+        </div>
+      )}
+
       {/* Images Slider */}
       {displayImages.map((src, i) => (
         <img
@@ -107,11 +117,13 @@ export const SalonGalleryCarousel: React.FC<SalonGalleryCarouselProps> = ({
       )}
 
       {/* Bottom overlay info */}
-      <div className="absolute bottom-4 left-4 right-4 z-10 flex items-center justify-between text-xs text-white/90">
-        <span className="px-3 py-1 rounded-lg bg-black/40 backdrop-blur-md border border-white/10 font-medium">
-          {images.length > 0 ? 'Galerie officielle du salon' : 'Ambiance du salon'}
-        </span>
-      </div>
+      {displayImages.length > 0 && (
+        <div className="absolute bottom-4 left-4 right-4 z-10 flex items-center justify-between text-xs text-white/90">
+          <span className="px-3 py-1 rounded-lg bg-black/40 backdrop-blur-md border border-white/10 font-medium">
+            Galerie officielle du salon
+          </span>
+        </div>
+      )}
     </div>
   );
 };

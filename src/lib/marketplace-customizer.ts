@@ -2,6 +2,7 @@ import type {
   SalonMarketplaceSettingsRecord,
   SalonMarketplaceViewConfig,
   SalonMarketplaceLayout,
+  SalonMarketplaceSection,
   SalonCardStyle
 } from '../types';
 import { getSupabaseClient } from './supabase';
@@ -42,6 +43,43 @@ export function getDefaultCustomizerConfig(salonId?: string): SalonMarketplaceVi
     customDescription: '',
     themeMode: 'dark',
   };
+}
+
+/**
+ * Sections actives triées selon la position configurée par le propriétaire.
+ * L'ordre est déterministe : position croissante, puis ordre canonique.
+ */
+export function getOrderedEnabledSections(
+  config: SalonMarketplaceViewConfig
+): SalonMarketplaceSection[] {
+  const canonical = getDefaultCustomizerConfig().sections.map((s) => s.id);
+  return [...(config.sections ?? [])]
+    .filter((s) => s.enabled)
+    .sort(
+      (a, b) =>
+        a.position - b.position || canonical.indexOf(a.id) - canonical.indexOf(b.id)
+    );
+}
+
+/**
+ * Images effectivement affichées dans le carrousel public.
+ * Si le propriétaire a sélectionné des images (featuredGalleryImageIds),
+ * seules celles-ci sont affichées, dans l'ordre choisi — la première fait
+ * office de couverture. Sinon : couverture du salon + galerie complète.
+ * Les URLs inconnues (ne appartenant pas au salon) sont ignorées.
+ */
+export function resolveGalleryImages(
+  salon: { coverImage?: string; gallery?: string[] },
+  config: SalonMarketplaceViewConfig
+): string[] {
+  const all = [
+    ...(salon.coverImage ? [salon.coverImage] : []),
+    ...(salon.gallery ?? []).filter((src) => src && src !== salon.coverImage),
+  ];
+  const selected = (config.featuredGalleryImageIds ?? []).filter((src) =>
+    all.includes(src)
+  );
+  return selected.length > 0 ? selected : all;
 }
 
 function mapSettingsRecord(data: DbRow): SalonMarketplaceSettingsRecord {
