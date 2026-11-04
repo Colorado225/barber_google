@@ -168,14 +168,14 @@ export const MarketplaceHome: React.FC = () => {
               <div className="relative flex min-w-0 flex-1 items-center rounded-xl border border-transparent transition focus-within:border-[#C9A45C]/60 focus-within:bg-white/[0.03] focus-within:ring-2 focus-within:ring-[#C9A45C]/25">
                 <Search aria-hidden="true" className="pointer-events-none absolute left-4 h-4 w-4 text-[#d9b66e]" />
                 <label htmlFor="marketplace-search" className="sr-only">
-                  Rechercher un salon, une spécialité ou une commune
+                  Rechercher un salon par nom ou commune
                 </label>
                 <input
                   id="marketplace-search"
                   type="search"
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="Salon, spécialité ou commune"
+                  placeholder="Nom du salon ou commune"
                   className="w-full rounded-xl bg-transparent py-4 pl-11 pr-4 text-sm text-white placeholder:text-stone-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#C9A45C]/75"
                 />
               </div>
