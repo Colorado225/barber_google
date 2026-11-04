@@ -18,8 +18,28 @@ import { ShopView } from './components/erp/ShopView';
 import { SalonQrCodeView } from './components/erp/SalonQrCodeView';
 import { LoginPage } from './components/auth/LoginPage';
 import { SignupPage } from './components/auth/SignupPage';
+import { VerifyEmailPage } from './components/auth/VerifyEmailPage';
+import { ForgotPasswordPage } from './components/auth/ForgotPasswordPage';
+import { ResetPasswordPage } from './components/auth/ResetPasswordPage';
+import { OnboardingGate } from './components/auth/OnboardingGate';
+import { AppProvider } from './context/AppContext';
+import { ToastContainer } from './components/common/ToastContainer';
 
 const router = createBrowserRouter([
+  // L'ERP vit hors du shell marketplace : son propre garde d'accès s'applique
+  // AVANT tout rendu métier (session, e-mail vérifié, membership actif).
+  {
+    path: '/app/*',
+    element: (
+      <OnboardingGate>
+        <AppProvider>
+          <ErpLayout />
+          {/* Les toasts de l'ERP vivent hors du shell marketplace. */}
+          <ToastContainer />
+        </AppProvider>
+      </OnboardingGate>
+    ),
+  },
   {
     path: '/',
     element: (
@@ -47,12 +67,26 @@ const router = createBrowserRouter([
         element: <SignupPage />,
       },
       {
-        // ErpLayout is a self-contained shell: it renders its own sidebar and
-        // panels, and reads the active view from the URL segment.
-        path: 'app/*',
-        element: <ErpLayout />,
+        path: 'register',
+        element: <SignupPage />,
       },
-    ],
+      {
+        path: 'verifier-email',
+        element: <VerifyEmailPage />,
+      },
+      {
+        path: 'mot-de-passe-oublie',
+        element: <ForgotPasswordPage />,
+      },
+      {
+        path: 'reinitialiser',
+        element: <ResetPasswordPage />,
+      },
+          {
+            path: 'vitrine',
+            element: <ShopView />,
+          },
+        ],
   },
 ]);
 

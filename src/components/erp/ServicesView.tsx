@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Service, ServiceCategory } from '../../types';
 import { FormModal, Field, inputClass, ConfirmDelete } from './FormModal';
-import { Scissors, Plus, Pencil } from 'lucide-react';
+import { Scissors, Plus, Pencil, Power } from 'lucide-react';
 
 const CATEGORIES: { id: ServiceCategory; label: string }[] = [
   { id: 'coupe', label: 'Coupe' },
@@ -20,6 +20,7 @@ type FormState = {
   description: string;
   price: string;
   durationMinutes: string;
+  prepMinutes: string;
   popular: boolean;
 };
 
@@ -29,11 +30,12 @@ const emptyForm: FormState = {
   description: '',
   price: '',
   durationMinutes: '30',
+  prepMinutes: '0',
   popular: false
 };
 
 export const ServicesView: React.FC = () => {
-  const { activeSalon, services, formatPrice, addService, updateService, deleteService, addToast } =
+  const { activeSalon, services, formatPrice, addService, updateService, deleteService, setServiceActive, addToast } =
     useApp();
 
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -59,6 +61,7 @@ export const ServicesView: React.FC = () => {
       description: service.description,
       price: String(service.price),
       durationMinutes: String(service.durationMinutes),
+      prepMinutes: String(service.prepMinutes ?? 0),
       popular: Boolean(service.popular)
     });
     setIsFormOpen(true);
@@ -68,6 +71,7 @@ export const ServicesView: React.FC = () => {
     e.preventDefault();
     const price = Number(form.price);
     const duration = Number(form.durationMinutes);
+    const prepMinutes = Number(form.prepMinutes);
 
     if (!form.name.trim()) {
       addToast('Le nom de la prestation est obligatoire.', 'error');
@@ -81,6 +85,10 @@ export const ServicesView: React.FC = () => {
       addToast('La durée doit être supérieure à 0 minute.', 'error');
       return;
     }
+    if (!Number.isFinite(prepMinutes) || prepMinutes < 0 || prepMinutes > 120) {
+      addToast('Le temps de préparation doit être compris entre 0 et 120 minutes.', 'error');
+      return;
+    }
 
     const payload = {
       salonId: activeSalon.id,
@@ -89,6 +97,7 @@ export const ServicesView: React.FC = () => {
       description: form.description.trim(),
       price,
       durationMinutes: duration,
+      prepMinutes,
       popular: form.popular
     };
 
@@ -157,6 +166,14 @@ export const ServicesView: React.FC = () => {
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-2">
                       <button
+                        onClick={() => setServiceActive(srv.id, !(srv.isActive ?? true))}
+                        title={(srv.isActive ?? true) ? 'Désactiver (retirée du catalogue)' : 'Réactiver'}
+                        aria-pressed={srv.isActive ?? true}
+                        className={`p-1 rounded cursor-pointer ${(srv.isActive ?? true) ? 'text-emerald-400 hover:text-emerald-300' : 'text-stone-500 hover:text-stone-300'}`}
+                      >
+                        <Power className="w-3.5 h-3.5" />
+                      </button>
+                      <button
                         onClick={() => openEdit(srv)}
                         title="Modifier"
                         className="text-stone-400 hover:text-white p-1 rounded cursor-pointer"
@@ -215,6 +232,18 @@ export const ServicesView: React.FC = () => {
                 value={form.durationMinutes}
                 onChange={(e) => setForm({ ...form, durationMinutes: e.target.value })}
               />
+            </Field>
+
+            <Field label="Préparation (minutes)">
+              <input
+                type="number"
+                min={0}
+                max={120}
+                className={inputClass}
+                value={form.prepMinutes}
+                onChange={(e) => setForm({ ...form, prepMinutes: e.target.value })}
+              />
+              <span className="text-[10px] text-stone-500">Temps ajouté à la fin du créneau réservé.</span>
             </Field>
           </div>
 

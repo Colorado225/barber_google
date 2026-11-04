@@ -1,56 +1,246 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { authApi, ApiError } from '../lib/api';
+import type { User } from '@supabase/supabase-js';
+import { getSupabaseClient, isSupabaseConfigured } from '../lib/supabase';
+import { getRolePermissions } from '../lib/permissions';
+
+interface SessionContext {
+  user: AuthUser;
+  memberships: Array<{
+    id: string;
+    salonId: string;
+    salonName: string;
+    organizationId: string;
+    organizationName: string;
+    branchId: string | null;
+    branchName: string | null;
+    role: string;
+    status: string;
+    permissions: string[];
+  }>;
+  onboarding: {
+    currentStep: 'email_verification' | 'salon_creation' | 'setup' | 'completed';
+    emailVerified: boolean;
+    salonCreated: boolean;
+    setupCompleted: boolean;
+  } | null;
+}
 
 export interface AuthUser {
   id: string;
   name: string;
   email: string;
+  emailVerified: boolean;
 }
+
+export type SignUpResult = { status: 'confirmation-required' } | { status: 'authenticated' };
 
 interface AuthContextType {
   user: AuthUser | null;
+  memberships: SessionContext['memberships'];
+  onboarding: SessionContext['onboarding'];
   loading: boolean;
   error: string | null;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (name: string, email: string, password: string) => Promise<void>;
+  signUp: (name: string, email: string, password: string) => Promise<SignUpResult>;
   signOut: () => Promise<void>;
+  refreshSession: () => Promise<void>;
+  verifyEmail: (tokenHash: string) => Promise<void>;
+  resendVerification: (email: string) => Promise<void>;
+  requestPasswordReset: (email: string) => Promise<void>;
+  resetPassword: (password: string) => Promise<void>;
+  createSalon: (data: { organizationName: string; salonName: string; branchName: string }) => Promise<string>;
+  completeOnboarding: () => Promise<void>;
   isAuthenticated: boolean;
+  hasWorkspace: boolean;
+  hasPermission: (permission: string, salonId?: string) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const normalizeEmail = (email: string) => email.trim().toLowerCase();
+
+function normalizeUserFromSupabase(user: User | null): AuthUser | null {
+  if (!user) return null;
+  const appMetadata = user.app_metadata as { name?: string };
+  const userMetadata = user.user_metadata as { name?: string };
+  return {
+    id: user.id,
+    name: userMetadata.name || appMetadata.name || user.email || '',
+    email: user.email || '',
+    emailVerified: Boolean(user.email_confirmed_at),
+  };
+}
+
+async function loadMemberships(userId: string): Promise<SessionContext['memberships']> {
+  const supabase = getSupabaseClient();
+  const { data: membershipsData, error: membershipsError } = await supabase
+    .from('memberships')
+    .select('id, role, status, salon_id')
+    .eq('user_id', userId)
+    .eq('status', 'active');
+
+  if (membershipsError) throw membershipsError;
+
+  const salonIds = (membershipsData ?? []).map((item) => item.salon_id).filter(Boolean);
+  if (!salonIds.length) return [];
+
+  const membershipIds = (membershipsData ?? []).map((membership) => membership.id);
+  const [salonsResult, organizationsResult, branchesResult, branchMembershipsResult] = await Promise.all([
+    supabase.from('salons').select('id, name, organization_id').in('id', salonIds),
+    supabase.from('organizations').select('id, name'),
+    supabase.from('branches').select('id, salon_id, name').in('salon_id', salonIds),
+    supabase.from('branch_memberships').select('membership_id, branch_id').in('membership_id', membershipIds),
+  ]);
+  if (salonsResult.error) throw salonsResult.error;
+  if (organizationsResult.error) throw organizationsResult.error;
+  if (branchesResult.error) throw branchesResult.error;
+  if (branchMembershipsResult.error) throw branchMembershipsResult.error;
+
+  const organizationMap = new Map((organizationsResult.data ?? []).map((org) => [org.id, org.name]));
+  const salonMap = new Map(
+    (salonsResult.data ?? []).map((salon) => [
+      salon.id,
+      { name: salon.name, organizationId: salon.organization_id },
+    ]),
+  );
+  const branchMap = new Map((branchesResult.data ?? []).map((branch) => [branch.id, branch]));
+  const branchByMembership = new Map(
+    (branchMembershipsResult.data ?? []).map((membership) => [
+      membership.membership_id,
+      membership.branch_id,
+    ]),
+  );
+
+  return (membershipsData ?? []).map((membership) => {
+    const salon = salonMap.get(membership.salon_id);
+    const branchId = branchByMembership.get(membership.id) ?? null;
+    const permissions = getRolePermissions(membership.role);
+
+    return {
+      id: membership.id,
+      salonId: membership.salon_id,
+      salonName: salon?.name ?? 'Salon',
+      organizationId: salon?.organizationId ?? '',
+      organizationName: salon
+        ? (organizationMap.get(salon.organizationId) ?? 'Organisation')
+        : 'Organisation',
+      branchId,
+      branchName: branchId ? (branchMap.get(branchId)?.name ?? null) : null,
+      role: membership.role,
+      status: membership.status,
+      permissions,
+    };
+  });
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [memberships, setMemberships] = useState<SessionContext['memberships']>([]);
+  const [onboarding, setOnboarding] = useState<SessionContext['onboarding']>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // La session vit dans un cookie HttpOnly : on la valide au chargement.
+  const applySession = useCallback((context: SessionContext) => {
+    setUser(context.user);
+    setMemberships(context.memberships ?? []);
+    setOnboarding(context.onboarding ?? null);
+  }, []);
+
+  const clearSessionState = useCallback(() => {
+    setUser(null);
+    setMemberships([]);
+    setOnboarding(null);
+  }, []);
+
+  const refreshSession = useCallback(async () => {
+    const supabase = getSupabaseClient();
+    const {
+      data: { user: authUser },
+      error: userError,
+    } = await supabase.auth.getUser();
+    if (userError) throw userError;
+    if (!authUser) {
+      clearSessionState();
+      setError(null);
+      return;
+    }
+
+    const nextUser = normalizeUserFromSupabase(authUser);
+    if (!nextUser) {
+      clearSessionState();
+      setError(null);
+      return;
+    }
+
+    const nextMemberships = await loadMemberships(nextUser.id);
+    const { data: onboardingData, error: onboardingError } = await supabase
+      .from('onboarding_state')
+      .select('current_step, email_verified, salon_created, setup_completed')
+      .eq('user_id', nextUser.id)
+      .maybeSingle();
+    if (onboardingError) throw onboardingError;
+    applySession({
+      user: nextUser,
+      memberships: nextMemberships,
+      onboarding: onboardingData
+        ? {
+            currentStep: onboardingData.current_step,
+            emailVerified: onboardingData.email_verified,
+            salonCreated: onboardingData.salon_created,
+            setupCompleted: onboardingData.setup_completed,
+          }
+        : null,
+    });
+    setError(null);
+  }, [applySession, clearSessionState]);
+
   useEffect(() => {
     let cancelled = false;
-    authApi
-      .session()
-      .then((data) => {
-        if (!cancelled) setUser(data?.user ?? null);
-      })
-      .catch(() => {
-        if (!cancelled) setUser(null);
-      })
-      .finally(() => {
+
+    async function bootstrap() {
+      if (!isSupabaseConfigured()) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const {
+          data: { session },
+          error,
+        } = await getSupabaseClient().auth.getSession();
+        if (cancelled) return;
+        if (error) throw error;
+        if (!session) {
+          clearSessionState();
+          return;
+        }
+        await refreshSession();
+      } catch (bootstrapError) {
+        if (!cancelled) {
+          setError(
+            bootstrapError instanceof Error
+              ? bootstrapError.message
+              : 'Impossible de vérifier la session. Réessayez.',
+          );
+        }
+      } finally {
         if (!cancelled) setLoading(false);
-      });
+      }
+    }
+
+    void bootstrap();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [clearSessionState, refreshSession]);
 
-  const handle = useCallback(async (fn: () => Promise<void>) => {
+  const handle = useCallback(async <T,>(fn: () => Promise<T>): Promise<T> => {
     setError(null);
-    setLoading(true);
     try {
-      await fn();
+      setLoading(true);
+      return await fn();
     } catch (e) {
-      const message =
-        e instanceof ApiError ? e.message : 'Service temporairement indisponible.';
+      const message = e instanceof Error ? e.message : 'Service temporairement indisponible.';
       setError(message);
       throw e;
     } finally {
@@ -60,28 +250,125 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signIn = (email: string, password: string) =>
     handle(async () => {
-      const data = await authApi.login(email, password);
-      setUser(data.user);
+      const { error } = await getSupabaseClient().auth.signInWithPassword({
+        email: normalizeEmail(email),
+        password,
+      });
+      if (error) throw error;
+      await refreshSession();
     });
 
-  const signUp = (name: string, email: string, password: string) =>
-    handle(async () => {
-      // L'inscription ne connecte pas automatiquement : on enchaîne sur la connexion
-      // uniquement après création réussie du compte.
-      await authApi.signup(name, email, password);
-      const data = await authApi.login(email, password);
-      setUser(data.user);
+  const emailRedirectTo = () => new URL('/verifier-email', window.location.origin).toString();
+
+  const signUp = (name: string, email: string, password: string): Promise<SignUpResult> =>
+    handle(async (): Promise<SignUpResult> => {
+      const { data, error } = await getSupabaseClient().auth.signUp({
+        email: normalizeEmail(email),
+        password,
+        options: {
+          data: { name: name.trim().replace(/\s+/g, ' ') },
+          emailRedirectTo: emailRedirectTo(),
+        },
+      });
+      if (error) throw error;
+
+      if (data.session) {
+        await refreshSession();
+        return { status: 'authenticated' };
+      }
+
+      return { status: 'confirmation-required' };
     });
 
   const signOut = () =>
     handle(async () => {
-      await authApi.logout();
-      setUser(null);
+      const { error } = await getSupabaseClient().auth.signOut();
+      if (error) throw error;
+      clearSessionState();
     });
+
+  const verifyEmail = useCallback(
+    (tokenHash: string) =>
+      handle(async () => {
+        const { error } = await getSupabaseClient().auth.verifyOtp({ token_hash: tokenHash, type: 'signup' });
+        if (error) throw error;
+        await refreshSession();
+      }),
+    [handle, refreshSession],
+  );
+
+  const resendVerification = (email: string) =>
+    handle(async () => {
+      const { error } = await getSupabaseClient().auth.resend({
+        type: 'signup',
+        email: normalizeEmail(email),
+        options: { emailRedirectTo: emailRedirectTo() },
+      });
+      if (error) throw error;
+    });
+
+  const requestPasswordReset = (email: string) =>
+    handle(async () => {
+      const { error } = await getSupabaseClient().auth.resetPasswordForEmail(normalizeEmail(email), {
+        redirectTo: new URL('/reinitialiser', window.location.origin).toString(),
+      });
+      if (error) throw error;
+    });
+
+  const resetPassword = (password: string) =>
+    handle(async () => {
+      const { error } = await getSupabaseClient().auth.updateUser({ password });
+      if (error) throw error;
+    });
+
+  const createSalon = (data: { organizationName: string; salonName: string; branchName: string }) =>
+    handle(async () => {
+      const { data: result, error } = await getSupabaseClient().rpc('create_salon', {
+        p_organization_name: data.organizationName,
+        p_salon_name: data.salonName,
+        p_branch_name: data.branchName,
+      });
+      if (error) throw error;
+      const created = Array.isArray(result) ? result[0] : result;
+      if (!created?.salon_id) throw new Error('La création du salon n’a pas retourné son identifiant.');
+
+      await refreshSession();
+      return created.salon_id as string;
+    });
+
+  const completeOnboarding = () =>
+    handle(async () => {
+      await refreshSession();
+    });
+
+  const hasPermission = (permission: string, salonId?: string) =>
+    memberships.some(
+      (membership) =>
+        (!salonId || membership.salonId === salonId) && membership.permissions.includes(permission),
+    );
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, error, signIn, signUp, signOut, isAuthenticated: !!user }}
+      value={{
+        user,
+        memberships,
+        onboarding,
+        loading,
+        error,
+        signIn,
+        signUp,
+        signOut,
+        refreshSession,
+        verifyEmail,
+        resendVerification,
+        requestPasswordReset,
+        resetPassword,
+        createSalon,
+        completeOnboarding,
+        isAuthenticated: !!user,
+        hasWorkspace: memberships.length > 0,
+        hasPermission,
+      }}
     >
       {children}
     </AuthContext.Provider>
@@ -92,4 +379,30 @@ export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) throw new Error('useAuth must be used within an AuthProvider');
   return context;
+};
+
+export const useOptionalAuth = (): AuthContextType => {
+  const context = useContext(AuthContext);
+  return (
+    context ?? {
+      user: null,
+      memberships: [],
+      onboarding: null,
+      loading: false,
+      error: null,
+      signIn: async () => {},
+      signUp: async (): Promise<SignUpResult> => ({ status: 'confirmation-required' }),
+      signOut: async () => {},
+      refreshSession: async () => {},
+      verifyEmail: async () => {},
+      resendVerification: async () => {},
+      requestPasswordReset: async () => {},
+      resetPassword: async () => {},
+      createSalon: async () => '',
+      completeOnboarding: async () => {},
+      isAuthenticated: false,
+      hasWorkspace: false,
+      hasPermission: () => false,
+    }
+  );
 };

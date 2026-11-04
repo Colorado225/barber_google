@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
-import { useApp } from '../../context/AppContext';
+import React, { useEffect, useState } from 'react';
+import { useOptionalApp } from '../../context/AppContext';
+import { useOptionalAuth } from '../../context/AuthContext';
 import { Appointment } from '../../types';
 import { DashboardView } from './DashboardView';
-import { PersonalizedDashboard } from './PersonalizedDashboard';
 import { AppointmentsCalendarView } from './AppointmentsCalendarView';
 import { CashRegisterView } from './CashRegisterView';
 import { CrmClientsView } from './CrmClientsView';
@@ -86,9 +86,11 @@ export const ErpLayout: React.FC = () => {
     cashSession,
     formatPrice,
     setMode,
-    userRole,
-    setIsOnboardingOpen
-  } = useApp();
+    isSyncing,
+    syncError,
+    reloadWorkspace
+  } = useOptionalApp();
+  const { memberships, hasPermission } = useOptionalAuth();
 
   const [activeTab, setActiveTab] = useState<ErpTab>(() => {
     if (typeof window === 'undefined') return 'dashboard';
@@ -106,22 +108,63 @@ export const ErpLayout: React.FC = () => {
   const [isNewPaymentOpen, setIsNewPaymentOpen] = useState(false);
   const [preselectedAppointment, setPreselectedAppointment] = useState<Appointment | null>(null);
 
-  const navItems: { id: ErpTab; label: string; icon: any; roles?: string[] }[] = [
-    { id: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
-    { id: 'calendar', label: 'Planning & RDV', icon: Calendar },
-    { id: 'cash', label: 'Caisse & Encaissements', icon: CreditCard },
-    { id: 'crm', label: 'CRM Clients', icon: Users },
-    { id: 'services', label: 'Prestations & Tarifs', icon: Scissors },
-    { id: 'staff', label: 'Équipe & Commissions', icon: UserCheck },
-    { id: 'loyalty', label: 'Fidélité', icon: Heart },
-    { id: 'expenses', label: 'Dépenses & Bilan', icon: TrendingDown },
-    { id: 'inventory', label: 'Stocks & Produits', icon: Package },
-    { id: 'marketplace_showcase', label: 'Vitrine Marketplace', icon: Globe },
-    { id: 'reports', label: 'Rapports', icon: BarChart3 },
-    { id: 'qr_code', label: 'QR Code Réservation', icon: QrCode },
-    { id: 'storefront', label: 'Personnalisation Salon', icon: Store },
-    { id: 'saas', label: 'Abonnement SaaS', icon: Sparkles }
+  const canSee = (permission: string) =>
+    memberships.length > 0 && hasPermission(permission, activeSalon?.id);
+
+  const navItems: { id: ErpTab; label: string; icon: any; permission?: string }[] = [
+    { id: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard, permission: 'dashboard.read' },
+    { id: 'calendar', label: 'Planning & RDV', icon: Calendar, permission: 'appointments.read' },
+    { id: 'cash', label: 'Caisse & Encaissements', icon: CreditCard, permission: 'payments.create' },
+    { id: 'crm', label: 'CRM Clients', icon: Users, permission: 'clients.read' },
+    { id: 'services', label: 'Prestations & Tarifs', icon: Scissors, permission: 'services.read' },
+    { id: 'staff', label: 'Équipe & Commissions', icon: UserCheck, permission: 'staff.read' },
+    { id: 'loyalty', label: 'Fidélité', icon: Heart, permission: 'loyalty.read' },
+    { id: 'expenses', label: 'Dépenses & Bilan', icon: TrendingDown, permission: 'expenses.read' },
+    { id: 'inventory', label: 'Stocks & Produits', icon: Package, permission: 'stock.read' },
+    { id: 'marketplace_showcase', label: 'Vitrine Marketplace', icon: Globe, permission: 'salon.read' },
+    { id: 'reports', label: 'Rapports', icon: BarChart3, permission: 'reports.read' },
+    { id: 'qr_code', label: 'QR Code Réservation', icon: QrCode, permission: 'salon.read' },
+    { id: 'storefront', label: 'Personnalisation Salon', icon: Store, permission: 'salon.update' },
+    { id: 'saas', label: 'Abonnement SaaS', icon: Sparkles, permission: 'subscriptions.read' }
   ];
+
+  // Sans session serveur (démonstration locale), tous les onglets restent visibles.
+  const visibleNavItems = memberships.length ? navItems.filter((i) => !i.permission || canSee(i.permission)) : navItems;
+  const visibleActiveTab = visibleNavItems.some((item) => item.id === activeTab) ? activeTab : 'dashboard';
+
+  useEffect(() => {
+    if (visibleActiveTab === activeTab) return;
+    setActiveTab(visibleActiveTab);
+    window.history.replaceState({}, '', `/app/${TAB_PATHS[visibleActiveTab]}`);
+  }, [activeTab, visibleActiveTab]);
+
+  if (memberships.length > 0 && (isSyncing || syncError || activeSalon?.id !== memberships[0].salonId)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#0d0d0e] px-4 text-center text-stone-200">
+        <div className="max-w-lg space-y-4">
+          <h1 className="text-xl font-bold">{syncError ? 'Chargement de l’espace impossible' : 'Chargement de votre espace…'}</h1>
+          {syncError && <p role="alert" className="text-sm text-red-300">{syncError}</p>}
+          {syncError && (
+            <button
+              type="button"
+              onClick={() => void reloadWorkspace(memberships[0].salonId)}
+              className="px-5 py-3 rounded-lg bg-[#C9A45C] text-[#101010] font-semibold"
+            >
+              Réessayer
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (!activeSalon) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#0d0d0e] text-stone-200">
+        Chargement de votre salon…
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0d0d0e] flex flex-col md:flex-row text-stone-200">
@@ -175,9 +218,9 @@ export const ErpLayout: React.FC = () => {
 
         {/* Navigation Items */}
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const Icon = item.icon;
-            const isActive = activeTab === item.id;
+            const isActive = visibleActiveTab === item.id;
             return (
               <button
                 key={item.id}
@@ -204,12 +247,12 @@ export const ErpLayout: React.FC = () => {
           <div className="p-3 rounded-xl bg-[#161619] border border-[#242428] text-xs">
             <div className="flex items-center justify-between mb-1">
               <span className="text-[11px] font-semibold text-stone-400">Tiroir Caisse :</span>
-              <span className={`text-[10px] font-bold ${cashSession.status === 'open' ? 'text-emerald-400' : 'text-stone-500'}`}>
-                {cashSession.status === 'open' ? 'Ouverte' : 'Fermée'}
+              <span className={`text-[10px] font-bold ${cashSession?.status === 'open' ? 'text-emerald-400' : 'text-stone-500'}`}>
+                {cashSession ? (cashSession.status === 'open' ? 'Ouverte' : 'Fermée') : 'Non configurée'}
               </span>
             </div>
             <div className="font-extrabold text-[#E5C378] text-sm">
-              {formatPrice(cashSession.theoreticalBalance)}
+              {cashSession ? formatPrice(cashSession.theoreticalBalance) : '—'}
             </div>
           </div>
 
@@ -236,15 +279,6 @@ export const ErpLayout: React.FC = () => {
 
           <div className="flex items-center gap-3">
             <button
-              onClick={() => setIsOnboardingOpen(true)}
-              className="bg-[#1c1913] hover:bg-[#262118] text-[#C9A45C] border border-[#C9A45C]/40 font-semibold text-xs px-3 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
-              title="Configurer et personnaliser entièrement le salon"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">Assistant Onboarding</span>
-            </button>
-
-            <button
               onClick={() => {
                 setNewAppointmentSlot({});
                 setIsNewAppointmentOpen(true);
@@ -270,9 +304,7 @@ export const ErpLayout: React.FC = () => {
 
         {/* Dynamic Tab Body */}
         <main className="p-4 sm:p-6 lg:p-8 flex-1">
-          {activeTab === 'dashboard' && (activeSalon.demoOnboarding ? (
-            <PersonalizedDashboard onNavigate={setActiveTab} onNewAppointment={() => { setNewAppointmentSlot({}); setIsNewAppointmentOpen(true); }} />
-          ) : (
+          {visibleActiveTab === 'dashboard' && (
             <DashboardView
               onOpenNewAppointment={() => {
                 setNewAppointmentSlot({});
@@ -283,33 +315,33 @@ export const ErpLayout: React.FC = () => {
                 setIsNewPaymentOpen(true);
               }}
             />
-          ))}
+          )}
 
-          {activeTab === 'calendar' && <PlanningView />}
+          {visibleActiveTab === 'calendar' && <PlanningView />}
 
-          {activeTab === 'cash' && <CashRegisterView />}
+          {visibleActiveTab === 'cash' && <CashRegisterView />}
 
-          {activeTab === 'loyalty' && <LoyaltyView />}
+          {visibleActiveTab === 'loyalty' && <LoyaltyView />}
 
-          {activeTab === 'crm' && <ClientsView />}
+          {visibleActiveTab === 'crm' && <ClientsView />}
 
-          {activeTab === 'services' && <ServicesView />}
+          {visibleActiveTab === 'services' && <ServicesView />}
 
-          {activeTab === 'staff' && <StaffView />}
+          {visibleActiveTab === 'staff' && <StaffView />}
 
-          {activeTab === 'expenses' && <FinanceExpensesView />}
+          {visibleActiveTab === 'expenses' && <FinanceExpensesView />}
 
-          {activeTab === 'inventory' && <InventoryView />}
+          {visibleActiveTab === 'inventory' && <InventoryView />}
 
-          {activeTab === 'marketplace_showcase' && <MarketplaceShowcaseView />}
+          {visibleActiveTab === 'marketplace_showcase' && <MarketplaceShowcaseView />}
 
-          {activeTab === 'reports' && <ReportsView />}
+          {visibleActiveTab === 'reports' && <ReportsView />}
 
-          {activeTab === 'qr_code' && <SalonQrCodeView />}
+          {visibleActiveTab === 'qr_code' && <SalonQrCodeView />}
 
-          {activeTab === 'storefront' && <SalonProfileSettingsView />}
+          {visibleActiveTab === 'storefront' && <SalonProfileSettingsView />}
 
-          {activeTab === 'saas' && <SaaSPlanView />}
+          {visibleActiveTab === 'saas' && <SaaSPlanView />}
         </main>
       </div>
 

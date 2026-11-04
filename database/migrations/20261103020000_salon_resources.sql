@@ -145,14 +145,24 @@ as $$
       and case p_permission
         when 'salon.read' then true
         when 'salon.update' then m.role = 'owner'
+        -- Référentiel
         when 'catalog.write' then m.role in ('owner', 'manager')
         when 'team.write' then m.role in ('owner', 'manager')
+        -- Clients
         when 'clients.read' then m.role in ('owner', 'manager', 'receptionist', 'barber', 'cashier', 'accountant')
         when 'clients.write' then m.role in ('owner', 'manager', 'receptionist')
+        -- Rendez-vous
+        when 'appointments.read' then m.role in ('owner', 'manager', 'receptionist', 'barber', 'cashier')
+        when 'appointments.write' then m.role in ('owner', 'manager', 'receptionist')
+        -- Caisse, paiements, stocks, dépenses, fidélité
         when 'finance.write' then m.role in ('owner', 'manager', 'cashier')
+        when 'payments.refund' then m.role in ('owner', 'manager')
         when 'stock.write' then m.role in ('owner', 'manager')
+        when 'expenses.manage' then m.role in ('owner', 'manager')
         when 'loyalty.write' then m.role in ('owner', 'manager')
+        -- Rapports, succursales
         when 'reports.read' then m.role in ('owner', 'manager', 'accountant')
+        when 'expenses.read' then m.role in ('owner', 'manager', 'accountant')
         when 'branch.create' then m.role in ('owner', 'manager')
         when 'branch.update' then m.role in ('owner', 'manager')
         else false

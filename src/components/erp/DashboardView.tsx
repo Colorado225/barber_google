@@ -147,6 +147,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     [revenuePeriod, salonTransactions, salonAppointments, salonExpenses]
   );
 
+  // Variation globale sur la période, calculée uniquement à partir des mois réels.
+  const periodGrowth = useMemo(() => {
+    const first = monthlyData[0];
+    const last = monthlyData[monthlyData.length - 1];
+    if (!first || !last || first === last || first.revenue === 0) return null;
+    return Math.round(((last.revenue - first.revenue) / first.revenue) * 1000) / 10;
+  }, [monthlyData]);
+
   // Max value for revenue scaling
   const maxRevenueVal = useMemo(() => {
     const vals = monthlyData.map((d) =>
@@ -187,6 +195,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   return (
     <div className="space-y-8 animate-in fade-in">
+      {/* Badge de démonstration : tant que les données sont locales/fictives. */}
+
       {/* 0. Top Alert Banner if any low stock */}
       {lowStockItems.length > 0 && (
         <div className="p-4 rounded-2xl bg-amber-950/40 border border-amber-600/40 flex items-center justify-between text-amber-200 text-xs shadow-md">
@@ -504,7 +514,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 Moyenne période : {formatPrice(Math.round(monthlyData.reduce((a, b) => a + b.revenue, 0) / monthlyData.length))}
               </span>
             </div>
-            <span className="text-[#C9A45C] font-semibold">Taux de croissance global : +18.2%</span>
+            <span className="text-[#C9A45C] font-semibold">
+              {periodGrowth === null
+                ? 'Taux de croissance : aucune donnée comparable'
+                : `Évolution sur la période : ${periodGrowth >= 0 ? '+' : ''}${periodGrowth}%`}
+            </span>
           </div>
         </div>
       </div>

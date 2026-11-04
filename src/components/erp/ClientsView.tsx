@@ -196,11 +196,13 @@ export const ClientsView: React.FC = () => {
                       {SEGMENT_LABELS[client.segment]}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-[#a9a9a9]">{client.visitsCount}</td>
+                  <td className="px-4 py-3 text-[#a9a9a9]">{client.visitsCount ?? '—'}</td>
                   <td className="px-4 py-3 text-[#E5C378] font-semibold">
-                    {client.totalSpent.toLocaleString('fr-FR')} FCFA
+                    {client.totalSpent === undefined
+                      ? '—'
+                      : `${client.totalSpent.toLocaleString('fr-FR')} FCFA`}
                   </td>
-                  <td className="px-4 py-3 text-[#a9a9a9] text-xs">{client.lastVisit}</td>
+                  <td className="px-4 py-3 text-[#a9a9a9] text-xs">{client.lastVisit || '—'}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-2">
                       <button

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useApp } from '../../context/AppContext';
+import { useOptionalApp } from '../../context/AppContext';
 import { Salon, Service, PaymentMethod } from '../../types';
 import {
   X,
@@ -28,10 +28,9 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({ salon, onClo
     staff,
     reviews,
     formatPrice,
-    checkSlotAvailability,
     bookAppointment,
     addReview
-  } = useApp();
+  } = useOptionalApp();
 
   const salonServices = services.filter((s) => s.salonId === salon.id);
   const salonStaff = staff.filter((s) => s.salonId === salon.id);
@@ -52,20 +51,10 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({ salon, onClo
   const [reviewComment, setReviewComment] = useState('');
 
   // Selected gallery image
-  const [activeImage, setActiveImage] = useState<string>(salon.coverImage);
+  const [activeImage, setActiveImage] = useState<string>(salon.coverImage ?? '');
 
   // Booking state
-  const [selectedService, setSelectedService] = useState<Service>(
-    salonServices[0] || {
-      id: 'default',
-      salonId: salon.id,
-      name: 'Coupe classique',
-      category: 'coupe',
-      description: 'Coupe soignée ciseaux et tondeuse.',
-      price: salon.minPrice,
-      durationMinutes: 30
-    }
-  );
+  const [selectedService, setSelectedService] = useState<Service | null>(salonServices[0] ?? null);
 
   const [selectedStaffId, setSelectedStaffId] = useState<string>('any');
 
@@ -86,20 +75,9 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({ salon, onClo
 
   const [selectedDate, setSelectedDate] = useState<string>(dateOptions[0].dateStr);
 
-  const timeSlots = [
-    '09:30',
-    '10:15',
-    '11:00',
-    '12:00',
-    '14:00',
-    '15:30',
-    '16:15',
-    '17:00',
-    '18:30',
-    '19:15'
-  ];
+  const timeSlots: string[] = [];
 
-  const [selectedTime, setSelectedTime] = useState<string>('15:30');
+  const [selectedTime, setSelectedTime] = useState<string>('');
   const [clientName, setClientName] = useState<string>('');
   const [clientPhone, setClientPhone] = useState<string>('');
   const [paymentChoice, setPaymentChoice] = useState<PaymentMethod>('cash');
@@ -125,8 +103,12 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({ salon, onClo
     { key: 'coloration', label: 'COLORATION' }
   ];
 
-  const handleBookingSubmit = (e: React.FormEvent) => {
+  const handleBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!selectedService || !selectedTime) {
+      alert('Aucune prestation ou disponibilité réelle n’est actuellement chargée.');
+      return;
+    }
     if (!clientName.trim() || !clientPhone.trim()) {
       alert('Veuillez renseigner votre nom et votre numéro de téléphone.');
       return;
@@ -134,7 +116,7 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({ salon, onClo
 
     setIsBookingSubmitting(true);
 
-    const result = bookAppointment({
+    const result = await bookAppointment({
       salonId: salon.id,
       clientName: clientName.trim(),
       clientPhone: clientPhone.trim(),
@@ -219,7 +201,7 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({ salon, onClo
 
                 {/* Gallery Thumbnails */}
                 <div className="grid grid-cols-2 md:grid-cols-1 gap-2.5 h-full overflow-y-auto max-h-[300px] md:max-h-none pr-1">
-                  {(salon.galleryItems || salon.gallery.map((url, i) => ({ id: `img-${i}`, url, title: `Photo ${i+1}`, description: '' }))).map((item, idx) => (
+                  {(salon.galleryItems || (salon.gallery ?? []).map((url, i) => ({ id: `img-${i}`, url, title: '', description: '' }))).map((item, idx) => (
                     <button
                       key={item.id || idx}
                       onClick={() => setActiveImage(item.url)}
@@ -287,15 +269,17 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({ salon, onClo
                     <span>Appeler</span>
                   </a>
 
-                  <a
-                    href={`https://wa.me/${salon.whatsapp.replace(/[^0-9]/g, '')}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#202024] border border-[#2f2f35] text-xs font-semibold text-stone-200 hover:text-white hover:border-emerald-500 transition-colors"
-                  >
-                    <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>WhatsApp</span>
-                  </a>
+                  {salon.whatsapp && (
+                    <a
+                      href={`https://wa.me/${salon.whatsapp.replace(/[^0-9]/g, '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#202024] border border-[#2f2f35] text-xs font-semibold text-stone-200 hover:text-white hover:border-emerald-500 transition-colors"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>WhatsApp</span>
+                    </a>
+                  )}
                 </div>
               </div>
             </div>
@@ -336,7 +320,7 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({ salon, onClo
                         </h3>
                         <div className="space-y-2">
                           {servicesInCat.map((srv) => {
-                            const isSelected = selectedService.id === srv.id;
+                            const isSelected = selectedService?.id === srv.id;
                             return (
                               <div
                                 key={srv.id}
@@ -449,19 +433,23 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({ salon, onClo
                       </button>
                     ) : (
                       <form
-                        onSubmit={(e) => {
+                        onSubmit={async (e) => {
                           e.preventDefault();
                           if (!reviewAuthor.trim() || !reviewComment.trim()) return;
-                          addReview({
-                            salonId: salon.id,
-                            author: reviewAuthor.trim(),
-                            rating: reviewRating,
-                            comment: reviewComment.trim()
-                          });
-                          setReviewAuthor('');
-                          setReviewComment('');
-                          setReviewRating(5);
-                          setIsReviewFormOpen(false);
+                          try {
+                            await addReview({
+                              salonId: salon.id,
+                              author: reviewAuthor.trim(),
+                              rating: reviewRating,
+                              comment: reviewComment.trim()
+                            });
+                            setReviewAuthor('');
+                            setReviewComment('');
+                            setReviewRating(5);
+                            setIsReviewFormOpen(false);
+                          } catch {
+                            // The context reports the API error; keep the draft available.
+                          }
                         }}
                         className="space-y-3"
                       >
@@ -557,7 +545,7 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({ salon, onClo
                 <div className="space-y-4 text-xs text-stone-300 bg-[#18181b] p-5 rounded-2xl border border-[#27272c]">
                   <h4 className="font-bold text-white text-sm">Horaires d'ouverture</h4>
                   <div className="space-y-1.5">
-                    {salon.openingHours.map((h, i) => (
+                    {(salon.openingHours ?? []).map((h, i) => (
                       <div key={i} className="flex justify-between py-1 border-b border-[#232326]">
                         <span className="font-medium text-stone-400">{h.day}</span>
                         <span className={h.isOpen ? 'text-white' : 'text-stone-500'}>
@@ -569,7 +557,7 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({ salon, onClo
 
                   <h4 className="font-bold text-white text-sm pt-2">Moyens de paiement acceptés</h4>
                   <div className="flex flex-wrap gap-2">
-                    {salon.paymentMethods.map((m) => (
+                    {(salon.paymentMethods ?? []).map((m) => (
                       <span
                         key={m}
                         className="px-2.5 py-1 rounded-lg bg-[#222226] text-stone-200 border border-[#303036] font-semibold uppercase text-[10px]"
@@ -590,14 +578,14 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({ salon, onClo
                     RÉSERVER
                   </span>
                   <div className="flex items-center justify-between mt-1">
-                    <h3 className="font-bold text-white text-base">{selectedService.name}</h3>
+                    <h3 className="font-bold text-white text-base">{selectedService?.name ?? 'Aucune prestation renseignée'}</h3>
                     <span className="font-extrabold text-[#E5C378] text-base">
-                      {formatPrice(selectedService.price)}
+                      {selectedService ? formatPrice(selectedService.price) : '—'}
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5 text-xs text-stone-400 mt-1">
                     <Clock className="w-3.5 h-3.5 text-stone-500" />
-                    <span>Durée : {selectedService.durationMinutes} minutes</span>
+                    {selectedService && <span>Durée : {selectedService.durationMinutes} minutes</span>}
                   </div>
                 </div>
 
@@ -667,23 +655,14 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({ salon, onClo
                     </label>
                     <div className="grid grid-cols-4 gap-1.5 max-h-36 overflow-y-auto pr-1">
                       {timeSlots.map((slot) => {
-                        const isAvailable = checkSlotAvailability(
-                          salon.id,
-                          selectedStaffId,
-                          selectedDate,
-                          slot
-                        );
                         const isSelected = selectedTime === slot;
                         return (
                           <button
                             key={slot}
                             type="button"
-                            disabled={!isAvailable}
                             onClick={() => setSelectedTime(slot)}
                             className={`text-xs py-2 rounded-lg border text-center transition-all ${
-                              !isAvailable
-                                ? 'opacity-30 cursor-not-allowed bg-stone-900 border-stone-800 line-through text-stone-600'
-                                : isSelected
+                              isSelected
                                 ? 'bg-[#C9A45C] text-[#101010] font-bold border-[#C9A45C]'
                                 : 'bg-[#141416] border-[#29292e] text-stone-300 hover:border-stone-500'
                             }`}
@@ -693,6 +672,11 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({ salon, onClo
                         );
                       })}
                     </div>
+                    {timeSlots.length === 0 && (
+                      <p className="mt-2 text-xs text-stone-500">
+                        Les disponibilités réelles ne sont pas accessibles pour cette réservation publique.
+                      </p>
+                    )}
                   </div>
 
                   {/* Step 4: Client Coordinates */}
@@ -833,7 +817,7 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({ salon, onClo
 
               {/* WhatsApp notification action */}
               <a
-                href={`https://wa.me/${salon.whatsapp.replace(/[^0-9]/g, '')}?text=${getWhatsAppBookingText()}`}
+                href={salon.whatsapp ? `https://wa.me/${salon.whatsapp.replace(/[^0-9]/g, '')}?text=${getWhatsAppBookingText()}` : undefined}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-2 transition-colors shadow-md"

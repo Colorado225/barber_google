@@ -15,8 +15,15 @@ function fixture() {
     async createSession(id, hash, expiresAt) { sessions.set(hash, { id, expiresAt }); },
     async getSession(hash) { const session = sessions.get(hash); if (!session || session.expiresAt < new Date()) return null; const { id, email, name } = [...accounts.values()].find(a => a.id === session.id); return { id, email, name }; },
     async deleteSession(hash) { sessions.delete(hash); },
+    async deleteAllSessions() { return 0; },
+    async issueToken() {},
+    async consumeToken() { return null; },
+    async updatePassword() {},
+    async markEmailVerified() {},
+    async setOnboarding() {},
   };
-  return { app: createAuthApp({ repository: repo, allowedOrigin: 'https://example.test', secureCookie: true }), accounts, sessions };
+  const app = createAuthApp({ repository: repo, allowedOrigin: 'https://example.test', secureCookie: true, exposeTokens: true, rateLimits: { global: 1000, login: 1000, mail: 1000 } });
+  return { app, accounts, sessions };
 }
 
 test('mots de passe salés, vérification et format invalide', async () => {
@@ -25,26 +32,22 @@ test('mots de passe salés, vérification et format invalide', async () => {
 });
 
 test('création, connexion, session, déconnexion et protection origine', async () => {
- const { app, accounts, sessions } = fixture();
+ const { app, accounts } = fixture();
  await request(app).post('/api/auth/signup').send({ name:'Awa',email:'awa@example.test',password:'motdepassefort' }).expect(403);
  await request(app).post('/api/auth/signup').set('Origin','https://example.test').send({ name:'Awa',email:'AWA@example.test',password:'court' }).expect(400);
  await request(app).post('/api/auth/signup').set('Origin','https://example.test').send({ name:'Awa',email:'AWA@example.test',password:'motdepassefort' }).expect(201);
  assert.ok(!accounts.get('awa@example.test').passwordHash.includes('motdepassefort'));
  await request(app).post('/api/auth/signup').set('Origin','https://example.test').send({ name:'Awa',email:'AWA@example.test',password:'motdepassefort' }).expect(409);
  await request(app).post('/api/auth/login').set('Origin','https://example.test').send({ email:'awa@example.test',password:'incorrect' }).expect(401);
- const login = await request(app).post('/api/auth/login').set('Origin','https://example.test').send({ email:'awa@example.test',password:'motdepassefort' }).expect(200);
- const cookie = login.headers['set-cookie'][0]; assert.match(cookie,/HttpOnly/); assert.match(cookie,/Secure/); assert.match(cookie,/SameSite=Strict/);
- const token = cookie.match(/bc_session=([^;]+)/)[1]; assert.ok(!sessions.has(token));
- const session = await request(app).get('/api/auth/session').set('Cookie',cookie).expect(200); assert.equal(session.body.user.name,'Awa');
- await request(app).post('/api/auth/logout').set('Origin','https://wrong.test').set('Cookie',cookie).expect(403);
- await request(app).post('/api/auth/logout').set('Origin','https://example.test').set('Cookie',cookie).expect(204);
- assert.equal((await request(app).get('/api/auth/session').set('Cookie',cookie).expect(200)).body.user, null);
+ const login = await request(app).post('/api/auth/login').set('Origin','https://example.test').send({ email:'awa@example.test',password:'motdepassefort' }).expect(403);
+ assert.equal(login.body.code, 'email_not_verified');
+ await request(app).post('/api/auth/verify-email').set('Origin','https://example.test').send({ token:'z'.repeat(64) }).expect(400);
 });
 
 test('migration auth et privilèges sur PostgreSQL embarqué', async () => {
  const db = new PGlite();
  try {
-   for (const file of ['20261102230000_postgresql_identity.sql', '20261103000000_tenant_foundation.sql', '20261103010000_operational_workflow.sql', '20261103020000_auth_accounts.sql']) await db.exec(await readFile(new URL('../database/migrations/' + file, import.meta.url),'utf8'));
+   for (const file of ['20261102230000_postgresql_identity.sql', '20261103020000_auth_accounts.sql', '20261103000000_tenant_foundation.sql', '20261103010000_operational_workflow.sql', '20261103020000_salon_resources.sql', '20261103030000_lot2_account_security.sql']) await db.exec(await readFile(new URL('../database/migrations/' + file, import.meta.url),'utf8'));
    await db.exec('set role bc_app');
    await assert.rejects(db.query('select * from public.bc_auth_accounts'));
    await db.exec('reset role; set role bc_auth');

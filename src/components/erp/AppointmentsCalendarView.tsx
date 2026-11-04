@@ -429,7 +429,7 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
           </select>
 
           <button
-            onClick={() => onOpenNewAppointment({ date: selectedDate, time: '14:00', staffId: filterStaffId !== 'all' ? filterStaffId : undefined })}
+            onClick={() => onOpenNewAppointment({ date: selectedDate, staffId: filterStaffId !== 'all' ? filterStaffId : undefined })}
             className="bg-[#C9A45C] hover:bg-[#d8b56d] text-[#101010] font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-md transition-all cursor-pointer"
           >
             <Plus className="w-4 h-4" />
@@ -799,9 +799,24 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
                         <td className="p-4" onClick={(e) => e.stopPropagation()}>
                           <select
                             value={apt.status}
-                            onChange={(e) =>
-                              updateAppointmentStatus(apt.id, e.target.value as AppointmentStatus)
-                            }
+                            onChange={(e) => {
+                              const next = e.target.value as AppointmentStatus;
+                              // Annulation et absence exigent un motif côté serveur.
+                              if (next === 'cancelled' || next === 'no_show') {
+                                const reason = window.prompt(
+                                  next === 'cancelled'
+                                    ? "Motif de l'annulation (obligatoire) :"
+                                    : "Motif de l'absence (obligatoire) :"
+                                );
+                                if (!reason || reason.trim().length < 3) {
+                                  e.target.value = apt.status;
+                                  return;
+                                }
+                                updateAppointmentStatus(apt.id, next, reason.trim());
+                                return;
+                              }
+                              updateAppointmentStatus(apt.id, next);
+                            }}
                             className={`text-xs px-2.5 py-1 rounded-lg border font-semibold focus:outline-none cursor-pointer ${cfg.badge}`}
                           >
                             <option value="pending" className="bg-[#18181b] text-white">En attente</option>
@@ -924,7 +939,7 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
               <div className="pt-2 border-t border-[#222226] flex items-center justify-between">
                 <span className="text-stone-400 font-medium">Barbier en charge :</span>
                 <select
-                  value={currentInspected.staffId}
+                  value={currentInspected.staffId ?? ''}
                   onChange={(e) => {
                     const nextStaffId = e.target.value;
                     const found = salonStaff.find((s) => s.id === nextStaffId);

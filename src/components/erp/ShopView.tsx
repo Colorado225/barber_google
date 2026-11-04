@@ -45,11 +45,10 @@ export const ShopView: React.FC = () => {
         </div>
 
         <span
-          className={`self-start text-xs font-bold px-3 py-1.5 rounded-full border ${
-            isPublished
-              ? 'bg-emerald-950/80 text-emerald-400 border-emerald-600/40'
-              : 'bg-amber-950/80 text-amber-300 border-amber-600/40'
-          }`}
+          className={`self-start text-xs font-bold px-3 py-1.5 rounded-full border ${isPublished
+            ? 'bg-emerald-950/80 text-emerald-400 border-emerald-600/40'
+            : 'bg-amber-950/80 text-amber-300 border-amber-600/40'
+            }`}
         >
           {isPublished ? 'Publiée' : 'Brouillon'}
         </span>
@@ -68,9 +67,8 @@ export const ShopView: React.FC = () => {
             >
               <span className="text-[#f7f6f2]">{check.label}</span>
               <span
-                className={`text-xs font-semibold ${
-                  check.ok ? 'text-emerald-400' : 'text-amber-400'
-                }`}
+                className={`text-xs font-semibold ${check.ok ? 'text-emerald-400' : 'text-amber-400'
+                  }`}
               >
                 {check.detail}
               </span>

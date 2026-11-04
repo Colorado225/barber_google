@@ -55,6 +55,6 @@ function runSerialized(db, userId, fn) {
       throw error;
     }
   });
-  queue = task.catch(() => {});
+  queue = task.catch(() => { });
   return task;
 }

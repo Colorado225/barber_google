@@ -123,7 +123,7 @@ export const ReportsView: React.FC = () => {
               <p className="text-sm text-[#a9a9a9]">Aucune prestation au catalogue.</p>
             ) : (
               <div className="space-y-2">
-                {performance.map((srv) => (
+                {performance.map((srv: { id: React.Key | null | undefined; name: string | number | bigint | boolean | React.ReactElement<unknown, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | React.ReactPortal | Promise<string | number | bigint | boolean | React.ReactPortal | React.ReactElement<unknown, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | null | undefined> | null | undefined; volume: string | number | bigint | boolean | React.ReactElement<unknown, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | React.ReactPortal | Promise<string | number | bigint | boolean | React.ReactPortal | React.ReactElement<unknown, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | null | undefined> | null | undefined; totalGeneratedRevenue: number; }) => (
                   <div
                     key={srv.id}
                     className="flex items-center justify-between text-sm py-1.5 border-b border-[#232326]"

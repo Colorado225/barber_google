@@ -20,38 +20,37 @@ export interface SalonGalleryItem {
 export interface Salon {
   id: string;
   name: string;
-  slug: string;
-  tagline: string;
-  description: string;
-  type: SalonType;
+  slug?: string;
+  tagline?: string;
+  description?: string;
+  type?: SalonType;
   logo?: string;
-  coverImage: string;
-  gallery: string[];
+  coverImage?: string;
+  gallery?: string[];
   galleryItems?: SalonGalleryItem[];
-  rating: number;
-  reviewCount: number;
-  country: string;
-  city: string;
-  commune: string;
-  quarter: string;
-  address: string;
-  phone: string;
-  whatsapp: string;
-  email: string;
-  openingHours: OpeningHour[];
-  paymentMethods: PaymentMethod[];
-  minPrice: number;
-  currency: string;
-  nextAvailableSlot: string;
-  isRecommended: boolean;
-  isPopular: boolean;
-  isVerified: boolean;
+  rating?: number;
+  reviewCount?: number;
+  country?: string;
+  city?: string;
+  commune?: string;
+  quarter?: string;
+  address?: string;
+  phone?: string;
+  whatsapp?: string;
+  email?: string;
+  openingHours?: OpeningHour[];
+  paymentMethods?: PaymentMethod[];
+  minPrice?: number;
+  currency?: string;
+  nextAvailableSlot?: string;
+  isRecommended?: boolean;
+  isPopular?: boolean;
+  isVerified?: boolean;
   isPublishedOnMarketplace?: boolean;
-  demoOnboarding?: boolean;
-  ownerName?: string;
   featuredPrestations?: string[];
   publicationDate?: string;
-  subscriptionPlanId: string;
+  subscriptionPlanId?: string;
+  ownerName?: string;
 }
 
 export type ServiceCategory = 'coupe' | 'barbe' | 'tresses' | 'soins' | 'coloration' | 'visage' | 'combo';
@@ -64,7 +63,11 @@ export interface Service {
   description: string;
   price: number;
   durationMinutes: number;
+  /** Temps de préparation éventuel (0 par défaut), ignoré dans le calcul métier pour l'instant. */
+  prepMinutes?: number;
   popular?: boolean;
+  /** Une prestation inactive reste dans l'historique mais n'est plus réservable. */
+  isActive?: boolean;
 }
 
 export type StaffRole = 'master_barber' | 'barber' | 'colorist' | 'stylist' | 'manager';
@@ -74,12 +77,22 @@ export interface StaffMember {
   salonId: string;
   name: string;
   role: StaffRole;
-  avatar: string;
+  avatar?: string;
   specialties: string[];
-  rating: number;
+  rating?: number;
   commissionRate: number; // e.g. 30%
   phone: string;
+  /** Email facultatif : un employé n'a pas nécessairement de compte de connexion. */
+  email?: string;
+  /** Succursale d'affectation (null = toutes). */
+  branchId?: string | null;
   isAvailable: boolean;
+  /** Statut actif/inactif du profil métier. */
+  isActive?: boolean;
+  /** Prestations maîtrisées. */
+  serviceIds?: string[];
+  /** Identité de connexion éventuelle, distincte du profil métier. */
+  userId?: string | null;
 }
 
 export type AppointmentStatus =
@@ -96,13 +109,15 @@ export type PaymentStatus = 'unpaid' | 'deposit_paid' | 'paid' | 'refunded';
 export interface Appointment {
   id: string;
   salonId: string;
+  branchId?: string;
+  clientId?: string | null;
   clientName: string;
   clientPhone: string;
   clientEmail?: string;
   serviceId: string;
   serviceName: string;
   price: number;
-  staffId: string;
+  staffId: string | null;
   staffName: string;
   date: string; // YYYY-MM-DD
   time: string; // HH:mm
@@ -113,6 +128,9 @@ export interface Appointment {
   source: 'marketplace' | 'direct' | 'whatsapp' | 'phone';
   notes?: string;
   createdAt: string;
+  /** Horodatages serveur (source de vérité du calendrier). */
+  startsAt?: string;
+  endsAt?: string;
 }
 
 export type ClientSegment = 'new' | 'active' | 'loyal' | 'vip' | 'inactive' | 'to_reactivate';
@@ -124,9 +142,9 @@ export interface Client {
   phone: string;
   email?: string;
   segment: ClientSegment;
-  totalSpent: number;
-  visitsCount: number;
-  lastVisit: string;
+  totalSpent?: number;
+  visitsCount?: number;
+  lastVisit?: string;
   favoriteService: string;
   preferredBarber?: string;
   notes: string;
@@ -183,7 +201,7 @@ export interface Expense {
   category: ExpenseCategory;
   amount: number;
   date: string;
-  paymentMethod: PaymentMethod;
+  paymentMethod?: PaymentMethod;
   notes?: string;
 }
 
@@ -199,7 +217,7 @@ export interface StockItem {
   unitCost: number;
   sellingPrice?: number;
   supplier: string;
-  lastRestock: string;
+  lastRestock?: string;
 }
 
 export interface Review {
@@ -239,7 +257,7 @@ export interface LoyaltyReward {
   pointsCost: number;
   category: RewardCategory;
   isActive: boolean;
-  timesRedeemed: number;
+  timesRedeemed?: number;
   discountPercentage?: number;
   freeServiceName?: string;
   createdAt: string;

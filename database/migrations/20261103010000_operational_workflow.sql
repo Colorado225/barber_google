@@ -12,12 +12,13 @@ alter table public.bc_memberships add constraint bc_memberships_salon_id_id_uniq
 alter table public.bc_branch_memberships add constraint bc_branch_memberships_branch_fk foreign key (salon_id, branch_id) references public.bc_branches(salon_id, id);
 alter table public.bc_branch_memberships add constraint bc_branch_memberships_member_fk foreign key (salon_id, membership_id) references public.bc_memberships(salon_id, id);
 
-create function barber_private.has_branch_permission(p_salon uuid, p_branch uuid, p_action text)
+create or replace function barber_private.has_branch_permission(p_salon uuid, p_branch uuid, p_action text)
 returns boolean language sql stable security definer set search_path = '' as $$
   select exists (
     select 1 from public.bc_memberships m
     join public.bc_branches b on b.salon_id = m.salon_id and b.id = p_branch
     where m.salon_id = p_salon and m.user_id = (select barber_private.current_user_id()) and m.status = 'active'
+      -- Le propriétaire agit sur toutes les succursales sans rattachement explicite.
       and (m.role = 'owner' or exists (
         select 1 from public.bc_branch_memberships bm where bm.salon_id = m.salon_id and bm.branch_id = b.id and bm.membership_id = m.id
       ))

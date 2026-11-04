@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { useApp, UserRole } from '../../context/AppContext';
+import { useApp } from '../../context/AppContext';
+import { useOptionalAuth } from '../../context/AuthContext';
 import { buildSalonBookingPath, buildSalonBookingUrl, getSalonLinkKey } from '../../lib/salonLink';
 import {
   QrCode,
@@ -17,9 +18,6 @@ import {
   Lock
 } from 'lucide-react';
 
-/** Roles allowed to manage the public shopfront (see permissions matrix, §6). */
-const SHOPFRONT_ROLES: UserRole[] = ['owner', 'manager'];
-
 export const SalonQrCodeView: React.FC = () => {
   const {
     activeSalon,
@@ -27,9 +25,9 @@ export const SalonQrCodeView: React.FC = () => {
     setSelectedSalonForModal,
     services,
     formatPrice,
-    addToast,
-    userRole
+    addToast
   } = useApp();
+  const { hasPermission } = useOptionalAuth();
 
   const [copied, setCopied] = useState(false);
   const [qrSize, setQrSize] = useState(260);
@@ -46,7 +44,7 @@ export const SalonQrCodeView: React.FC = () => {
   const isPublished = activeSalon.isPublishedOnMarketplace === true;
   const hasBookingService = services.some((s) => s.salonId === activeSalon.id);
   const isQrActive = isPublished && hasBookingService;
-  const canManageShopfront = SHOPFRONT_ROLES.includes(userRole);
+  const canManageShopfront = hasPermission('salon.update', activeSalon.id);
 
   const salonServices = services.filter((s) => s.salonId === activeSalon.id);
 
@@ -328,7 +326,11 @@ export const SalonQrCodeView: React.FC = () => {
             </p>
             <div className="flex items-center justify-between text-[11px] text-stone-400 pt-2 border-t border-[#242428]">
               <span>{salonServices.length} prestation(s) réservable(s)</span>
-              <span>À partir de {formatPrice(activeSalon.minPrice)}</span>
+              <span>
+                {activeSalon.minPrice !== undefined
+                  ? `À partir de ${formatPrice(activeSalon.minPrice)}`
+                  : 'Tarif non renseigné'}
+              </span>
             </div>
           </div>
         </div>

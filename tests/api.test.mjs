@@ -9,6 +9,8 @@ import { createAuthApp } from '../server/auth-app.js';
 import { createAuthRepository } from '../server/auth-repository.js';
 import { createResourceApp } from '../server/resource-app.js';
 import { createSalonRepository } from '../server/salon-repository.js';
+import { createOperationsRepository } from '../server/operations-repository.js';
+import { createFinanceRepository } from '../server/finance-repository.js';
 import { createSessionRunner } from '../server/session-runner.js';
 
 const ORIGIN = 'https://example.test';
@@ -22,10 +24,13 @@ function cookieOf(res) {
 }
 
 async function signupAndLogin(email) {
-  await request(app).post('/api/auth/signup').set('Origin', ORIGIN)
-    .send({ name: 'QA User', email, password: 'motdepassefort' }).expect(201);
+  const signup = await request(app).post('/api/auth/signup').set('Origin', ORIGIN)
+    .send({ name: 'QA User', email, password: 'MotDePasseQa2026!' }).expect(201);
+  // Compte créé non vérifié : on consomme le jeton de vérification (mode test).
+  await request(app).post('/api/auth/verify-email').set('Origin', ORIGIN)
+    .send({ token: signup.body.token }).expect(200);
   const login = await request(app).post('/api/auth/login').set('Origin', ORIGIN)
-    .send({ email, password: 'motdepassefort' }).expect(200);
+    .send({ email, password: 'MotDePasseQa2026!' }).expect(200);
   return cookieOf(login);
 }
 
@@ -36,22 +41,26 @@ before(async () => {
   await db.exec(await readFile(new URL('../database/migrations/20261103000000_tenant_foundation.sql', import.meta.url), 'utf8'));
   await db.exec(await readFile(new URL('../database/migrations/20261103010000_operational_workflow.sql', import.meta.url), 'utf8'));
   await db.exec(await readFile(new URL('../database/migrations/20261103020000_salon_resources.sql', import.meta.url), 'utf8'));
+  await db.exec(await readFile(new URL('../database/migrations/20261103030000_lot2_account_security.sql', import.meta.url), 'utf8'));
+  await db.exec(await readFile(new URL('../database/migrations/20261103040000_lot3_operations.sql', import.meta.url), 'utf8'));
 
   const authRepository = createAuthRepository(db);
   const salonRepository = createSalonRepository(db);
+  const operationsRepository = createOperationsRepository(db);
+    const financeRepository = createFinanceRepository(db);
   const sessionRunner = createSessionRunner(db);
 
   app = express();
   app.disable('x-powered-by');
-  app.use(createAuthApp({ repository: authRepository, allowedOrigin: ORIGIN, secureCookie: true }));
-  app.use(createResourceApp({ authRepository, salonRepository, sessionRunner, allowedOrigin: ORIGIN }).app);
+  app.use(createAuthApp({ repository: authRepository, allowedOrigin: ORIGIN, secureCookie: true, exposeTokens: true, rateLimits: { global: 10000, login: 10000, mail: 10000 } }));
+  app.use(createResourceApp({ authRepository, salonRepository, operationsRepository, financeRepository, sessionRunner, allowedOrigin: ORIGIN }).app);
 });
 
 let ownerCookie;
 let salonId;
 
 test('sans session, les ressources sont refusées', async () => {
-  const res = await request(app).get('/api/salons/00000000-0000-4000-8000-000000000000/clients').expect(401);
+  const res = await request(app).get('/api/salons/00000000-0000-4000-8000-000000000000/clients').set('Origin', ORIGIN).expect(401);
   assert.equal(res.body.error, 'Authentification requise.');
 });
 
@@ -86,7 +95,7 @@ test('CRUD client complet via HTTP, persistant en base', async () => {
 
   const listed = await request(app)
     .get(`/api/salons/${salonId}/clients`)
-    .set('Cookie', ownerCookie).expect(200);
+    .set('Origin', ORIGIN).set('Cookie', ownerCookie).expect(200);
   assert.equal(listed.body.length, 1);
 
   await request(app)
@@ -97,7 +106,7 @@ test('CRUD client complet via HTTP, persistant en base', async () => {
 
   const afterUpdate = await request(app)
     .get(`/api/salons/${salonId}/clients`)
-    .set('Cookie', ownerCookie).expect(200);
+    .set('Origin', ORIGIN).set('Cookie', ownerCookie).expect(200);
   assert.equal(afterUpdate.body[0].name, 'Awa K.');
   assert.equal(afterUpdate.body[0].segment, 'loyal');
 
@@ -107,7 +116,7 @@ test('CRUD client complet via HTTP, persistant en base', async () => {
 
   const afterDelete = await request(app)
     .get(`/api/salons/${salonId}/clients`)
-    .set('Cookie', ownerCookie).expect(200);
+    .set('Origin', ORIGIN).set('Cookie', ownerCookie).expect(200);
   assert.equal(afterDelete.body.length, 0);
 });
 
@@ -154,7 +163,7 @@ test('CRUD prestations, équipe, stocks, récompenses, avis', async () => {
     .expect(200);
 
   const ws = await request(app).get(`/api/salons/${salonId}/workspace`)
-    .set('Cookie', ownerCookie).expect(200);
+    .set('Origin', ORIGIN).set('Cookie', ownerCookie).expect(200);
   assert.equal(ws.body.services.length, 1);
   assert.equal(ws.body.staff.length, 1);
   assert.equal(ws.body.reviews[0].rating, 5);
@@ -164,8 +173,9 @@ test('isolation : un autre salon ne voit rien', async () => {
   const otherCookie = await signupAndLogin('intrus@example.test');
   const res = await request(app)
     .get(`/api/salons/${salonId}/workspace`)
+    .set('Origin', ORIGIN)
     .set('Cookie', otherCookie)
-    .expect(404);
+    .expect(403);
   assert.ok(res.body.error);
 
   await request(app)

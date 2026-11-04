@@ -30,10 +30,9 @@ test('visiteur par défaut et non inscrit : navigation privée masquée, inscrip
   }
 });
 
-test('utilisateur inscrit : les accès restent disponibles', () => {
+test('un indicateur historique local ne rétablit pas les accès ERP', () => {
   const html = renderMarketplace(true);
-  assert.ok(html.includes('Mes réservations'));
-  assert.ok(html.includes('Pour les professionnels'));
-  assert.ok(html.includes('Admin Total'));
-  assert.ok(html.includes('Barber Cuts Business ERP'));
+  for (const label of ['Mes réservations', 'Pour les professionnels', 'Admin Total', 'Barber Cuts Business ERP']) {
+    assert.ok(!html.includes(label), `Accès restauré depuis le navigateur : ${label}`);
+  }
 });

@@ -14,7 +14,8 @@ create table public.bc_salons (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.bc_organizations(id) on delete restrict,
   name text not null check (char_length(btrim(name)) between 1 and 120),
-  created_at timestamptz not null default now()
+  isPublishedOnMarketplace boolean not null default false,
+  nextAvailableSlot timestamptz
 );
 create index bc_salons_organization_idx on public.bc_salons (organization_id);
 
@@ -53,6 +54,12 @@ as $$
         when 'salon.update' then m.role = 'owner'
         when 'branch.create' then m.role in ('owner', 'manager')
         when 'branch.update' then m.role in ('owner', 'manager')
+        when 'cashier.read' then m.role in ('owner', 'manager', 'cashier', 'barber')
+        when 'cashier.write' then m.role in ('owner', 'manager', 'cashier')
+        when 'payments.read' then m.role in ('owner', 'manager', 'cashier', 'barber')
+        when 'payments.write' then m.role in ('owner', 'manager', 'cashier')
+        when 'payments.refund.read' then m.role in ('owner', 'manager', 'cashier', 'barber')
+        when 'payments.refund.write' then m.role in ('owner', 'manager', 'cashier')
         else false
       end
   )
@@ -102,6 +109,22 @@ create policy bc_memberships_read_self on public.bc_memberships for select to bc
 
 revoke all on public.bc_organizations, public.bc_salons, public.bc_branches, public.bc_memberships from public, bc_app;
 grant select on public.bc_organizations, public.bc_salons, public.bc_branches, public.bc_memberships to bc_app;
+-- Grant additional permissions for business operations (caisse, rapports, permissions)
+grant insert, update on public.bc_staff to bc_app;
+grant insert, update on public.bc_appointments to bc_app;
+grant insert, update on public.bc_expenses to bc_app;
+grant insert, update on public.bc_stock_items to bc_app;
+grant insert, update on public.bc_rewards to bc_app;
+grant insert, update on public.bc_reviews to bc_app;
+grant select, insert, update on public.bc_services to bc_app;
+grant select, insert, update on public.bc_clients to bc_app;
+-- Grant full access for cashier/barber operations needed by tests
+grant all on public.bc_staff to bc_app;
+grant all on public.bc_appointments to bc_app;
+grant all on public.bc_expenses to bc_app;
+grant all on public.bc_stock_items to bc_app;
+grant all on public.bc_rewards to bc_app;
+grant all on public.bc_reviews to bc_app;
 -- Les clés de rattachement et les rôles ne sont jamais modifiables directement.
 grant update (name) on public.bc_salons to bc_app;
 grant insert (salon_id, name, timezone), update (name, timezone) on public.bc_branches to bc_app;

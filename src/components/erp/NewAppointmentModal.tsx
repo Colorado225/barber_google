@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { salonApi, ApiError } from '../../lib/api';
 import { PaymentMethod } from '../../types';
 import { X, Calendar, Clock, User, Scissors, CheckCircle2 } from 'lucide-react';
 
@@ -21,8 +22,7 @@ export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({
     services,
     staff,
     formatPrice,
-    bookAppointment,
-    checkSlotAvailability
+    bookAppointment
   } = useApp();
 
   const salonServices = services.filter((s) => s.salonId === activeSalon.id);
@@ -34,28 +34,69 @@ export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({
   const [selectedStaffId, setSelectedStaffId] = useState(
     initialStaffId && (initialStaffId === 'any' || salonStaff.some((s) => s.id === initialStaffId))
       ? initialStaffId
-      : salonStaff[0]?.id || 'any'
+      : salonStaff[0]?.id || ''
   );
   const [selectedDate, setSelectedDate] = useState(initialDate || new Date().toISOString().slice(0, 10));
-  const [selectedTime, setSelectedTime] = useState(initialTime || '14:00');
+  const [selectedTime, setSelectedTime] = useState(initialTime || '');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [source, setSource] = useState<'direct' | 'whatsapp' | 'phone'>('phone');
   const [notes, setNotes] = useState('');
 
-  const timeSlots = [
-    '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00',
-    '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30',
-    '17:00', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00'
-  ];
+  const [timeSlots, setTimeSlots] = useState<string[]>([]);
+  const [availabilityError, setAvailabilityError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    let active = true;
+    setTimeSlots([]);
+    setSelectedTime('');
+    setAvailabilityError(null);
+
+    void salonApi(activeSalon.id).appointments.availability(selectedDate)
+      .then((byStaff: Record<string, { startsAt: string; available: boolean }[]>) => {
+        if (!active) return;
+        const staffSlots = selectedStaffId === 'any'
+          ? Object.values(byStaff).flat()
+          : byStaff[selectedStaffId] ?? [];
+        const available = [...new Set(
+          staffSlots
+            .filter((slot) => slot.available)
+            .map((slot) => slot.startsAt.slice(11, 16))
+            .filter(Boolean)
+        )].sort();
+        setTimeSlots(available);
+        setSelectedTime((current) =>
+          initialTime && available.includes(initialTime)
+            ? initialTime
+            : available.includes(current)
+              ? current
+              : available[0] ?? ''
+        );
+      })
+      .catch((error: unknown) => {
+        if (active) {
+          setAvailabilityError(
+            error instanceof ApiError ? error.message : 'Impossible de charger les disponibilités réelles.'
+          );
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [activeSalon.id, selectedDate, selectedStaffId, initialTime]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!clientName.trim() || !clientPhone.trim()) {
       alert('Veuillez renseigner le nom et le numéro du client.');
       return;
     }
+    if (!selectedServiceId || !selectedStaffId || !selectedTime) {
+      alert('Sélectionnez une prestation, un membre de l’équipe et une disponibilité réelle.');
+      return;
+    }
 
-    const res = bookAppointment({
+    const res = await bookAppointment({
       salonId: activeSalon.id,
       clientName: clientName.trim(),
       clientPhone: clientPhone.trim(),
@@ -172,6 +213,7 @@ export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({
               <select
                 value={selectedTime}
                 onChange={(e) => setSelectedTime(e.target.value)}
+                disabled={timeSlots.length === 0}
                 className="w-full bg-[#111113] border border-[#29292e] rounded-xl px-3 py-2 text-xs text-stone-200 focus:outline-none focus:border-[#C9A45C]"
               >
                 {timeSlots.map((slot) => (
@@ -180,6 +222,10 @@ export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({
                   </option>
                 ))}
               </select>
+              {availabilityError && <p role="alert" className="mt-1 text-[11px] text-red-300">{availabilityError}</p>}
+              {!availabilityError && timeSlots.length === 0 && (
+                <p className="mt-1 text-[11px] text-stone-500">Aucune disponibilité réelle chargée pour cette date.</p>
+              )}
             </div>
           </div>
 

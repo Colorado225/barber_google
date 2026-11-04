@@ -116,11 +116,10 @@ export const ConfirmDelete: React.FC<ConfirmDeleteProps> = ({ onConfirm, label =
     <button
       type="button"
       onClick={() => (armed ? onConfirm() : setArmed(true))}
-      className={`text-[11px] font-semibold px-2 py-1 rounded-lg border transition-colors cursor-pointer ${
-        armed
-          ? 'bg-red-600 text-white border-red-500'
-          : 'text-red-400 border-red-900/50 hover:bg-red-950/40'
-      }`}
+      className={`text-[11px] font-semibold px-2 py-1 rounded-lg border transition-colors cursor-pointer ${armed
+        ? 'bg-red-600 text-white border-red-500'
+        : 'text-red-400 border-red-900/50 hover:bg-red-950/40'
+        }`}
     >
       {armed ? 'Confirmer ?' : label}
     </button>

@@ -17,10 +17,12 @@ async function user(id) {
 
 test('préparation du schéma et des ressources', async () => {
   await db.exec(await readFile(new URL('../migrations/20261102230000_postgresql_identity.sql', import.meta.url), 'utf8'));
+  await db.exec(await readFile(new URL('../migrations/20261103020000_auth_accounts.sql', import.meta.url), 'utf8'));
   await db.query('insert into public.bc_users(id) values ($1), ($2)', [owner, outsider]);
   await db.exec(await readFile(new URL('../migrations/20261103000000_tenant_foundation.sql', import.meta.url), 'utf8'));
   await db.exec(await readFile(new URL('../migrations/20261103010000_operational_workflow.sql', import.meta.url), 'utf8'));
   await db.exec(await readFile(new URL('../migrations/20261103020000_salon_resources.sql', import.meta.url), 'utf8'));
+  await db.exec(await readFile(new URL('../migrations/20261103030000_lot2_account_security.sql', import.meta.url), 'utf8'));
   await user(owner);
   salon = (await db.query("select * from public.bc_create_salon('Org','Salon','Cocody')")).rows[0].salon_id;
 });
@@ -33,7 +35,7 @@ const repo = () => createSalonRepository(db, async (fn) => {
     await db.exec('COMMIT');
     return r;
   } catch (e) {
-    try { await db.exec('ROLLBACK'); } catch { }
+    try { await db.exec('ROLLBACK'); } catch { /* transaction déjà terminée */ }
     throw e;
   }
 });

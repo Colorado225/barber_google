@@ -19,7 +19,7 @@ Agis comme une équipe senior composée de :
 
 - Software Architect spécialisé en SaaS multi-tenant.
 - Senior Full-Stack Engineer React, TypeScript, Node.js et PostgreSQL.
-- Database Engineer spécialisé PostgreSQL et Neon.
+- Database Engineer spécialisé PostgreSQL et Supabase.
 - Security Engineer spécialisé authentification, RBAC et Row-Level Security.
 - Product Designer spécialisé dans les interfaces ERP SaaS premium.
 - QA Engineer spécialisé dans les tests unitaires, intégration et end-to-end.
@@ -40,8 +40,8 @@ L'audit initial a identifié les technologies et composants suivants, à vérifi
 - Frontend : React 19, TypeScript, Vite.
 - Styles : Tailwind CSS 4.
 - Backend : Node.js et Express.
-- Base de données : PostgreSQL / Neon.
-- Accès aux données : `pg`.
+- Base de données cible : PostgreSQL managé par Supabase.
+- Accès historique encore présent : `pg` via Express ; à retirer après migration des contrats métier.
 - Validation : Zod.
 - Animations : Motion.
 - Icônes : Lucide React.
@@ -96,6 +96,15 @@ Ces éléments sont des points de départ, pas une autorisation de supposer que 
 ---
 
 # 3. RÈGLES NON NÉGOCIABLES
+
+## Décision de plateforme
+
+Supabase est la source de vérité cible pour l'authentification et toutes les
+données applicatives. Ne pas ajouter de nouvelles dépendances runtime à Neon,
+à une autre base PostgreSQL, ni aux routes Express. Le client navigateur utilise
+la clé publique Supabase ; les politiques RLS et les fonctions RPC contrôlent
+les accès. Express reste temporairement dans le dépôt uniquement tant que les
+contrats métier n'ont pas tous été migrés, testés et basculés.
 
 ## 3.1 Préserver l'existant
 
@@ -1277,7 +1286,7 @@ Ne migre pas tout le backend vers TypeScript en même temps que les corrections 
 ## Base de données
 
 - PostgreSQL.
-- Neon.
+- Supabase Database.
 - Transactions.
 - Contraintes.
 - Index.
@@ -1290,24 +1299,16 @@ Ne migre pas tout le backend vers TypeScript en même temps que les corrections 
 ```
 Frontend
    ↓
-API Express
+Supabase Auth / Data API
    ↓
-Authentication Middleware
+Row-Level Security
    ↓
-Tenant Context
-   ↓
-Permission Middleware
-   ↓
-Validation Zod
-   ↓
-Business Services
-   ↓
-Repositories
-   ↓
-PostgreSQL / Neon
+PostgreSQL / RPC transactionnelles
 ```
 
-Les règles métier critiques doivent résider côté serveur.
+Express reste une couche transitoire pour les contrats ERP qui n'ont pas encore
+été migrés. Les règles métier critiques doivent résider dans les politiques RLS
+et les fonctions RPC Supabase avant le retrait de ces routes.
 
 ---
 

@@ -13,16 +13,17 @@ interface NewPaymentModalProps {
 export const NewPaymentModal: React.FC<NewPaymentModalProps> = ({
   onClose,
   preselectedAppointmentId,
-  defaultAmount = 3000,
+  defaultAmount,
   defaultClientName = ''
 }) => {
   const { activeSalon, formatPrice, recordPayment, appointments } = useApp();
 
   const [clientName, setClientName] = useState(defaultClientName);
-  const [amount, setAmount] = useState<number>(defaultAmount);
+  const [amount, setAmount] = useState(String(defaultAmount ?? ''));
   const [method, setMethod] = useState<PaymentMethod>('wave');
   const [paymentType, setPaymentType] = useState<'full' | 'deposit'>('full');
   const [createdReceipt, setCreatedReceipt] = useState<PaymentTransaction | null>(null);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
 
   // If appointment selected, can choose from unpaid appointments
   const unpaidAppointments = appointments.filter(
@@ -36,26 +37,30 @@ export const NewPaymentModal: React.FC<NewPaymentModalProps> = ({
     const apt = appointments.find((a) => a.id === aptId);
     if (apt) {
       setClientName(apt.clientName);
-      setAmount(apt.price);
+      setAmount(String(apt.price));
     }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!clientName.trim() || amount <= 0) {
+    if (!clientName.trim() || !Number.isFinite(Number(amount)) || Number(amount) <= 0) {
       alert('Veuillez renseigner le nom du client et un montant valide.');
       return;
     }
 
-    const tx = recordPayment({
-      appointmentId: linkedAptId || undefined,
-      clientName: clientName.trim(),
-      amount: Number(amount),
-      method,
-      type: paymentType
-    });
-
-    setCreatedReceipt(tx);
+    setPaymentError(null);
+    try {
+      const tx = recordPayment({
+        appointmentId: linkedAptId || undefined,
+        clientName: clientName.trim(),
+        amount: Number(amount),
+        method,
+        type: paymentType
+      });
+      setCreatedReceipt(tx);
+    } catch (error) {
+      setPaymentError(error instanceof Error ? error.message : 'Enregistrement du paiement impossible.');
+    }
   };
 
   return (
@@ -127,7 +132,7 @@ export const NewPaymentModal: React.FC<NewPaymentModalProps> = ({
                   min="500"
                   step="500"
                   value={amount}
-                  onChange={(e) => setAmount(Number(e.target.value))}
+                  onChange={(e) => setAmount(e.target.value)}
                   className="w-full bg-[#111113] border border-[#29292e] rounded-xl px-3 py-2.5 text-base font-extrabold text-[#E5C378] focus:outline-none focus:border-[#C9A45C]"
                 />
               </div>
@@ -161,12 +166,13 @@ export const NewPaymentModal: React.FC<NewPaymentModalProps> = ({
               </div>
 
               <div className="pt-2">
+                {paymentError && <p role="alert" className="mb-3 text-xs text-red-300">{paymentError}</p>}
                 <button
                   type="submit"
                   className="w-full bg-[#C9A45C] hover:bg-[#d8b56d] text-[#101010] font-bold text-xs py-3 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>Valider l'encaissement de {formatPrice(amount)}</span>
+                  <span>Valider l'encaissement{amount ? ` de ${formatPrice(Number(amount))}` : ''}</span>
                 </button>
               </div>
             </form>

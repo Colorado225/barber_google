@@ -34,7 +34,7 @@ export const CrmClientsView: React.FC = () => {
   const [newName, setNewName] = useState('');
   const [newPhone, setNewPhone] = useState('');
   const [newEmail, setNewEmail] = useState('');
-  const [newFavoriteService, setNewFavoriteService] = useState('Dégradé américain (Fade)');
+  const [newFavoriteService, setNewFavoriteService] = useState('');
   const [newSegment, setNewSegment] = useState<ClientSegment>('new');
   const [newNotes, setNewNotes] = useState('');
 
@@ -177,16 +177,18 @@ export const CrmClientsView: React.FC = () => {
                   <div className="flex justify-between">
                     <span className="text-stone-500">Total Dépensé :</span>
                     <span className="font-extrabold text-[#E5C378]">
-                      {formatPrice(client.totalSpent)}
+                      {client.totalSpent === undefined ? '—' : formatPrice(client.totalSpent)}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-stone-500">Nombre de visites :</span>
-                    <span className="font-bold text-white">{client.visitsCount} passages</span>
+                    <span className="font-bold text-white">
+                      {client.visitsCount === undefined ? '—' : `${client.visitsCount} passages`}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-stone-500">Dernière visite :</span>
-                    <span className="text-stone-300 font-mono">{client.lastVisit}</span>
+                    <span className="text-stone-300 font-mono">{client.lastVisit || '—'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-stone-500">Service favori :</span>

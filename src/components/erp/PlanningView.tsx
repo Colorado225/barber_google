@@ -52,6 +52,7 @@ export const PlanningView: React.FC = () => {
   } = useApp();
 
   const [filterDate, setFilterDate] = useState('');
+  const [filterStaff, setFilterStaff] = useState('');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editing, setEditing] = useState<Appointment | null>(null);
 
@@ -59,13 +60,17 @@ export const PlanningView: React.FC = () => {
     clientName: '',
     clientPhone: '',
     serviceId: '',
-    staffId: 'any',
+    // Employé choisi explicitement : le serveur refuse un identifiant inconnu
+    // et vérifie lui-même la disponibilité et la maîtrise de la prestation.
+    staffId: '',
     date: todayStr(),
-    time: '10:00',
+    time: '',
     notes: ''
   });
 
   const [form, setForm] = useState<FormState>(emptyForm);
+  // Erreur affichée dans le formulaire : visible même si un toast est masqué.
+  const [formError, setFormError] = useState<string | null>(null);
 
   const salonServices = useMemo(
     () => services.filter((s) => s.salonId === activeSalon.id),
@@ -80,22 +85,25 @@ export const PlanningView: React.FC = () => {
     return appointments
       .filter((a) => a.salonId === activeSalon.id)
       .filter((a) => (filterDate ? a.date === filterDate : true))
+      .filter((a) => (filterStaff ? a.staffId === filterStaff : true))
       .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
-  }, [appointments, activeSalon.id, filterDate]);
+  }, [appointments, activeSalon.id, filterDate, filterStaff]);
 
   const openCreate = () => {
     setEditing(null);
     setForm(emptyForm());
+    setFormError(null);
     setIsFormOpen(true);
   };
 
   const openEdit = (apt: Appointment) => {
+    setFormError(null);
     setEditing(apt);
     setForm({
       clientName: apt.clientName,
       clientPhone: apt.clientPhone,
       serviceId: apt.serviceId,
-      staffId: apt.staffId,
+      staffId: apt.staffId ?? '',
       date: apt.date,
       time: apt.time,
       notes: apt.notes || ''
@@ -103,19 +111,25 @@ export const PlanningView: React.FC = () => {
     setIsFormOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  /** Affiche l'erreur dans le formulaire (toujours visible) et en toast. */
+  const fail = (message: string) => {
+    setFormError(message);
+    addToast(message, 'error');
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!form.clientName.trim()) {
-      addToast('Le nom du client est obligatoire.', 'error');
+      fail('Le nom du client est obligatoire.');
       return;
     }
     if (!form.serviceId) {
-      addToast('Sélectionnez une prestation.', 'error');
+      fail('Sélectionnez une prestation.');
       return;
     }
     if (!form.date || !form.time) {
-      addToast('La date et l’heure sont obligatoires.', 'error');
+      fail('La date et l’heure sont obligatoires.');
       return;
     }
 
@@ -140,7 +154,7 @@ export const PlanningView: React.FC = () => {
     }
 
     // Reuse the store's booking rules (availability check, queued staff, etc.).
-    const result = bookAppointment({
+    const result = await bookAppointment({
       salonId: activeSalon.id,
       clientName: form.clientName.trim(),
       clientPhone: form.clientPhone.trim(),
@@ -153,7 +167,8 @@ export const PlanningView: React.FC = () => {
     });
 
     if (!result.success) {
-      addToast(result.error || 'Impossible de créer ce rendez-vous.', 'error');
+      // Le message vient du serveur (conflit de créneau, horaires, absence…).
+      fail(result.error || 'Impossible de créer ce rendez-vous.');
       return;
     }
     setIsFormOpen(false);
@@ -170,7 +185,7 @@ export const PlanningView: React.FC = () => {
           <p className="text-[#a9a9a9] mt-1">Gérer les rendez-vous</p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <input
             type="date"
             value={filterDate}
@@ -178,6 +193,30 @@ export const PlanningView: React.FC = () => {
             aria-label="Filtrer par date"
             className="bg-[#151516] border border-[#2a2a2b] rounded-lg px-3 py-2 text-xs text-[#f7f6f2] focus:outline-none focus:border-[#C9A45C]"
           />
+          <select
+            value={filterStaff}
+            onChange={(e) => setFilterStaff(e.target.value)}
+            aria-label="Filtrer par employé"
+            className="bg-[#151516] border border-[#2a2a2b] rounded-lg px-3 py-2 text-xs text-[#f7f6f2] focus:outline-none focus:border-[#C9A45C]"
+          >
+            <option value="">Tous les employés</option>
+            {salonStaff.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </select>
+          {(filterDate || filterStaff) && (
+            <button
+              onClick={() => {
+                setFilterDate('');
+                setFilterStaff('');
+              }}
+              className="text-xs text-stone-400 hover:text-white px-2 py-2 cursor-pointer"
+            >
+              Réinitialiser
+            </button>
+          )}
           <button
             onClick={openCreate}
             className="flex items-center gap-2 px-4 py-2 bg-[#C9A45C] text-[#101010] rounded-lg font-semibold hover:bg-[#d4b26a] cursor-pointer shrink-0"
@@ -193,11 +232,7 @@ export const PlanningView: React.FC = () => {
           <div className="p-6 text-center py-12 text-[#a9a9a9]">
             <CalendarIcon className="w-12 h-12 mx-auto mb-4 opacity-50" />
             <p>Aucun rendez-vous</p>
-            <p className="text-sm mt-1">
-              {filterDate
-                ? 'Aucun rendez-vous à cette date'
-                : 'Créez votre premier rendez-vous'}
-            </p>
+            <p>{filterDate || filterStaff ? 'Aucun rendez-vous pour ce filtre' : 'Créez votre premier rendez-vous'}</p>
           </div>
         ) : (
           <table className="w-full text-sm min-w-[760px]">
@@ -288,6 +323,15 @@ export const PlanningView: React.FC = () => {
           onSubmit={handleSubmit}
           submitLabel={editing ? 'Enregistrer' : 'Créer'}
         >
+          {formError && (
+            <p
+              role="alert"
+              className="text-xs text-red-300 bg-red-950/50 border border-red-800/50 rounded-lg px-3 py-2"
+            >
+              {formError}
+            </p>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <Field label="Nom du client" required>
               <input
@@ -350,15 +394,21 @@ export const PlanningView: React.FC = () => {
                 value={form.staffId}
                 onChange={(e) => setForm({ ...form, staffId: e.target.value })}
               >
-                <option value="any" className="bg-[#17171a]">
-                  Sans préférence
-                </option>
-                {salonStaff.map((m) => (
-                  <option key={m.id} value={m.id} className="bg-[#17171a]">
-                    {m.name}
-                  </option>
-                ))}
+                {salonStaff
+                  .filter((m) => m.isActive !== false && m.isAvailable)
+                  .filter((m) =>
+                    (m.serviceIds?.length ?? 0) === 0 || m.serviceIds!.includes(form.serviceId)
+                  )
+                  .map((m) => (
+                    <option key={m.id} value={m.id} className="bg-[#17171a]">
+                      {m.name}
+                    </option>
+                  ))}
               </select>
+              <p className="text-[11px] text-stone-500 mt-1">
+                Seuls les employés actifs maîtrisant la prestation sont proposés. La disponibilité
+                réelle est vérifiée par le serveur à l'enregistrement.
+              </p>
             </Field>
           </div>
 

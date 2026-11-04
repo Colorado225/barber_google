@@ -1,6 +1,6 @@
 import React from 'react';
 import { Salon } from '../../types';
-import { useApp } from '../../context/AppContext';
+import { useOptionalApp } from '../../context/AppContext';
 import { Star, MapPin, Sparkles } from 'lucide-react';
 
 interface SalonCardProps {
@@ -8,7 +8,7 @@ interface SalonCardProps {
 }
 
 export const SalonCard: React.FC<SalonCardProps> = ({ salon }) => {
-  const { setSelectedSalonForModal, formatPrice } = useApp();
+  const { setSelectedSalonForModal, formatPrice } = useOptionalApp();
 
   const typeLabels: Record<string, string> = {
     barbershop: 'Barbershop',
@@ -35,7 +35,7 @@ export const SalonCard: React.FC<SalonCardProps> = ({ salon }) => {
         {/* Type Badge */}
         <div className="absolute top-3 left-3">
           <span className="text-[11px] font-medium bg-[#141416]/80 backdrop-blur-md text-stone-200 px-2.5 py-1 rounded-full border border-white/10 shadow-sm">
-            {typeLabels[salon.type] || 'Barbershop'}
+            {salon.type ? typeLabels[salon.type] : 'Type non renseigné'}
           </span>
         </div>
 
@@ -74,16 +74,18 @@ export const SalonCard: React.FC<SalonCardProps> = ({ salon }) => {
                 {salon.name}
               </h3>
             </div>
-            <div className="flex items-center gap-1 text-xs font-semibold text-amber-300 shrink-0">
-              <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-              <span>{salon.rating.toFixed(1)}</span>
-              <span className="text-stone-400 font-normal">({salon.reviewCount})</span>
-            </div>
+            {salon.rating !== undefined && salon.reviewCount !== undefined && (
+              <div className="flex items-center gap-1 text-xs font-semibold text-amber-300 shrink-0">
+                <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                <span>{salon.rating.toFixed(1)}</span>
+                <span className="text-stone-400 font-normal">({salon.reviewCount})</span>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-1.5 text-xs text-stone-400">
             <MapPin className="w-3.5 h-3.5 text-stone-500 shrink-0" />
-            <span className="line-clamp-1">{salon.commune}, {salon.quarter}</span>
+            <span className="line-clamp-1">{[salon.commune, salon.quarter].filter(Boolean).join(', ')}</span>
           </div>
         </div>
 
@@ -92,7 +94,7 @@ export const SalonCard: React.FC<SalonCardProps> = ({ salon }) => {
           <div>
             <span className="text-stone-400 block text-[11px]">À partir de</span>
             <span className="font-bold text-[#E5C378] text-sm">
-              {formatPrice(salon.minPrice)}
+              {salon.minPrice !== undefined ? formatPrice(salon.minPrice) : 'Non renseigné'}
             </span>
           </div>
 

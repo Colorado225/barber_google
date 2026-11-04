@@ -184,7 +184,7 @@ export const FinanceExpensesView: React.FC = () => {
                       </span>
                     </td>
                     <td className="p-3.5 uppercase text-stone-400 font-semibold text-[11px]">
-                      {exp.paymentMethod.replace('_', ' ')}
+                      {exp.paymentMethod?.replace('_', ' ') ?? '—'}
                     </td>
                     <td className="p-3.5 font-extrabold text-red-400">
                       -{formatPrice(exp.amount)}

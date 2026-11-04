@@ -1,37 +1,33 @@
-import React, { useState, useMemo } from 'react';
-import { useApp } from '../../context/AppContext';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useOptionalApp } from '../../context/AppContext';
 import { SalonCard } from './SalonCard';
 import { useSalonDeepLink } from '../../hooks/useSalonDeepLink';
 import {
   Search,
   MapPin,
-  Smartphone,
-  BellRing,
+  ChevronDown,
   Clock,
-  Scissors,
   Sparkles,
-  ArrowRight,
   Star,
-  CheckCircle2,
   SlidersHorizontal,
   Flame,
   Quote,
-  Send,
-  Crown,
-  Store
+  Scissors,
+  Smartphone
 } from 'lucide-react';
+
+const HERO_VIDEO_SRC = `/assets/video/${encodeURI(
+  'Modern Classics Barbershop 📍Charlotte,NC Elite design for the future of barber industry.mp4'
+)}`;
 
 export const MarketplaceHome: React.FC = () => {
   const {
     salons,
     setMode,
-    setIsRegisterSalonOpen,
     reviews,
-    isRegisteredInErp,
-    setAuthStartView,
     addToast,
     setSelectedSalonForModal
-  } = useApp();
+  } = useOptionalApp();
 
   // QR code links (/?salon=<slug>) open the salon's booking profile directly.
   useSalonDeepLink({
@@ -44,45 +40,47 @@ export const MarketplaceHome: React.FC = () => {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCommune, setSelectedCommune] = useState('all');
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [newsletterEmail, setNewsletterEmail] = useState('');
   const [activeTestimony, setActiveTestimony] = useState(0);
+  const [videoUnavailable, setVideoUnavailable] = useState(false);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(
+    () =>
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
 
-  const communes = ['all', 'Cocody', 'Marcory', 'Plateau', 'Treichville', 'Yopougon'];
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
 
-  const categories = [
-    { id: 'coupe', label: 'Coupe' },
-    { id: 'barbe', label: 'Barbe' },
-    { id: 'tresses', label: 'Tresses' },
-    { id: 'soins', label: 'Soins capillaires' },
-    { id: 'coloration', label: 'Coloration' },
-    { id: 'visage', label: 'Soin visage' }
-  ];
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const updatePreference = () => setPrefersReducedMotion(mediaQuery.matches);
+    mediaQuery.addEventListener('change', updatePreference);
+
+    return () => mediaQuery.removeEventListener('change', updatePreference);
+  }, []);
+
+  const communes = useMemo(
+    () =>
+      [...new Set(salons.map((salon) => salon.commune).filter((commune): commune is string => Boolean(commune)))].sort(),
+    [salons]
+  );
 
   const filteredSalons = useMemo(() => {
     return salons.filter((salon) => {
-      if (salon.isPublishedOnMarketplace === false) return false;
+      if (salon.isPublishedOnMarketplace !== true) return false;
       const matchQuery =
         !searchQuery.trim() ||
         salon.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        salon.tagline.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        salon.commune.toLowerCase().includes(searchQuery.toLowerCase());
+        (salon.tagline ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (salon.commune ?? '').toLowerCase().includes(searchQuery.toLowerCase());
 
       const matchCommune =
         selectedCommune === 'all' ||
-        salon.commune.toLowerCase() === selectedCommune.toLowerCase();
+        (salon.commune ?? '').toLowerCase() === selectedCommune.toLowerCase();
 
       return matchQuery && matchCommune;
     });
   }, [salons, searchQuery, selectedCommune]);
-
-  const recommendedSalons = useMemo(() => {
-    return filteredSalons.filter((s) => s.isRecommended);
-  }, [filteredSalons]);
-
-  const popularSalons = useMemo(() => {
-    return filteredSalons.filter((s) => s.isPopular);
-  }, [filteredSalons]);
 
   // Testimonials: dedicated testimonials + top client reviews
   // Testimonials are built from real client reviews only.
@@ -106,217 +104,147 @@ export const MarketplaceHome: React.FC = () => {
     ? testimonials[activeTestimony % testimonials.length]
     : null;
 
-  const plans = [
-    {
-      id: 'essentiel',
-      name: 'Essentiel',
-      price: '0',
-      period: '/ mois',
-      description: 'Pour les barbiers indépendants qui démarrent.',
-      features: ['1 salon · 2 collaborateurs', 'Réservations en ligne illimitées', 'Fiche salon publique', 'Rappels WhatsApp & SMS'],
-      cta: 'Commencer gratuitement',
-      highlighted: false
-    },
-    {
-      id: 'pro',
-      name: 'Pro',
-      price: '15 000',
-      period: 'FCFA / mois',
-      description: 'Le plus choisi par les barbershops à forte activité.',
-      features: [
-        'Salon & collaborateurs illimités',
-        'Planning en direct + caisse Mobile Money',
-        'CRM & programme de fidélité',
-        'Gestion des stocks et dépenses',
-        'Rapports et statistiques avancés'
-      ],
-      cta: 'Choisir Pro',
-      highlighted: true
-    },
-    {
-      id: 'business',
-      name: 'Business',
-      price: '35 000',
-      period: 'FCFA / mois',
-      description: 'Pour les franchises et networks multi-succursales.',
-      features: [
-        'Tout le plan Pro',
-        'Multi-succursales & multi-caisses',
-        'Rôles, permissions et audit des ventes',
-        'Export comptable et API',
-        'Accompagnement dédié 7j/7'
-      ],
-      cta: 'Parler à l’équipe',
-      highlighted: false
-    }
-  ];
-
-  const handleNewsletterSubmit = (event: React.FormEvent) => {
-    event.preventDefault();
-    const email = newsletterEmail.trim();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
-      addToast('Veuillez saisir une adresse e-mail valide.', 'error');
-      return;
-    }
-    addToast('Merci ! Vous êtes bien inscrit à la newsletter Barber Cuts.', 'success');
-    setNewsletterEmail('');
-  };
-
   return (
     <div className="min-h-screen bg-[#0d0d0e] text-[#f7f6f2] flex flex-col">
       {/* HERO SECTION */}
-      <section className="relative pt-12 pb-20 md:pt-20 md:pb-28 overflow-hidden border-b border-[#1f1f23]">
-        {/* Ambient Dark Luxury Background */}
-        <div className="absolute inset-0 bg-radial from-[#1e1b14]/50 via-[#0d0d0e] to-[#0d0d0e] pointer-events-none" />
-        <div className="absolute top-0 right-1/4 w-96 h-96 bg-[#C9A45C]/5 rounded-full blur-3xl pointer-events-none" />
+      <section className="relative isolate min-h-[620px] overflow-hidden border-b border-[#1f1f23] bg-[#17130d] md:min-h-[680px]">
+        {!prefersReducedMotion && !videoUnavailable && (
+          <video
+            className="absolute inset-0 h-full w-full object-cover object-[58%_center] sm:object-center"
+            src={HERO_VIDEO_SRC}
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            aria-hidden="true"
+            tabIndex={-1}
+            onError={() => setVideoUnavailable(true)}
+          />
+        )}
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#0d0d0e]/95 via-[#0d0d0e]/75 to-[#0d0d0e]/45" />
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0d0d0e] via-[#0d0d0e]/10 to-transparent" />
 
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center flex flex-col items-center">
-          {/* Location Badge */}
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#1c1c1f] border border-[#2d2d33] text-xs font-semibold text-[#E5C378] mb-6 shadow-sm">
-            <span className="w-2 h-2 rounded-full bg-[#C9A45C] animate-ping" />
-            <span>Abidjan · Côte d'Ivoire</span>
-          </div>
+        <div className="relative z-10 mx-auto flex min-h-[620px] w-full max-w-7xl items-center px-4 py-16 sm:px-6 sm:py-20 lg:px-8 md:min-h-[680px]">
+          <div className="w-full max-w-4xl">
+            <p className="mb-6 flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#d9b66e]">
+              <span aria-hidden="true" className="h-px w-8 bg-[#C9A45C]" />
+              Découvrir les salons
+            </p>
 
-          {/* Heading */}
-          <h1 className="text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight text-white max-w-4xl leading-[1.15] mb-5">
-            Votre style mérite{' '}
-            <span className="font-serif-luxury italic text-[#C9A45C] font-normal">
-              l'excellence.
-            </span>
-          </h1>
+            <h1 className="max-w-3xl text-5xl font-extrabold leading-[0.98] tracking-[-0.04em] text-white sm:text-6xl lg:text-7xl">
+              Votre style mérite
+              <br className="hidden sm:block" />{' '}
+              <span className="font-serif-luxury font-normal italic text-[#d9b66e]">
+                l’excellence.
+              </span>
+            </h1>
 
-          <p className="text-base sm:text-lg text-stone-300 max-w-2xl mb-8 leading-relaxed font-normal">
-            Trouvez les meilleurs barbershops et salons de beauté, comparez les prix et réservez votre créneau en quelques secondes.
-          </p>
+            <p className="mt-6 max-w-2xl text-base leading-relaxed text-stone-200 sm:text-lg">
+              Parcourez les salons qui ont publié leurs informations sur Barber Cuts. Recherchez par nom ou commune pour explorer les résultats disponibles.
+            </p>
 
-          {/* Search Box Card */}
-          <div className="w-full max-w-3xl bg-[#17171a] border border-[#2c2c32] p-2.5 sm:p-3 rounded-2xl shadow-2xl flex flex-col sm:flex-row items-center gap-2 mb-6">
-            {/* Input 1: Service / Salon search */}
-            <div className="relative flex-1 w-full flex items-center">
-              <Search className="w-4 h-4 text-stone-400 absolute left-3.5" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Salon, prestation (dégradé, tresses...)"
-                className="w-full bg-transparent pl-10 pr-3 py-2.5 text-xs sm:text-sm text-white placeholder-stone-400 focus:outline-none"
-              />
-            </div>
+            <form
+              className="mt-9 flex w-full max-w-4xl flex-col gap-2 rounded-2xl border border-white/15 bg-[#111112]/90 p-2 shadow-[0_24px_70px_rgba(0,0,0,0.42)] backdrop-blur-md sm:flex-row sm:items-center"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const salonSection = document.getElementById('salons-section');
+                if (!salonSection) return;
 
-            <div className="hidden sm:block w-[1px] h-8 bg-[#2d2d33]" />
+                const stickyHeader = document.querySelector('header');
+                const headerOffset =
+                  stickyHeader && window.getComputedStyle(stickyHeader).position === 'sticky'
+                    ? stickyHeader.getBoundingClientRect().height
+                    : 0;
+                const top =
+                  salonSection.getBoundingClientRect().top + window.scrollY - headerOffset - 16;
 
-            {/* Input 2: Commune selector */}
-            <div className="relative w-full sm:w-60 flex items-center">
-              <MapPin className="w-4 h-4 text-stone-400 absolute left-3.5" />
-              <select
-                value={selectedCommune}
-                onChange={(e) => setSelectedCommune(e.target.value)}
-                className="w-full bg-transparent pl-10 pr-6 py-2.5 text-xs sm:text-sm text-stone-200 focus:outline-none appearance-none cursor-pointer"
-              >
-                <option value="all" className="bg-[#17171a] text-white">Toutes communes</option>
-                <option value="Cocody" className="bg-[#17171a] text-white">Cocody</option>
-                <option value="Marcory" className="bg-[#17171a] text-white">Marcory</option>
-                <option value="Plateau" className="bg-[#17171a] text-white">Plateau</option>
-                <option value="Treichville" className="bg-[#17171a] text-white">Treichville</option>
-                <option value="Yopougon" className="bg-[#17171a] text-white">Yopougon</option>
-              </select>
-            </div>
-
-            {/* Submit Button */}
-            <button
-              onClick={() => {
-                const el = document.getElementById('salons-section');
-                if (el) el.scrollIntoView({ behavior: 'smooth' });
+                window.scrollTo({
+                  top,
+                  behavior: prefersReducedMotion ? 'auto' : 'smooth'
+                });
               }}
-              className="w-full sm:w-auto bg-[#C9A45C] hover:bg-[#d6b36a] text-[#101010] font-bold text-xs sm:text-sm px-6 py-3 rounded-xl transition-all shadow-md shrink-0 flex items-center justify-center gap-2 cursor-pointer"
             >
-              <Search className="w-4 h-4" />
-              <span>Rechercher</span>
-            </button>
-          </div>
+              <div className="relative flex min-w-0 flex-1 items-center rounded-xl border border-transparent transition focus-within:border-[#C9A45C]/60 focus-within:bg-white/[0.03] focus-within:ring-2 focus-within:ring-[#C9A45C]/25">
+                <Search aria-hidden="true" className="pointer-events-none absolute left-4 h-4 w-4 text-[#d9b66e]" />
+                <label htmlFor="marketplace-search" className="sr-only">
+                  Rechercher un salon, une spécialité ou une commune
+                </label>
+                <input
+                  id="marketplace-search"
+                  type="search"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Salon, spécialité ou commune"
+                  className="w-full rounded-xl bg-transparent py-4 pl-11 pr-4 text-sm text-white placeholder:text-stone-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#C9A45C]/75"
+                />
+              </div>
 
-          {/* Quick Categories Pills */}
-          <div className="flex flex-wrap items-center justify-center gap-2 max-w-2xl">
-            {categories.map((cat) => {
-              const isActive = selectedCategory === cat.id;
-              return (
-                <button
-                  key={cat.id}
-                  onClick={() => {
-                    setSelectedCategory(isActive ? null : cat.id);
-                    setSearchQuery(isActive ? '' : cat.label);
-                  }}
-                  className={`text-xs px-3.5 py-1.5 rounded-full border transition-all ${isActive
-                    ? 'bg-[#C9A45C] border-[#C9A45C] text-[#101010] font-bold shadow-[0_0_12px_rgba(201,164,92,0.3)]'
-                    : 'bg-[#151518] border-[#29292e] text-stone-300 hover:text-white hover:border-stone-500'
-                    }`}
+              <div aria-hidden="true" className="hidden h-9 w-px bg-white/10 sm:block" />
+
+              <div className="relative w-full rounded-xl border border-transparent transition focus-within:border-[#C9A45C]/60 focus-within:bg-white/[0.03] focus-within:ring-2 focus-within:ring-[#C9A45C]/25 sm:w-56">
+                <MapPin aria-hidden="true" className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#d9b66e]" />
+                <label htmlFor="marketplace-commune" className="sr-only">
+                  Filtrer les salons par commune
+                </label>
+                <select
+                  id="marketplace-commune"
+                  value={selectedCommune}
+                  onChange={(event) => setSelectedCommune(event.target.value)}
+                  className="w-full cursor-pointer appearance-none rounded-xl bg-transparent py-4 pl-11 pr-10 text-sm text-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#C9A45C]/75"
                 >
-                  {cat.label}
-                </button>
-              );
-            })}
-          </div>
+                  <option value="all" className="bg-[#17171a] text-white">Toutes les communes</option>
+                  {communes.map((commune) => (
+                    <option key={commune} value={commune} className="bg-[#17171a] text-white">
+                      {commune}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+              </div>
 
-          {/* USP Highlights Bar */}
-          <div className="w-full max-w-4xl grid grid-cols-1 sm:grid-cols-3 gap-4 pt-12 mt-10 border-t border-[#1e1e23] text-left">
-            <div className="flex items-center gap-3.5 p-3 rounded-xl bg-[#141416] border border-[#222226]">
-              <div className="w-10 h-10 rounded-xl bg-[#1d1b15] border border-[#C9A45C]/30 text-[#C9A45C] flex items-center justify-center shrink-0">
-                <Smartphone className="w-5 h-5" />
-              </div>
-              <div>
-                <h4 className="text-xs font-bold text-white">Mobile Money</h4>
-                <p className="text-[11px] text-stone-400">Wave, Orange, MTN, Moov</p>
-              </div>
-            </div>
+              <button
+                type="submit"
+                className="flex w-full shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-[#C9A45C] px-6 py-4 text-sm font-bold text-[#101010] shadow-md transition-colors hover:bg-[#d6b36a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#111112] sm:w-auto"
+              >
+                <Search aria-hidden="true" className="h-4 w-4" />
+                <span>Trouver mon salon</span>
+              </button>
+            </form>
 
-            <div className="flex items-center gap-3.5 p-3 rounded-xl bg-[#141416] border border-[#222226]">
-              <div className="w-10 h-10 rounded-xl bg-[#1d1b15] border border-[#C9A45C]/30 text-[#C9A45C] flex items-center justify-center shrink-0">
-                <BellRing className="w-5 h-5" />
-              </div>
-              <div>
-                <h4 className="text-xs font-bold text-white">Rappels</h4>
-                <p className="text-[11px] text-stone-400">Par WhatsApp et SMS</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3.5 p-3 rounded-xl bg-[#141416] border border-[#222226]">
-              <div className="w-10 h-10 rounded-xl bg-[#1d1b15] border border-[#C9A45C]/30 text-[#C9A45C] flex items-center justify-center shrink-0">
-                <Clock className="w-5 h-5" />
-              </div>
-              <div>
-                <h4 className="text-xs font-bold text-white">24/7</h4>
-                <p className="text-[11px] text-stone-400">Réservation en ligne en direct</p>
-              </div>
-            </div>
+            <p className="mt-4 flex items-center gap-2 text-xs text-stone-300">
+              <MapPin aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-[#d9b66e]" />
+              Les résultats reflètent les salons publiés sur la plateforme.
+            </p>
           </div>
         </div>
       </section>
 
-      {/* SECTION: SÉLECTION - SALONS RECOMMANDÉS */}
       <section id="salons-section" className="py-14 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
         <div className="flex items-end justify-between mb-8">
           <div>
             <span className="text-[11px] uppercase tracking-wider text-[#C9A45C] font-semibold flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5" />
-              SÉLECTION
+              ÉTABLISSEMENTS
             </span>
             <h2 className="text-2xl sm:text-3xl font-extrabold text-white mt-1">
-              Salons recommandés
+              Salons publiés
             </h2>
           </div>
           <span className="text-xs text-stone-400 hidden sm:inline">
-            {recommendedSalons.length} établissements d'excellence
+            {filteredSalons.length} établissement(s)
           </span>
         </div>
 
-        {recommendedSalons.length === 0 ? (
+        {filteredSalons.length === 0 ? (
           <div className="text-center py-12 bg-[#141417] rounded-2xl border border-[#25252a]">
-            <p className="text-stone-400 text-sm">Aucun salon ne correspond à votre recherche.</p>
+            <p className="text-stone-400 text-sm">
+              Aucun salon réel n’est actuellement publié dans la marketplace.
+            </p>
             <button
               onClick={() => {
                 setSearchQuery('');
                 setSelectedCommune('all');
-                setSelectedCategory(null);
               }}
               className="mt-3 text-xs text-[#C9A45C] font-semibold hover:underline"
             >
@@ -325,54 +253,11 @@ export const MarketplaceHome: React.FC = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {recommendedSalons.map((salon) => (
+            {filteredSalons.map((salon) => (
               <SalonCard key={salon.id} salon={salon} />
             ))}
           </div>
         )}
-      </section>
-
-      {/* SECTION: TENDANCE - LES PLUS POPULAIRES */}
-      <section className="py-14 bg-[#111113] border-y border-[#1f1f23]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-end justify-between mb-8">
-            <div>
-              <span className="text-[11px] uppercase tracking-wider text-amber-400 font-semibold flex items-center gap-1.5">
-                <Flame className="w-3.5 h-3.5 text-amber-400" />
-                TENDANCE
-              </span>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-white mt-1">
-                Les plus populaires
-              </h2>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setSelectedCommune('Cocody')}
-                className={`text-xs px-3 py-1 rounded-lg border transition-colors ${selectedCommune === 'Cocody'
-                  ? 'bg-[#C9A45C] text-[#101010] font-bold border-[#C9A45C]'
-                  : 'bg-[#18181b] border-[#29292e] text-stone-300'
-                  }`}
-              >
-                Cocody
-              </button>
-              <button
-                onClick={() => setSelectedCommune('Marcory')}
-                className={`text-xs px-3 py-1 rounded-lg border transition-colors ${selectedCommune === 'Marcory'
-                  ? 'bg-[#C9A45C] text-[#101010] font-bold border-[#C9A45C]'
-                  : 'bg-[#18181b] border-[#29292e] text-stone-300'
-                  }`}
-              >
-                Marcory
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {popularSalons.map((salon) => (
-              <SalonCard key={salon.id} salon={salon} />
-            ))}
-          </div>
-        </div>
       </section>
 
       {/* SECTION: COMMENT ÇA MARCHE (01 Trouvez, 02 Réservez, 03 Payez) */}
@@ -576,124 +461,6 @@ export const MarketplaceHome: React.FC = () => {
         </div>
       </section>
 
-      {/* SECTION: TARIFS (BILLING / FORMULES SAAS) */}
-      <section id="billing-section" className="py-16 bg-[#111113] border-y border-[#1f1f23]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-2xl mx-auto mb-10">
-            <span className="text-[11px] uppercase tracking-wider text-[#C9A45C] font-semibold">
-              TARIFS
-            </span>
-            <h2 className="text-2xl sm:text-4xl font-extrabold text-white mt-1">
-              Des formules simples, sans engagement
-            </h2>
-            <p className="text-sm text-stone-400 mt-3 leading-relaxed">
-              Tous les prix sont en FCFA. Paiement par Mobile Money (Wave, Orange, MTN, Moov), carte bancaire ou virement. Sans frais d’installation.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
-            {plans.map((plan) => (
-              <div
-                key={plan.id}
-                className={`relative rounded-3xl p-7 flex flex-col ${plan.highlighted
-                    ? 'bg-gradient-to-b from-[#1e1b14] to-[#151518] border-2 border-[#C9A45C] shadow-[0_0_35px_rgba(201,164,92,0.15)] md:-mt-3'
-                    : 'bg-[#161619] border border-[#27272c]'
-                  }`}
-              >
-                {plan.highlighted && (
-                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#C9A45C] text-[#101010] text-[10px] font-extrabold uppercase tracking-wider px-3 py-1 rounded-full flex items-center gap-1">
-                    <Crown className="w-3 h-3" />
-                    Le plus choisi
-                  </span>
-                )}
-
-                <div className="flex items-center gap-2 mb-1">
-                  <Store className={`w-4 h-4 ${plan.highlighted ? 'text-[#C9A45C]' : 'text-stone-500'}`} />
-                  <h3 className="text-base font-bold text-white">{plan.name}</h3>
-                </div>
-                <p className="text-xs text-stone-400 mb-5 min-h-[32px]">{plan.description}</p>
-
-                <div className="flex items-baseline gap-1.5 mb-6">
-                  <span className="text-3xl font-extrabold text-white">{plan.price}</span>
-                  <span className="text-xs text-stone-400">{plan.period}</span>
-                </div>
-
-                <ul className="space-y-2.5 mb-7 flex-1">
-                  {plan.features.map((feature) => (
-                    <li key={feature} className="flex items-start gap-2 text-xs text-stone-300">
-                      <CheckCircle2
-                        className={`w-4 h-4 shrink-0 mt-[1px] ${plan.highlighted ? 'text-[#C9A45C]' : 'text-stone-500'}`}
-                      />
-                      <span>{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-
-                <button
-                  onClick={() => { setAuthStartView('signup'); setIsRegisterSalonOpen(true); }}
-                  className={`w-full font-bold text-sm py-3 rounded-xl transition-all cursor-pointer ${plan.highlighted
-                      ? 'bg-[#C9A45C] hover:bg-[#d8b56d] text-[#101010] shadow-lg'
-                      : 'bg-[#242429] hover:bg-[#2d2d34] text-white border border-[#3b3b42]'
-                    }`}
-                >
-                  {plan.cta}
-                </button>
-              </div>
-            ))}
-          </div>
-
-          <p className="text-center text-[11px] text-stone-500 mt-8 flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
-            <span className="inline-flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-[#C9A45C]" /> Annulation à tout moment</span>
-            <span className="inline-flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-[#C9A45C]" /> Factures conformes</span>
-            <span className="inline-flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-[#C9A45C]" /> 14 jours d’essai offert</span>
-          </p>
-        </div>
-      </section>
-
-      {/* SECTION: NEWSLETTER */}
-      <section id="newsletter-section" className="py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
-        <div className="relative rounded-3xl overflow-hidden bg-[#151518] border border-[#27272c] px-6 py-10 sm:px-12 sm:py-12">
-          <div className="absolute -top-16 -right-16 w-64 h-64 bg-[#C9A45C]/10 rounded-full blur-3xl pointer-events-none" />
-          <div className="relative grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
-            <div>
-              <span className="text-[11px] uppercase tracking-wider text-[#C9A45C] font-semibold">
-                NEWSLETTER
-              </span>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-white mt-1 leading-tight">
-                Le meilleur du grooming, chaque semaine.
-              </h2>
-              <p className="text-sm text-stone-400 mt-3 leading-relaxed max-w-md">
-                Nouveaux salons partenaires, offres exclusives, tendances coupe et conseils pour gérer votre établissement. Un e-mail par semaine, zéro spam.
-              </p>
-            </div>
-
-            <form onSubmit={handleNewsletterSubmit} className="w-full">
-              <div className="flex flex-col sm:flex-row gap-2.5 p-2 bg-[#0f0f11] border border-[#2c2c32] rounded-2xl">
-                <input
-                  type="email"
-                  required
-                  value={newsletterEmail}
-                  onChange={(e) => setNewsletterEmail(e.target.value)}
-                  placeholder="votre@email.com"
-                  aria-label="Votre adresse e-mail"
-                  className="flex-1 bg-transparent px-4 py-2.5 text-sm text-white placeholder-stone-500 focus:outline-none"
-                />
-                <button
-                  type="submit"
-                  className="bg-[#C9A45C] hover:bg-[#d8b56d] text-[#101010] font-bold text-sm px-5 py-2.5 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 shrink-0 cursor-pointer"
-                >
-                  <Send className="w-4 h-4" />
-                  S’abonner
-                </button>
-              </div>
-              <p className="text-[11px] text-stone-500 mt-3">
-                En vous abonnant, vous acceptez notre politique de confidentialité. Désinscription en un clic.
-              </p>
-            </form>
-          </div>
-        </div>
-      </section>
-
       {/* SECTION: PRO CTA BANNER (BARBER CUTS BUSINESS ERP) */}
       <section className="py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
         <div className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-[#1c1a16] via-[#161619] to-[#121214] border border-[#C9A45C]/30 p-8 sm:p-12 shadow-2xl">
@@ -709,20 +476,18 @@ export const MarketplaceHome: React.FC = () => {
             </p>
 
             <div className="flex flex-wrap items-center gap-4 pt-3">
-              <button
-                onClick={() => { setAuthStartView('signup'); setIsRegisterSalonOpen(true); }}
+              <a
+                href="/inscription"
                 className="bg-[#C9A45C] hover:bg-[#d8b56d] text-[#101010] font-bold text-sm px-6 py-3 rounded-xl transition-all shadow-lg hover:shadow-[0_0_20px_rgba(201,164,92,0.3)] cursor-pointer"
               >
                 Inscrire mon salon
-              </button>
-
-              {isRegisteredInErp && <button
-                onClick={() => setMode('erp')}
+              </a>
+              <a
+                href="/app/tableau-de-bord"
                 className="bg-[#242429] hover:bg-[#2d2d34] text-white border border-[#3b3b42] font-semibold text-sm px-6 py-3 rounded-xl transition-colors flex items-center gap-2 cursor-pointer"
               >
-                <span>Accéder à l'ERP Pro</span>
-                <ArrowRight className="w-4 h-4 text-[#C9A45C]" />
-              </button>}
+                Accéder à l’espace professionnel
+              </a>
             </div>
           </div>
         </div>
@@ -744,7 +509,7 @@ export const MarketplaceHome: React.FC = () => {
                 </span>
               </div>
               <p className="text-xs text-stone-400 leading-relaxed">
-                La plateforme de référence des barbershops et salons de beauté en Afrique francophone. Née à Abidjan.
+                La plateforme de découverte et de gestion des salons.
               </p>
             </div>
 
@@ -754,9 +519,13 @@ export const MarketplaceHome: React.FC = () => {
               </h4>
               <ul className="space-y-2">
                 <li><a href="#salons-section" className="hover:text-white transition-colors">Trouver un salon</a></li>
-                <li><button onClick={() => setSelectedCommune('Cocody')} className="hover:text-white transition-colors">Salons à Cocody</button></li>
-                <li><button onClick={() => setSelectedCommune('Marcory')} className="hover:text-white transition-colors">Salons à Marcory</button></li>
-                <li><button onClick={() => setSelectedCommune('Plateau')} className="hover:text-white transition-colors">Salons au Plateau</button></li>
+                {communes.map((commune) => (
+                  <li key={commune}>
+                    <button onClick={() => setSelectedCommune(commune)} className="hover:text-white transition-colors">
+                      Salons à {commune}
+                    </button>
+                  </li>
+                ))}
               </ul>
             </div>
 
@@ -765,39 +534,25 @@ export const MarketplaceHome: React.FC = () => {
                 PROFESSIONNELS
               </h4>
               <ul className="space-y-2">
-                {isRegisteredInErp && <li>
-                  <button onClick={() => setMode('erp')} className="hover:text-white transition-colors">
-                    Barber Cuts Business ERP
-                  </button>
-                </li>}
                 <li>
-                  <button onClick={() => { setAuthStartView('signup'); setIsRegisterSalonOpen(true); }} className="hover:text-white transition-colors">
-                    Inscrire un établissement
-                  </button>
+                  <a href="/inscription" className="hover:text-white transition-colors">Inscrire un établissement</a>
                 </li>
-                {isRegisteredInErp && <li>
-                  <button onClick={() => setMode('erp')} className="hover:text-white transition-colors">
-                    Tarifs & Formules SaaS
-                  </button>
-                </li>}
+                <li><a href="/app/tableau-de-bord" className="hover:text-white transition-colors">Espace professionnel</a></li>
               </ul>
             </div>
 
             <div>
               <h4 className="text-xs font-bold text-[#C9A45C] uppercase tracking-wider mb-3">
-                CÔTE D'IVOIRE & AFRIQUE
+                INFORMATIONS
               </h4>
               <p className="text-xs text-stone-400 leading-relaxed">
-                Disponible à Abidjan, Yamoussoukro, Bouaké, San Pedro. Bientôt disponible à Dakar, Douala, Yaoundé et Cotonou.
+                Les établissements affichés proviennent des données publiées dans la plateforme.
               </p>
-              <div className="mt-3 text-stone-400 flex items-center gap-1.5">
-                <span>Devise : FCFA (XOF)</span>
-              </div>
             </div>
           </div>
 
           <div className="pt-8 border-t border-[#19191c] flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-stone-400">
-            <span>© 2026 Barber Cuts. Abidjan, Côte d'Ivoire. Tous droits réservés.</span>
+            <span>© 2026 Barber Cuts. Tous droits réservés.</span>
             <div className="flex gap-4">
               <span>Conditions d'utilisation</span>
               <span>Politique de confidentialité</span>
@@ -809,4 +564,3 @@ export const MarketplaceHome: React.FC = () => {
     </div>
   );
 };
-

@@ -1,6 +1,6 @@
 # BARBER CUTS Business — Workflow fonctionnel de référence
 
-> **Mise à jour : Neon (PostgreSQL hébergé) remplace Supabase comme cible technique ; PostgreSQL local reste facultatif.** Les références à Supabase et aux anciens chemins dans ce document sont historiques ; voir [Neon](neon.md) pour les instructions actuelles.
+> **Mise à jour : Supabase devient la cible technique unique pour authentification et données applicatives.** Les références à Neon ou à PostgreSQL local sont historiques et doivent être ignorées. Toutes les données de l’app doivent passer par Supabase.
 
 **Statut : cible produit proposée comme référence de conception ; non implémentée ni validée en production.** Version 1 — 3 novembre 2026. Ce document définit les comportements et routes à construire, avant la migration des données. Il complète `audit-fondations.md` et `multi-tenant.md` ; en cas d'écart, l'application actuelle reste un prototype et ne doit pas être interprétée comme réalisant ces workflows.
 

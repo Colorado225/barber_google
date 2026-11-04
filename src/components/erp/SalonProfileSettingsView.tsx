@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { PaymentMethod, SalonType, OpeningHour } from '../../types';
+import { BranchHoursManager } from './BranchHoursManager';
+import { useOptionalAuth } from '../../context/AuthContext';
+import { listSalonBranches, type SalonBranch } from '../../lib/branch-hours';
 import {
   Store,
   Upload,
@@ -20,49 +23,90 @@ import {
 
 export const SalonProfileSettingsView: React.FC = () => {
   const { activeSalon, updateSalonDetails, setSelectedSalonForModal, formatPrice } = useApp();
+  const { isAuthenticated } = useOptionalAuth();
 
   // Basic Info
   const [name, setName] = useState(activeSalon.name);
-  const [tagline, setTagline] = useState(activeSalon.tagline);
-  const [description, setDescription] = useState(activeSalon.description);
-  const [salonType, setSalonType] = useState<SalonType>(activeSalon.type);
+  const [tagline, setTagline] = useState(activeSalon.tagline ?? '');
+  const [description, setDescription] = useState(activeSalon.description ?? '');
+  const [salonType, setSalonType] = useState<SalonType | ''>(activeSalon.type ?? '');
 
   // Logo & Branding
-  const [logo, setLogo] = useState(activeSalon.logo || 'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?auto=format&fit=crop&w=128&q=80');
-  const [coverImage, setCoverImage] = useState(activeSalon.coverImage);
+  const [logo, setLogo] = useState(activeSalon.logo ?? '');
+  const [coverImage, setCoverImage] = useState(activeSalon.coverImage ?? '');
 
   // Contacts
-  const [phone, setPhone] = useState(activeSalon.phone);
-  const [whatsapp, setWhatsapp] = useState(activeSalon.whatsapp);
-  const [email, setEmail] = useState(activeSalon.email);
+  const [phone, setPhone] = useState(activeSalon.phone ?? '');
+  const [whatsapp, setWhatsapp] = useState(activeSalon.whatsapp ?? '');
+  const [email, setEmail] = useState(activeSalon.email ?? '');
 
   // Localization
-  const [country, setCountry] = useState(activeSalon.country || "Côte d'Ivoire");
-  const [city, setCity] = useState(activeSalon.city || 'Abidjan');
-  const [commune, setCommune] = useState(activeSalon.commune || 'Cocody');
-  const [quarter, setQuarter] = useState(activeSalon.quarter || 'Riviera 2');
-  const [address, setAddress] = useState(activeSalon.address || 'Rue des Jardins');
+  const [country, setCountry] = useState(activeSalon.country ?? '');
+  const [city, setCity] = useState(activeSalon.city ?? '');
+  const [commune, setCommune] = useState(activeSalon.commune ?? '');
+  const [quarter, setQuarter] = useState(activeSalon.quarter ?? '');
+  const [address, setAddress] = useState(activeSalon.address ?? '');
 
   // Commercial & Pricing
-  const [minPrice, setMinPrice] = useState(activeSalon.minPrice || 3000);
-  const [currency] = useState(activeSalon.currency || 'FCFA');
+  const [minPrice, setMinPrice] = useState(String(activeSalon.minPrice ?? ''));
+  const [currency] = useState(activeSalon.currency ?? '');
+
+  // Succursales et horaires d'ouverture
+  const [branches, setBranches] = useState<SalonBranch[]>([]);
+  const [selectedBranch, setSelectedBranch] = useState<SalonBranch | null>(null);
+  const [branchesLoading, setBranchesLoading] = useState(false);
+  const [branchesError, setBranchesError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadBranches = async () => {
+      if (!activeSalon?.id) return;
+      if (!isAuthenticated) {
+        setBranches([]);
+        setSelectedBranch(null);
+        setBranchesError(null);
+        setBranchesLoading(false);
+        return;
+      }
+      setBranchesLoading(true);
+      setBranchesError(null);
+      try {
+        const list = await listSalonBranches(activeSalon.id);
+        if (mounted) {
+          setBranches(list);
+          setSelectedBranch((current) => list.find((branch) => branch.id === current?.id) ?? list[0] ?? null);
+        }
+      } catch (error) {
+        if (mounted) setBranchesError(error instanceof Error ? error.message : 'Impossible de charger les succursales.');
+      } finally {
+        if (mounted) setBranchesLoading(false);
+      }
+    };
+    void loadBranches();
+    return () => {
+      mounted = false;
+    };
+  }, [activeSalon?.id, isAuthenticated]);
+
+  const reloadBranches = async () => {
+    setBranchesLoading(true);
+    setBranchesError(null);
+    try {
+      const list = await listSalonBranches(activeSalon.id);
+      setBranches(list);
+      setSelectedBranch((current) => list.find((branch) => branch.id === current?.id) ?? list[0] ?? null);
+    } catch (error) {
+      setBranchesError(error instanceof Error ? error.message : 'Impossible de charger les succursales.');
+    } finally {
+      setBranchesLoading(false);
+    }
+  };
 
   // Opening hours
-  const defaultHours: OpeningHour[] = [
-    { day: 'Lundi', open: '09:00', close: '20:00', isOpen: true },
-    { day: 'Mardi', open: '09:00', close: '20:00', isOpen: true },
-    { day: 'Mercredi', open: '09:00', close: '20:00', isOpen: true },
-    { day: 'Jeudi', open: '09:00', close: '21:00', isOpen: true },
-    { day: 'Vendredi', open: '08:30', close: '22:00', isOpen: true },
-    { day: 'Samedi', open: '08:30', close: '22:00', isOpen: true },
-    { day: 'Dimanche', open: '10:00', close: '18:00', isOpen: true }
-  ];
-  const [openingHours, setOpeningHours] = useState<OpeningHour[]>(
-    activeSalon.openingHours && activeSalon.openingHours.length > 0 ? activeSalon.openingHours : defaultHours
-  );
+  const [openingHours, setOpeningHours] = useState<OpeningHour[]>(activeSalon.openingHours ?? []);
 
   // Payment methods
-  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>(activeSalon.paymentMethods || ['wave', 'orange_money', 'cash']);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>(activeSalon.paymentMethods ?? []);
 
   const toggleMethod = (m: PaymentMethod) => {
     setPaymentMethods((prev) =>
@@ -110,7 +154,7 @@ export const SalonProfileSettingsView: React.FC = () => {
       name,
       tagline,
       description,
-      type: salonType,
+      type: salonType || activeSalon.type,
       logo,
       coverImage,
       phone,
@@ -121,18 +165,11 @@ export const SalonProfileSettingsView: React.FC = () => {
       commune,
       quarter,
       address,
-      minPrice: Number(minPrice),
+      minPrice: minPrice ? Number(minPrice) : undefined,
       openingHours,
       paymentMethods
     });
   };
-
-  const logoPresets = [
-    { label: 'Doré Vintage', url: 'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?auto=format&fit=crop&w=128&q=80' },
-    { label: 'Ciseaux Or', url: 'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=128&q=80' },
-    { label: 'Urban Black', url: 'https://images.unsplash.com/photo-1621605815971-fbc98d665033?auto=format&fit=crop&w=128&q=80' },
-    { label: 'Classic Barber', url: 'https://images.unsplash.com/photo-1599351431202-1e0f0137899a?auto=format&fit=crop&w=128&q=80' }
-  ];
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -193,19 +230,6 @@ export const SalonProfileSettingsView: React.FC = () => {
                 Format carré recommandé (PNG, JPG ou SVG). Visible sur la Marketplace, les reçus et les tickets WhatsApp.
               </p>
 
-              {/* Presets */}
-              <div className="flex flex-wrap gap-2 pt-1 justify-center sm:justify-start">
-                {logoPresets.map((preset, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => setLogo(preset.url)}
-                    className="text-[11px] px-2.5 py-1 rounded-lg bg-[#222226] hover:bg-[#2c2c32] text-stone-300 border border-[#2e2e34] transition-colors"
-                  >
-                    {preset.label}
-                  </button>
-                ))}
-              </div>
             </div>
           </div>
 
@@ -316,7 +340,7 @@ export const SalonProfileSettingsView: React.FC = () => {
                 min="500"
                 step="500"
                 value={minPrice}
-                onChange={(e) => setMinPrice(Number(e.target.value))}
+                onChange={(e) => setMinPrice(e.target.value)}
                 className="w-full bg-[#111113] border border-[#29292e] rounded-xl px-3.5 py-2.5 text-xs font-bold text-[#E5C378] focus:outline-none focus:border-[#C9A45C]"
               />
             </div>
@@ -535,17 +559,64 @@ export const SalonProfileSettingsView: React.FC = () => {
                   key={item.id}
                   type="button"
                   onClick={() => toggleMethod(item.id as PaymentMethod)}
-                  className={`p-3 rounded-xl border text-left text-xs font-semibold transition-all ${
-                    isChecked
-                      ? 'bg-[#C9A45C]/15 border-[#C9A45C] text-[#C9A45C]'
-                      : 'bg-[#111113] border-[#29292e] text-stone-400 hover:border-stone-500'
-                  }`}
+                  className={`p-3 rounded-xl border text-left text-xs font-semibold transition-all ${isChecked
+                    ? 'bg-[#C9A45C]/15 border-[#C9A45C] text-[#C9A45C]'
+                    : 'bg-[#111113] border-[#29292e] text-stone-400 hover:border-stone-500'
+                    }`}
                 >
                   {item.label}
                 </button>
               );
             })}
           </div>
+        </div>
+
+        {/* SECTION 7: GESTION DES SUCCURSALES */}
+        <div className="bg-[#161619] border border-[#27272c] rounded-2xl p-6 space-y-4">
+          <div className="flex items-center gap-2 text-sm font-bold text-white border-b border-[#242428] pb-3">
+            <Building2 className="w-4 h-4 text-[#C9A45C]" />
+            <span>Gestion des Succursales</span>
+          </div>
+          {!isAuthenticated ? (
+            <p className="text-xs text-stone-400">La gestion des succursales est disponible dans un espace authentifié.</p>
+          ) : branchesLoading ? (
+            <p className="text-xs text-stone-400">Chargement des succursales…</p>
+          ) : branchesError ? (
+            <div className="space-y-3">
+              <p role="alert" className="text-xs text-red-300">{branchesError}</p>
+              <button type="button" onClick={() => void reloadBranches()} className="text-xs text-[#C9A45C] underline">
+                Réessayer
+              </button>
+            </div>
+          ) : branches.length === 0 ? (
+            <p className="text-xs text-stone-400">Aucune succursale configurée.</p>
+          ) : (
+            <>
+              <label className="text-[11px] font-semibold text-stone-300 block mb-2">Succursale</label>
+              <select
+                value={selectedBranch?.id || ''}
+                onChange={(e) => {
+                  const b = branches.find((x) => x.id === e.target.value);
+                  setSelectedBranch(b ?? null);
+                }}
+                className="w-full bg-[#111113] border border-[#29292e] rounded-xl px-3 py-2 text-xs text-stone-200 focus:outline-none focus:border-[#C9A45C] mb-4"
+              >
+                <option value="">— Choisir une succursale —</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+              {selectedBranch && (
+                <BranchHoursManager
+                  salonId={activeSalon.id}
+                  branchId={selectedBranch.id}
+                  branchName={selectedBranch.name}
+                />
+              )}
+            </>
+          )}
         </div>
 
         {/* SUBMIT BUTTON */}
