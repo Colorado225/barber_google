@@ -117,7 +117,7 @@ test('2. Modèle 1 Classique : rendu HTML avec prix ERP et staff visible', () =>
 
   assert.ok(html.includes('Barbershop Premium'));
   assert.ok(html.includes('Dégradé Américain'));
-  assert.ok(html.includes('6&nbsp;000 FCFA') || html.includes('6 000 FCFA'));
+  assert.ok(html.replace(/[\u202F\u00A0]/g, ' ').includes('6 000 FCFA'));
   assert.ok(html.includes('Yves'));
   assert.ok(html.includes('Gage de confiance'));
 });
@@ -172,7 +172,7 @@ test('4. Sections conditionnelles : désactiver les avis masque la section sans 
   assert.ok(!html.includes('Avis certifiés par les clients'));
   // Les autres sections restent présentes
   assert.ok(html.includes('Prestations en vedette'));
-  assert.ok(html.includes('Équipe d’artisans'));
+  assert.ok(html.replace(/&#x27;|[’]/g, "'").includes("Équipe d'artisans"));
 });
 
 test('5. Personnel visible : un membre non sélectionné n’apparaît pas dans la vitrine', () => {
@@ -213,6 +213,50 @@ test('6. Synchronisation tarifaire ERP : une hausse de prix est immédiatement v
     />
   );
 
-  assert.ok(html.includes('7&nbsp;500 FCFA') || html.includes('7 500 FCFA'));
-  assert.ok(!html.includes('6&nbsp;000 FCFA') && !html.includes('6 000 FCFA'));
+  const normalized = html.replace(/[\u202F\u00A0]/g, ' ');
+  assert.ok(normalized.includes('7 500 FCFA'));
+  assert.ok(!normalized.includes('6 000 FCFA'));
+});
+
+test('7. Ordre des sections : la position configurée pilote l’ordre de rendu', () => {
+  const base = getDefaultCustomizerConfig('salon-123');
+  const config: SalonMarketplaceViewConfig = {
+    ...base,
+    sections: base.sections.map((s) =>
+      s.id === 'reviews'
+        ? { ...s, position: 1 }
+        : s.id === 'gallery'
+          ? { ...s, position: 6 }
+          : s.id === 'hero'
+            ? { ...s, position: 0 }
+            : { ...s, position: s.position + 10 }
+    ),
+  };
+  const html = renderToStaticMarkup(
+    <ClassicSalonLayout
+      detail={MOCK_DETAIL}
+      config={config}
+      formatPrice={(amt) => `${amt} FCFA`}
+    />
+  );
+  const reviewsIdx = html.indexOf('Meilleur barbier de Cocody');
+  const servicesIdx = html.indexOf('Prestations en vedette');
+  assert.ok(reviewsIdx > -1 && servicesIdx > -1);
+  assert.ok(reviewsIdx < servicesIdx, 'les avis (position 1) précèdent les prestations');
+});
+
+test('8. Galerie : seules les images sélectionnées sont affichées, dans l’ordre choisi', () => {
+  const config: SalonMarketplaceViewConfig = {
+    ...getDefaultCustomizerConfig('salon-123'),
+    featuredGalleryImageIds: ['https://example.com/photo2.jpg'],
+  };
+  const html = renderToStaticMarkup(
+    <ClassicSalonLayout
+      detail={MOCK_DETAIL}
+      config={config}
+      formatPrice={(amt) => `${amt} FCFA`}
+    />
+  );
+  assert.ok(html.includes('https://example.com/photo2.jpg'));
+  assert.ok(!html.includes('https://example.com/photo1.jpg'));
 });

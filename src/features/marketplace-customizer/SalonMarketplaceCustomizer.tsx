@@ -13,6 +13,7 @@ import {
   revertCustomizerDraft,
   getDefaultCustomizerConfig
 } from '../../lib/marketplace-customizer';
+import { listSalonBranches, getBranchHours } from '../../lib/branch-hours';
 import { SalonMarketplaceToolbar, ViewportMode } from './SalonMarketplaceToolbar';
 import { SalonMarketplaceThemeEditor } from './SalonMarketplaceThemeEditor';
 import { SalonMarketplaceContentEditor } from './SalonMarketplaceContentEditor';
@@ -54,6 +55,53 @@ export const SalonMarketplaceCustomizer: React.FC = () => {
 
   const [viewport, setViewport] = useState<ViewportMode>('desktop');
   const [activeTab, setActiveTab] = useState<'theme' | 'content' | 'sections'>('theme');
+
+  // Succursales réelles + horaires réels pour l'aperçu (aucune donnée inventée).
+  const [salonBranches, setSalonBranches] = useState<{ id: string; name: string }[]>([]);
+  const [previewBranches, setPreviewBranches] = useState<PublicSalonDetail['branches']>([]);
+
+  useEffect(() => {
+    if (!activeSalon?.id) return;
+    let cancelled = false;
+    const weekdayOf: Record<string, number> = {
+      Lundi: 1, Mardi: 2, Mercredi: 3, Jeudi: 4, Vendredi: 5, Samedi: 6, Dimanche: 0
+    };
+    listSalonBranches(activeSalon.id)
+      .then(async (branches) => {
+        if (cancelled) return;
+        setSalonBranches(branches);
+        const withHours = await Promise.all(
+          branches.map(async (b) => {
+            try {
+              const hours = await getBranchHours(activeSalon.id, b.id);
+              return {
+                id: b.id,
+                name: b.name,
+                timezone: 'Africa/Abidjan',
+                hours: hours.map((h) => ({
+                  weekday: weekdayOf[h.day] ?? 1,
+                  isOpen: h.isOpen,
+                  opensAt: h.isOpen ? h.open : null,
+                  closesAt: h.isOpen ? h.close : null
+                }))
+              };
+            } catch {
+              return { id: b.id, name: b.name, timezone: 'Africa/Abidjan', hours: [] };
+            }
+          })
+        );
+        if (!cancelled) setPreviewBranches(withHours);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSalonBranches([]);
+          setPreviewBranches([]);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSalon?.id]);
 
   // Load customizer configuration on mount or when activeSalon changes
   useEffect(() => {
@@ -181,7 +229,11 @@ export const SalonMarketplaceCustomizer: React.FC = () => {
         description: draftConfig.customDescription || activeSalon.description,
       },
       services: salonServices,
-      staff: salonStaff.map((st) => ({
+      // L'aperçu applique la sélection du brouillon, comme la page publique
+      // appliquera celle de la configuration publiée (liste vide = aucun).
+      staff: salonStaff
+        .filter((st) => (draftConfig.visibleStaffIds ?? []).includes(st.id))
+        .map((st) => ({
         id: st.id,
         name: st.name,
         role: st.role,
@@ -189,28 +241,20 @@ export const SalonMarketplaceCustomizer: React.FC = () => {
         serviceIds: st.serviceIds,
       })),
       reviews: salonReviews,
-      branches: [
-        {
-          id: 'branch-1',
-          name: activeSalon.name,
-          timezone: 'Africa/Abidjan',
-          hours: [
-            { weekday: 1, isOpen: true, opensAt: '09:00', closesAt: '19:00' },
-            { weekday: 2, isOpen: true, opensAt: '09:00', closesAt: '19:00' },
-            { weekday: 3, isOpen: true, opensAt: '09:00', closesAt: '19:00' },
-            { weekday: 4, isOpen: true, opensAt: '09:00', closesAt: '19:00' },
-            { weekday: 5, isOpen: true, opensAt: '09:00', closesAt: '19:00' },
-            { weekday: 6, isOpen: true, opensAt: '09:00', closesAt: '19:00' },
-            { weekday: 0, isOpen: false, opensAt: null, closesAt: null },
-          ],
-        },
-      ],
-      rating: activeSalon.rating ?? 4.8,
+      branches: previewBranches,
+      rating:
+        activeSalon.rating ??
+        (salonReviews.length > 0
+          ? salonReviews.reduce((sum, r) => sum + r.rating, 0) / salonReviews.length
+          : null),
       reviewCount: activeSalon.reviewCount ?? salonReviews.length,
-      minPrice: activeSalon.minPrice ?? 3500,
+      minPrice:
+        salonServices.length > 0
+          ? Math.min(...salonServices.map((s) => s.price))
+          : (activeSalon.minPrice ?? null),
       customizer: draftConfig,
     };
-  }, [activeSalon, services, staff, reviews, draftConfig]);
+  }, [activeSalon, services, staff, reviews, draftConfig, previewBranches]);
 
   const publicUrl = activeSalon.slug
     ? `/salons/${activeSalon.slug}`

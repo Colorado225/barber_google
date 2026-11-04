@@ -13,11 +13,17 @@ interface SalonTeamShowcaseProps {
   onSelectStaff?: (staffId: string) => void;
 }
 
-const DEFAULT_AVATARS = [
-  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
-  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80',
-  'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80',
-];
+// Aucun portrait de substitution : un employé sans photo est représenté par
+// ses initiales, jamais par le visage d'une autre personne.
+function initialsOf(name: string): string {
+  return name
+    .split(' ')
+    .map((part) => part.trim()[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+}
 
 const ROLE_LABELS: Record<string, string> = {
   master_barber: 'Master Barber',
@@ -78,7 +84,7 @@ export const SalonTeamShowcase: React.FC<SalonTeamShowcaseProps> = ({
       {/* Interactive Stacked Avatars (inspired by TripFolderCard) */}
       <div className="relative my-3 h-28 flex items-center justify-center">
         {displayStaff.map((member, i) => {
-          const avatarUrl = member.avatar || DEFAULT_AVATARS[i % DEFAULT_AVATARS.length];
+          const avatarUrl = member.avatar || null;
           const isSelected = selectedStaffId === member.id;
 
           // Fan-out positions for stacked presentation
@@ -109,12 +115,21 @@ export const SalonTeamShowcase: React.FC<SalonTeamShowcaseProps> = ({
                 hoverClass
               )}
             >
-              <img
-                src={avatarUrl}
-                alt={member.name}
-                loading="lazy"
-                className="size-full object-cover"
-              />
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt={member.name}
+                  loading="lazy"
+                  className="size-full object-cover"
+                />
+              ) : (
+                <div
+                  aria-hidden="true"
+                  className="size-full flex items-center justify-center bg-gradient-to-br from-stone-700 to-stone-900 text-lg font-bold text-[#C9A45C]"
+                >
+                  {initialsOf(member.name)}
+                </div>
+              )}
               <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent flex items-end p-1">
                 <span className="text-[9px] font-bold text-white truncate">{member.name.split(' ')[0]}</span>
               </div>

@@ -1,5 +1,6 @@
 import type {
   PaymentMethod,
+  PublicSalonDetail,
   Review,
   Salon,
   SalonGalleryItem,
@@ -43,17 +44,7 @@ export interface PublicAvailabilitySlot {
   available: boolean;
 }
 
-export interface PublicSalonDetail {
-  salon: Salon;
-  services: Service[];
-  staff: Pick<StaffMember, 'id' | 'name' | 'role' | 'specialties' | 'serviceIds'>[];
-  reviews: Review[];
-  branches: { id: string; name: string; timezone: string; hours: { weekday: number; isOpen: boolean; opensAt: string | null; closesAt: string | null }[] }[];
-  rating: number | null;
-  reviewCount: number;
-  minPrice: number | null;
-  customizer?: SalonMarketplaceViewConfig;
-}
+export type { PublicSalonDetail };
 
 function unwrap<T>(result: { data: T | null; error: { message: string; code?: string } | null }): T {
   if (result.error) {

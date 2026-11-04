@@ -134,7 +134,7 @@ export const SalonReviewsSection: React.FC<SalonReviewsSectionProps> = ({
                       {new Intl.DateTimeFormat('fr-FR', {
                         timeZone: 'Africa/Abidjan',
                         dateStyle: 'medium'
-                      }).format(new Date(rev.created_at || rev.date))}
+                      }).format(new Date(rev.date))}
                     </span>
                   </div>
                 </div>

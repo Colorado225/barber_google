@@ -35,14 +35,17 @@ create table if not exists public.salon_marketplace_settings (
 
 alter table public.salon_marketplace_settings enable row level security;
 
+drop policy if exists marketplace_settings_member_select on public.salon_marketplace_settings;
 create policy marketplace_settings_member_select on public.salon_marketplace_settings
   for select to authenticated
   using (private.has_salon_permission(salon_id, 'salon.read'));
 
+drop policy if exists marketplace_settings_owner_insert on public.salon_marketplace_settings;
 create policy marketplace_settings_owner_insert on public.salon_marketplace_settings
   for insert to authenticated
   with check (private.has_salon_permission(salon_id, 'salon.update'));
 
+drop policy if exists marketplace_settings_owner_update on public.salon_marketplace_settings;
 create policy marketplace_settings_owner_update on public.salon_marketplace_settings
   for update to authenticated
   using (private.has_salon_permission(salon_id, 'salon.update'));

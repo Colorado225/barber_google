@@ -21,8 +21,11 @@ interface SalonLocationHoursCardProps {
   branches?: BranchInfo[];
   cardStyle?: SalonCardStyle;
   accentColor?: string;
+  showAddress?: boolean;
   showPhone?: boolean;
   showWhatsapp?: boolean;
+  /** Succursale mise en avant par le propriétaire (sélectionnée par défaut). */
+  defaultBranchId?: string;
 }
 
 const WEEKDAY_NAMES = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
@@ -37,10 +40,16 @@ export const SalonLocationHoursCard: React.FC<SalonLocationHoursCardProps> = ({
   branches = [],
   cardStyle = 'rounded-3xl',
   accentColor = '#C9A45C',
+  showAddress = true,
   showPhone = true,
-  showWhatsapp = true
+  showWhatsapp = true,
+  defaultBranchId
 }) => {
-  const [selectedBranchIndex, setSelectedBranchIndex] = useState(0);
+  const initialBranchIndex = Math.max(
+    0,
+    branches.findIndex((b) => b.id === defaultBranchId)
+  );
+  const [selectedBranchIndex, setSelectedBranchIndex] = useState(initialBranchIndex);
   const [hoursExpanded, setHoursExpanded] = useState(false);
 
   const activeBranch = branches[selectedBranchIndex] || branches[0];
@@ -108,25 +117,29 @@ export const SalonLocationHoursCard: React.FC<SalonLocationHoursCardProps> = ({
       </div>
 
       {/* Address & Itinerary */}
-      <div className="p-3 rounded-xl bg-[#1d1d22] border border-stone-800/80 flex items-start justify-between gap-3 text-xs">
-        <div className="flex items-start gap-2">
-          <MapPin className="w-4 h-4 text-stone-400 shrink-0 mt-0.5" />
-          <div>
-            <p className="font-semibold text-white">Adresse</p>
-            <p className="text-stone-300 mt-0.5">{fullAddress || 'Adresse disponible sur confirmation'}</p>
+      {showAddress && (
+        <div className="p-3 rounded-xl bg-[#1d1d22] border border-stone-800/80 flex items-start justify-between gap-3 text-xs">
+          <div className="flex items-start gap-2">
+            <MapPin className="w-4 h-4 text-stone-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-white">Adresse</p>
+              <p className="text-stone-300 mt-0.5">{fullAddress || 'Adresse disponible sur confirmation'}</p>
+            </div>
           </div>
-        </div>
 
-        <a
-          href={mapsUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="shrink-0 px-2.5 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 text-[11px] font-medium flex items-center gap-1 transition-colors"
-        >
-          <span>Itinéraire</span>
-          <ExternalLink className="w-3 h-3" />
-        </a>
-      </div>
+          {fullAddress && (
+            <a
+              href={mapsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="shrink-0 px-2.5 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 text-[11px] font-medium flex items-center gap-1 transition-colors"
+            >
+              <span>Itinéraire</span>
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          )}
+        </div>
+      )}
 
       {/* Weekday Schedule List (Expandable or Compact) */}
       {activeBranch?.hours && activeBranch.hours.length > 0 && (
