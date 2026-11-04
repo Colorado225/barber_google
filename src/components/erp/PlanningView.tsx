@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Appointment, AppointmentStatus } from '../../types';
 import { FormModal, Field, inputClass, ConfirmDelete } from './FormModal';
+import { forwardStatus } from '../../lib/appointment-workflow';
 import { Calendar as CalendarIcon, Plus, Pencil, Check, Ban } from 'lucide-react';
 
 const STATUS_LABELS: Record<AppointmentStatus, string> = {
@@ -36,7 +37,11 @@ type FormState = {
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
-export const PlanningView: React.FC = () => {
+interface PlanningViewProps {
+  onOpenWalkIn?: () => void;
+}
+
+export const PlanningView: React.FC<PlanningViewProps> = ({ onOpenWalkIn }) => {
   const {
     activeSalon,
     appointments,
@@ -48,11 +53,14 @@ export const PlanningView: React.FC = () => {
     updateAppointment,
     deleteAppointment,
     updateAppointmentStatus,
+    startWalkIn,
+    completeWalkIn,
     addToast
   } = useApp();
 
   const [filterDate, setFilterDate] = useState('');
   const [filterStaff, setFilterStaff] = useState('');
+  const [filterType, setFilterType] = useState<'all' | 'appointments' | 'walk_in' | 'marketplace'>('all');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editing, setEditing] = useState<Appointment | null>(null);
 
@@ -86,8 +94,14 @@ export const PlanningView: React.FC = () => {
       .filter((a) => a.salonId === activeSalon.id)
       .filter((a) => (filterDate ? a.date === filterDate : true))
       .filter((a) => (filterStaff ? a.staffId === filterStaff : true))
+      .filter((a) => {
+        if (filterType === 'all') return true;
+        if (filterType === 'walk_in') return a.source === 'walk_in';
+        if (filterType === 'marketplace') return a.source === 'marketplace';
+        return a.source !== 'walk_in' && a.source !== 'marketplace';
+      })
       .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
-  }, [appointments, activeSalon.id, filterDate, filterStaff]);
+  }, [appointments, activeSalon.id, filterDate, filterStaff, filterType]);
 
   const openCreate = () => {
     setEditing(null);
@@ -206,15 +220,36 @@ export const PlanningView: React.FC = () => {
               </option>
             ))}
           </select>
-          {(filterDate || filterStaff) && (
+          <select
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value as typeof filterType)}
+            aria-label="Filtrer par type"
+            className="bg-[#151516] border border-[#2a2a2b] rounded-lg px-3 py-2 text-xs text-[#f7f6f2] focus:outline-none focus:border-[#C9A45C]"
+          >
+            <option value="all">Tous</option>
+            <option value="appointments">Rendez-vous</option>
+            <option value="walk_in">Sans rendez-vous</option>
+            <option value="marketplace">Réservations en ligne</option>
+          </select>
+          {(filterDate || filterStaff || filterType !== 'all') && (
             <button
               onClick={() => {
                 setFilterDate('');
                 setFilterStaff('');
+                setFilterType('all');
               }}
               className="text-xs text-stone-400 hover:text-white px-2 py-2 cursor-pointer"
             >
               Réinitialiser
+            </button>
+          )}
+          {onOpenWalkIn && (
+            <button
+              onClick={onOpenWalkIn}
+              className="flex items-center gap-2 px-4 py-2 bg-[#242429] text-white border border-[#3b3b44] rounded-lg font-semibold hover:bg-[#2d2d34] cursor-pointer shrink-0"
+            >
+              <Plus className="w-4 h-4 text-[#C9A45C]" />
+              Client de passage
             </button>
           )}
           <button
@@ -260,6 +295,16 @@ export const PlanningView: React.FC = () => {
                   <td className="px-3 py-3 text-[#C9A45C] font-mono text-xs">{apt.time}</td>
                   <td className="px-3 py-3">
                     <span className="font-semibold text-[#f7f6f2]">{apt.clientName}</span>
+                    {apt.source === 'walk_in' && (
+                      <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[#C9A45C]/15 text-[#E5C378] border border-[#C9A45C]/30">
+                        Sans RDV
+                      </span>
+                    )}
+                    {apt.source === 'marketplace' && (
+                      <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-sky-500/15 text-sky-300 border border-sky-500/30">
+                        En ligne
+                      </span>
+                    )}
                     <div className="text-[11px] text-[#a9a9a9]">{apt.clientPhone}</div>
                   </td>
                   <td className="px-3 py-3 text-[#a9a9a9] text-xs">{apt.serviceName}</td>
@@ -276,18 +321,28 @@ export const PlanningView: React.FC = () => {
                   </td>
                   <td className="px-3 py-3">
                     <div className="flex items-center justify-end gap-1.5">
-                      <button
-                        onClick={() => openEdit(apt)}
-                        title="Modifier"
-                        className="text-stone-400 hover:text-white p-1 rounded cursor-pointer"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-
-                      {apt.status !== 'completed' && apt.status !== 'cancelled' && (
+                      {apt.source !== 'walk_in' && (
                         <button
-                          onClick={() => updateAppointmentStatus(apt.id, 'completed')}
-                          title="Marquer comme terminé"
+                          onClick={() => openEdit(apt)}
+                          title="Modifier"
+                          className="text-stone-400 hover:text-white p-1 rounded cursor-pointer"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+
+                      {forwardStatus(apt.status) && (
+                        <button
+                          onClick={() => {
+                            if (apt.source === 'walk_in') {
+                              if (apt.status === 'checked_in') void startWalkIn(apt.id, apt.staffId);
+                              else if (apt.status === 'in_progress') void completeWalkIn(apt.id);
+                              return;
+                            }
+                            const next = forwardStatus(apt.status);
+                            if (next) updateAppointmentStatus(apt.id, next);
+                          }}
+                          title={`Passer à « ${STATUS_LABELS[forwardStatus(apt.status)!]} »`}
                           className="text-emerald-400 hover:text-emerald-300 p-1 rounded cursor-pointer"
                         >
                           <Check className="w-3.5 h-3.5" />
@@ -304,7 +359,7 @@ export const PlanningView: React.FC = () => {
                         </button>
                       )}
 
-                      <ConfirmDelete onConfirm={() => deleteAppointment(apt.id)} />
+                      {apt.source !== 'walk_in' && <ConfirmDelete onConfirm={() => deleteAppointment(apt.id)} />}
                     </div>
                   </td>
                 </tr>

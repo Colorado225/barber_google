@@ -1,6 +1,8 @@
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import App from './App';
 import { MarketplaceHome } from './components/marketplace/MarketplaceHome';
+import { BookingPortalView } from './components/marketplace/BookingPortalView';
+import { MyBookingsView } from './components/marketplace/MyBookingsView';
 import { ErpLayout } from './components/erp/ErpLayout';
 import { SalonProvider } from './context/SalonContext';
 import { DashboardView } from './components/erp/DashboardView';
@@ -57,6 +59,16 @@ const router = createBrowserRouter([
         // booking profile from the `:slug` segment, then canonicalises the URL.
         path: 'salons/:slug',
         element: <MarketplaceHome />,
+      },
+      {
+        // Portail client persistant : le jeton secret de la réservation suffit,
+        // aucun compte n'est nécessaire pour suivre, annuler ou noter.
+        path: 'reservation/:token',
+        element: <BookingPortalView />,
+      },
+      {
+        path: 'mes-reservations',
+        element: <MyBookingsView />,
       },
       {
         path: 'connexion',

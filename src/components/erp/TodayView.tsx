@@ -1,5 +1,6 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
+import { paymentSignedAmount } from '../../lib/analytics';
 import { Calendar, Users, Wallet, Clock } from 'lucide-react';
 
 export const TodayView: React.FC = () => {
@@ -15,7 +16,7 @@ export const TodayView: React.FC = () => {
     .filter(
       (t) => t.salonId === activeSalon.id && t.status === 'completed' && t.date === todayStr
     )
-    .reduce((acc, t) => acc + t.amount, 0);
+    .reduce((acc, t) => acc + paymentSignedAmount(t), 0);
 
   const waiting = todayAppointments.filter(
     (a) => a.status === 'pending' || a.status === 'confirmed'

@@ -16,6 +16,9 @@
     "test:tenant": "node --test database/tests/tenant.test.mjs",
     "test:workflow": "node --test database/tests/workflow.test.mjs",
     "test:resources": "node --test database/tests/resources.test.mjs",
+    "test:supabase": "node --test database/tests/supabase-core.test.mjs database/tests/supabase-branch-hours.test.mjs database/tests/supabase-operations.test.mjs database/tests/supabase-finance.test.mjs database/tests/supabase-marketplace.test.mjs database/tests/supabase-walk-in.test.mjs database/tests/supabase-client-journey.test.mjs",
+    "test:walk-in": "node --test database/tests/supabase-walk-in.test.mjs",
+    "test:finance": "node --test database/tests/supabase-finance.test.mjs",
     "test:api": "node --test tests/api.test.mjs",
     "test:operations": "node --test tests/operations-lot3.test.mjs",
     "test:operations:pg": "node --test tests/operations-lot3.pg.test.mjs",
@@ -26,7 +29,8 @@
     "supabase:db:linked:preview": "supabase db push --linked --dry-run",
     "supabase:db:linked:push": "supabase db push --linked",
     "dev:auth": "node server/index.js",
-    "test:auth": "node --test tests/auth.test.mjs"
+    "test:auth": "node --test tests/auth.test.mjs",
+    "test:journey": "node --test database/tests/supabase-client-journey.test.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1161.0",

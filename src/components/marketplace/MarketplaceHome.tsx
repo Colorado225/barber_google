@@ -1,5 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useOptionalApp } from '../../context/AppContext';
+import { listSavedBookings, bookingPortalPath, type SavedBooking } from '../../lib/bookingVault';
 import { SalonCard } from './SalonCard';
 import { useSalonDeepLink } from '../../hooks/useSalonDeepLink';
 import {
@@ -13,7 +15,9 @@ import {
   Flame,
   Quote,
   Scissors,
-  Smartphone
+  Smartphone,
+  CalendarCheck,
+  ArrowRight
 } from 'lucide-react';
 
 const HERO_VIDEO_SRC = `/assets/video/${encodeURI(
@@ -26,7 +30,9 @@ export const MarketplaceHome: React.FC = () => {
     setMode,
     reviews,
     addToast,
-    setSelectedSalonForModal
+    setSelectedSalonForModal,
+    marketplaceLoading,
+    marketplaceError
   } = useOptionalApp();
 
   // QR code links (/?salon=<slug>) open the salon's booking profile directly.
@@ -37,6 +43,11 @@ export const MarketplaceHome: React.FC = () => {
     onNotFound: () =>
       addToast("Ce lien QR ne correspond à aucun salon publié.", 'error')
   });
+
+  // Réservations faites depuis cet appareil : le suivi reste accessible même
+  // après fermeture de la fenêtre de confirmation, sans compte client.
+  const [savedBookings, setSavedBookings] = useState<SavedBooking[]>([]);
+  useEffect(() => { setSavedBookings(listSavedBookings()); }, []);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCommune, setSelectedCommune] = useState('all');
@@ -220,6 +231,35 @@ export const MarketplaceHome: React.FC = () => {
         </div>
       </section>
 
+      {savedBookings.length > 0 && (
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full pt-8">
+          <div className="rounded-2xl border border-[#C9A45C]/30 bg-[#17130d] p-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <CalendarCheck className="w-5 h-5 text-[#C9A45C]" />
+              <div>
+                <p className="text-sm font-bold text-white">
+                  {savedBookings.length === 1 ? 'Votre réservation est enregistrée' : `${savedBookings.length} réservations sur cet appareil`}
+                </p>
+                <p className="text-xs text-stone-400">
+                  {savedBookings[0].salonName} · {savedBookings[0].serviceName} — suivi, annulation et avis après la prestation.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Link to={bookingPortalPath(savedBookings[0].token)}
+                className="px-4 py-2 rounded-xl bg-[#C9A45C] hover:bg-[#d8b46c] text-[#101010] text-xs font-bold inline-flex items-center gap-1.5">
+                Suivre ma réservation <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+              {savedBookings.length > 1 && (
+                <Link to="/mes-reservations" className="px-3 py-2 rounded-xl bg-[#232328] text-stone-300 text-xs font-semibold">
+                  Tout voir
+                </Link>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
       <section id="salons-section" className="py-14 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
         <div className="flex items-end justify-between mb-8">
           <div>
@@ -236,6 +276,14 @@ export const MarketplaceHome: React.FC = () => {
           </span>
         </div>
 
+        {marketplaceLoading && (
+          <p className="text-sm text-stone-400 mb-4">Chargement des salons publiés…</p>
+        )}
+        {marketplaceError && (
+          <p role="alert" className="text-sm text-red-300 bg-red-950/30 border border-red-500/30 rounded-lg p-3 mb-4">
+            {marketplaceError}
+          </p>
+        )}
         {filteredSalons.length === 0 ? (
           <div className="text-center py-12 bg-[#141417] rounded-2xl border border-[#25252a]">
             <p className="text-stone-400 text-sm">

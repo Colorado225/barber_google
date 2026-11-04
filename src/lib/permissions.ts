@@ -8,6 +8,12 @@ const MEMBER_PERMISSIONS = [
   'salon.read',
 ] as const;
 
+// Aligné sur private.has_salon_permission (migrations canoniques Supabase).
+const FINANCE_READ = ['payments.read', 'cash.read'] as const;
+const FINANCE_RECORD = ['payments.record', 'cash.open', 'cash.close'] as const;
+const FINANCE_CORRECT = ['payments.correct'] as const;
+const REPORTS = ['reports.read'] as const;
+
 const ROLE_PERMISSIONS: Record<string, string[]> = {
   owner: [
     ...MEMBER_PERMISSIONS,
@@ -26,13 +32,13 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     'salon.update',
     'branch.create',
     'branch.update',
-    'payments.read',
-    'payments.write',
-    'payments.refund.read',
-    'payments.refund.write',
-    'cashier.read',
-    'cashier.write',
-    'display.update',  // vitrine/modifications
+    ...FINANCE_READ,
+    ...FINANCE_RECORD,
+    ...FINANCE_CORRECT,
+    'cash.reconcile',
+    ...REPORTS,
+    'subscriptions.read',
+    'display.update',
   ],
   manager: [
     ...MEMBER_PERMISSIONS,
@@ -49,13 +55,11 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     'members.read',
     'branch.create',
     'branch.update',
-    'payments.read',
-    'payments.write',
-    'payments.refund.read',
-    'payments.refund.write',
-    'cashier.read',
-    'cashier.write',
-    'display.update',  // vitrine/modifications
+    ...FINANCE_READ,
+    ...FINANCE_RECORD,
+    ...FINANCE_CORRECT,
+    ...REPORTS,
+    'display.update',
   ],
   receptionist: [
     ...MEMBER_PERMISSIONS,
@@ -63,23 +67,21 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     'appointments.read',
     'appointments.write',
     'stock.read',
-    'payments.read',  // Lectures paiement pour receptionniste
+    'payments.read',
   ],
   barber: [...MEMBER_PERMISSIONS, 'appointments.read', 'stock.read'],
   cashier: [
     ...MEMBER_PERMISSIONS,
     'appointments.read',
     'stock.read',
-    'payments.read',
-    'payments.write',
-    'cashier.read',
-    'cashier.write',
+    ...FINANCE_READ,
+    ...FINANCE_RECORD,
   ],
   accountant: [
     ...MEMBER_PERMISSIONS,
     'expenses.read',
-    'payments.read',
-    'payments.write',
+    ...FINANCE_READ,
+    ...REPORTS,
   ],
 };
 

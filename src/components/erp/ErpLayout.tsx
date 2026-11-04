@@ -20,6 +20,10 @@ import { PlanningView } from './PlanningView';
 import { LoyaltyView } from './LoyaltyView';
 import { NewAppointmentModal } from './NewAppointmentModal';
 import { NewPaymentModal } from './NewPaymentModal';
+import { WalkInModal } from './WalkInModal';
+import { WalkInView } from './WalkInView';
+import { OnlineRequestsView } from './OnlineRequestsView';
+import { NotificationsView } from './NotificationsView';
 import {
   LayoutDashboard,
   Calendar,
@@ -41,11 +45,17 @@ import {
   Globe,
   QrCode,
   BarChart3,
-  Heart
+  Heart,
+  UserPlus,
+  Inbox,
+  Send
 } from 'lucide-react';
 
 export type ErpTab =
   | 'dashboard'
+  | 'walk_in'
+  | 'online_requests'
+  | 'notifications'
   | 'calendar'
   | 'cash'
   | 'crm'
@@ -63,6 +73,9 @@ export type ErpTab =
 /** URL segment for each ERP tab, so views stay shareable and reloadable. */
 const TAB_PATHS: Record<ErpTab, string> = {
   dashboard: 'tableau-de-bord',
+  walk_in: 'sans-rendez-vous',
+  online_requests: 'demandes-en-ligne',
+  notifications: 'notifications',
   calendar: 'planning',
   cash: 'caisse',
   crm: 'clients',
@@ -88,7 +101,9 @@ export const ErpLayout: React.FC = () => {
     setMode,
     isSyncing,
     syncError,
-    reloadWorkspace
+    reloadWorkspace,
+    appointments,
+    notifications
   } = useOptionalApp();
   const { memberships, hasPermission } = useOptionalAuth();
 
@@ -104,6 +119,7 @@ export const ErpLayout: React.FC = () => {
 
   // Quick modals
   const [isNewAppointmentOpen, setIsNewAppointmentOpen] = useState(false);
+  const [isWalkInOpen, setIsWalkInOpen] = useState(false);
   const [newAppointmentSlot, setNewAppointmentSlot] = useState<{ date?: string; time?: string; staffId?: string }>({});
   const [isNewPaymentOpen, setIsNewPaymentOpen] = useState(false);
   const [preselectedAppointment, setPreselectedAppointment] = useState<Appointment | null>(null);
@@ -113,8 +129,11 @@ export const ErpLayout: React.FC = () => {
 
   const navItems: { id: ErpTab; label: string; icon: any; permission?: string }[] = [
     { id: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard, permission: 'dashboard.read' },
+    { id: 'walk_in', label: 'Sans rendez-vous', icon: UserPlus, permission: 'appointments.read' },
+    { id: 'online_requests', label: 'Demandes en ligne', icon: Inbox, permission: 'appointments.read' },
     { id: 'calendar', label: 'Planning & RDV', icon: Calendar, permission: 'appointments.read' },
-    { id: 'cash', label: 'Caisse & Encaissements', icon: CreditCard, permission: 'payments.create' },
+    { id: 'notifications', label: 'Notifications clients', icon: Send, permission: 'appointments.read' },
+    { id: 'cash', label: 'Caisse & Encaissements', icon: CreditCard, permission: 'payments.read' },
     { id: 'crm', label: 'CRM Clients', icon: Users, permission: 'clients.read' },
     { id: 'services', label: 'Prestations & Tarifs', icon: Scissors, permission: 'services.read' },
     { id: 'staff', label: 'Équipe & Commissions', icon: UserCheck, permission: 'staff.read' },
@@ -127,6 +146,16 @@ export const ErpLayout: React.FC = () => {
     { id: 'storefront', label: 'Personnalisation Salon', icon: Store, permission: 'salon.update' },
     { id: 'saas', label: 'Abonnement SaaS', icon: Sparkles, permission: 'subscriptions.read' }
   ];
+
+  // Compteurs d'action : demandes à confirmer et messages à traiter.
+  const pendingOnline = appointments.filter(
+    (a) => a.salonId === activeSalon?.id && a.source === 'marketplace' && a.status === 'pending'
+  ).length;
+  const pendingNotifications = notifications.filter(
+    (n) => n.salonId === activeSalon?.id && (n.status === 'pending' || n.status === 'failed' || n.status === 'skipped')
+  ).length;
+  const navBadge = (id: ErpTab): number =>
+    id === 'online_requests' ? pendingOnline : id === 'notifications' ? pendingNotifications : 0;
 
   // Sans session serveur (démonstration locale), tous les onglets restent visibles.
   const visibleNavItems = memberships.length ? navItems.filter((i) => !i.permission || canSee(i.permission)) : navItems;
@@ -236,7 +265,14 @@ export const ErpLayout: React.FC = () => {
                 }`}
               >
                 <Icon className={`w-4 h-4 ${isActive ? 'text-[#101010]' : 'text-stone-400'}`} />
-                <span>{item.label}</span>
+                <span className="flex-1 text-left">{item.label}</span>
+                {navBadge(item.id) > 0 && (
+                  <span className={`ml-auto rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                    isActive ? 'bg-[#101010] text-[#C9A45C]' : 'bg-[#C9A45C] text-[#101010]'
+                  }`}>
+                    {navBadge(item.id)}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -278,6 +314,15 @@ export const ErpLayout: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-3">
+            {(memberships.length === 0 || canSee('appointments.write')) && (
+              <button
+                onClick={() => setIsWalkInOpen(true)}
+                className="bg-[#C9A45C]/15 hover:bg-[#C9A45C]/25 text-[#E5C378] border border-[#C9A45C]/40 font-semibold text-xs px-3.5 py-2 rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">+ Client de passage</span>
+              </button>
+            )}
             <button
               onClick={() => {
                 setNewAppointmentSlot({});
@@ -289,16 +334,18 @@ export const ErpLayout: React.FC = () => {
               <span className="hidden sm:inline">+ Nouveau RDV</span>
             </button>
 
-            <button
-              onClick={() => {
-                setPreselectedAppointment(null);
-                setIsNewPaymentOpen(true);
-              }}
-              className="bg-[#C9A45C] hover:bg-[#d8b56d] text-[#101010] font-bold text-xs px-4 py-2 rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
-            >
-              <CreditCard className="w-3.5 h-3.5" />
-              <span>Encaisser</span>
-            </button>
+            {(memberships.length === 0 || canSee('payments.record')) && (
+              <button
+                onClick={() => {
+                  setPreselectedAppointment(null);
+                  setIsNewPaymentOpen(true);
+                }}
+                className="bg-[#C9A45C] hover:bg-[#d8b56d] text-[#101010] font-bold text-xs px-4 py-2 rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+              >
+                <CreditCard className="w-3.5 h-3.5" />
+                <span>Encaisser</span>
+              </button>
+            )}
           </div>
         </header>
 
@@ -310,6 +357,7 @@ export const ErpLayout: React.FC = () => {
                 setNewAppointmentSlot({});
                 setIsNewAppointmentOpen(true);
               }}
+              onOpenWalkIn={() => setIsWalkInOpen(true)}
               onOpenNewPayment={() => {
                 setPreselectedAppointment(null);
                 setIsNewPaymentOpen(true);
@@ -317,7 +365,19 @@ export const ErpLayout: React.FC = () => {
             />
           )}
 
-          {visibleActiveTab === 'calendar' && <PlanningView />}
+          {visibleActiveTab === 'walk_in' && (
+            <WalkInView
+              onOpenNewWalkIn={() => setIsWalkInOpen(true)}
+              onOpenPayment={(apt) => {
+                setPreselectedAppointment(apt);
+                setIsNewPaymentOpen(true);
+              }}
+            />
+          )}
+
+          {visibleActiveTab === 'online_requests' && <OnlineRequestsView />}
+          {visibleActiveTab === 'notifications' && <NotificationsView />}
+          {visibleActiveTab === 'calendar' && <PlanningView onOpenWalkIn={() => setIsWalkInOpen(true)} />}
 
           {visibleActiveTab === 'cash' && <CashRegisterView />}
 
@@ -345,6 +405,14 @@ export const ErpLayout: React.FC = () => {
         </main>
       </div>
 
+      {/* ACCUEIL CLIENT SANS RENDEZ-VOUS */}
+      {isWalkInOpen && (
+        <WalkInModal
+          onClose={() => setIsWalkInOpen(false)}
+          onCreated={() => setActiveTab('walk_in')}
+        />
+      )}
+
       {/* QUICK NEW APPOINTMENT MODAL */}
       {isNewAppointmentOpen && (
         <NewAppointmentModal
@@ -366,7 +434,7 @@ export const ErpLayout: React.FC = () => {
             setPreselectedAppointment(null);
           }}
           preselectedAppointmentId={preselectedAppointment?.id}
-          defaultAmount={preselectedAppointment?.price || 3000}
+          defaultAmount={preselectedAppointment?.price}
           defaultClientName={preselectedAppointment?.clientName || ''}
         />
       )}
