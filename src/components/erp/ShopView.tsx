@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
-import { Store, Globe, Eye, QrCode, Scissors, ImageIcon, ArrowRight } from 'lucide-react';
+import { Store, Globe, Eye, QrCode, Scissors, ImageIcon, ArrowRight, UploadCloud, EyeOff } from 'lucide-react';
 
 export const ShopView: React.FC = () => {
-  const { activeSalon, services, reviews, setSelectedSalonForModal, setMode } = useApp();
+  const { activeSalon, services, reviews, setSelectedSalonForModal, setMode, setSalonPublished } = useApp();
+  const [publishing, setPublishing] = useState(false);
 
   const salonServices = services.filter((s) => s.salonId === activeSalon.id);
   const salonReviews = reviews.filter((r) => r.salonId === activeSalon.id);
@@ -118,6 +119,34 @@ export const ShopView: React.FC = () => {
           <span className="flex items-center gap-2">
             <Eye className="w-4 h-4 text-[#C9A45C]" />
             Voir la fiche publique
+          </span>
+          <ArrowRight className="w-4 h-4 text-[#a9a9a9]" />
+        </button>
+
+        <button
+          onClick={async () => {
+            if (!isPublished && !checks.every((c) => c.ok)) {
+              return;
+            }
+            setPublishing(true);
+            try {
+              await setSalonPublished(activeSalon.id, !isPublished);
+            } catch {
+              // Le toast d'erreur est déjà émis par le contexte.
+            } finally {
+              setPublishing(false);
+            }
+          }}
+          disabled={publishing || (!isPublished && !checks.every((c) => c.ok))}
+          className={`w-full flex items-center justify-between p-3.5 rounded-lg border transition-colors text-sm font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+            isPublished
+              ? 'bg-[#18181b] border-[#2a2a2b] text-[#f7f6f2] hover:border-red-500/50'
+              : 'bg-[#C9A45C]/10 border-[#C9A45C]/40 text-[#E5C378] hover:bg-[#C9A45C]/20'
+          }`}
+        >
+          <span className="flex items-center gap-2">
+            {isPublished ? <EyeOff className="w-4 h-4" /> : <UploadCloud className="w-4 h-4" />}
+            {publishing ? 'Enregistrement…' : isPublished ? 'Retirer de la marketplace' : 'Publier sur la marketplace'}
           </span>
           <ArrowRight className="w-4 h-4 text-[#a9a9a9]" />
         </button>

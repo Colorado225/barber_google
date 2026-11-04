@@ -70,6 +70,22 @@ function monthKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
+/** Signe comptable d'une écriture : remboursements/annulations en négatif. */
+export function paymentSignedAmount(t: PaymentTransaction): number {
+  return t.kind === "refund" || t.kind === "payment_reversal" ? -t.amount : t.amount;
+}
+
+/** Seules les écritures confirmées entrent dans les revenus réalisés. */
+export function isConfirmedPayment(t: PaymentTransaction): boolean {
+  return t.status === "completed";
+}
+
+export function netRevenue(transactions: PaymentTransaction[]): number {
+  return transactions
+    .filter(isConfirmedPayment)
+    .reduce((acc, t) => acc + paymentSignedAmount(t), 0);
+}
+
 function growthOf(current: number, previous: number): number | null {
   if (previous <= 0) return null;
   return Math.round(((current - previous) / previous) * 1000) / 10;
@@ -100,8 +116,8 @@ export function buildRevenueSeries(
 
     const points = buckets.map((b) => {
       const revenue = transactions
-        .filter((t) => t.date >= b.start && t.date <= b.end)
-        .reduce((acc, t) => acc + t.amount, 0);
+        .filter((t) => isConfirmedPayment(t) && t.date >= b.start && t.date <= b.end)
+        .reduce((acc, t) => acc + paymentSignedAmount(t), 0);
       const count = appointments.filter(
         (a) => a.date >= b.start && a.date <= b.end,
       ).length;
@@ -133,8 +149,8 @@ export function buildRevenueSeries(
     const d = new Date(now.getFullYear(), now.getMonth() - offset, 1);
     const key = monthKey(d);
     const revenue = transactions
-      .filter((t) => t.date.startsWith(key))
-      .reduce((acc, t) => acc + t.amount, 0);
+      .filter((t) => isConfirmedPayment(t) && t.date.startsWith(key))
+      .reduce((acc, t) => acc + paymentSignedAmount(t), 0);
     const count = appointments.filter((a) => a.date.startsWith(key)).length;
     const spent = expenses
       .filter((e) => e.date.startsWith(key))
@@ -254,7 +270,9 @@ export function buildServicePerformance(
 export function computeAverageBasket(
   transactions: PaymentTransaction[],
 ): number | null {
-  if (!transactions.length) return null;
-  const total = transactions.reduce((acc, t) => acc + t.amount, 0);
-  return Math.round(total / transactions.length);
+  const confirmed = transactions.filter(isConfirmedPayment);
+  const paymentCount = confirmed.filter((t) => t.kind === "payment").length;
+  if (!paymentCount) return null;
+  const total = confirmed.reduce((acc, t) => acc + paymentSignedAmount(t), 0);
+  return Math.round(total / paymentCount);
 }

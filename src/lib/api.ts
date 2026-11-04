@@ -1,8 +1,20 @@
 import type {
   Appointment,
+  AppointmentBalance,
+  AppointmentNotification,
+  LoyaltyAccount,
+  LoyaltyLedgerEntry,
+  LoyaltySettings,
+  NotificationDispatchResult,
+  CashSession,
   Client,
   Expense,
+  FinancialSummary,
   LoyaltyReward,
+  PaymentEntryKind,
+  PaymentMethod,
+  PaymentSettlementMode,
+  PaymentTransaction,
   Review,
   Service,
   StaffMember,
@@ -44,14 +56,6 @@ function unwrap<T>(result: { data: T | null; error: { message: string; code?: st
   return result.data;
 }
 
-function unavailable<T>(operation: string): Promise<T> {
-  return Promise.reject(new ApiError(
-    `L’opération « ${operation} » n’est pas encore migrée vers une fonction Supabase sécurisée.`,
-    501,
-    'SUPABASE_OPERATION_NOT_MIGRATED',
-  ));
-}
-
 function stringValue(row: DbRow, key: string, fallback = ''): string {
   const value = row[key];
   return typeof value === 'string' ? value : fallback;
@@ -74,6 +78,30 @@ function optionalNumber(row: DbRow, key: string): number | undefined {
 
 function booleanValue(row: DbRow, key: string): boolean {
   return row[key] === true;
+}
+
+const ABIDJAN_DATE = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Africa/Abidjan',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+const ABIDJAN_TIME = new Intl.DateTimeFormat('fr-FR', {
+  timeZone: 'Africa/Abidjan',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+});
+
+function abidjanDateTime(iso: string): { date: string; time: string } {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return { date: iso.slice(0, 10), time: iso.slice(11, 16) };
+  return { date: ABIDJAN_DATE.format(d), time: ABIDJAN_TIME.format(d) };
+}
+
+function firstRow<T>(data: T | T[] | null): T | null {
+  if (Array.isArray(data)) return data[0] ?? null;
+  return data;
 }
 
 function mapClient(row: DbRow): Client {
@@ -129,6 +157,7 @@ function mapStaff(row: DbRow): StaffMember {
 
 function mapAppointment(row: DbRow): Appointment {
   const startsAt = stringValue(row, 'starts_at');
+  const { date, time } = abidjanDateTime(startsAt);
   return {
     id: stringValue(row, 'id'),
     salonId: stringValue(row, 'salon_id'),
@@ -136,13 +165,14 @@ function mapAppointment(row: DbRow): Appointment {
     clientId: optionalString(row, 'client_id') ?? null,
     clientName: stringValue(row, 'client_name'),
     clientPhone: stringValue(row, 'client_phone'),
+    clientEmail: optionalString(row, 'client_email'),
     serviceId: stringValue(row, 'service_id'),
     serviceName: stringValue(row, 'service_name'),
     price: numberValue(row, 'amount'),
     staffId: optionalString(row, 'staff_id') ?? null,
     staffName: stringValue(row, 'staff_name'),
-    date: startsAt.slice(0, 10),
-    time: startsAt.slice(11, 16),
+    date,
+    time,
     durationMinutes: Math.max(
       0,
       (Date.parse(stringValue(row, 'ends_at')) - Date.parse(startsAt)) / 60000,
@@ -154,6 +184,109 @@ function mapAppointment(row: DbRow): Appointment {
     createdAt: stringValue(row, 'created_at'),
     startsAt,
     endsAt: stringValue(row, 'ends_at'),
+    arrivalAt: optionalString(row, 'arrival_at'),
+    serviceStartedAt: optionalString(row, 'service_started_at'),
+    serviceCompletedAt: optionalString(row, 'service_completed_at'),
+  };
+}
+
+function mapPayment(row: DbRow): PaymentTransaction {
+  const createdAt = stringValue(row, 'created_at');
+  const { date, time } = abidjanDateTime(createdAt);
+  const kind = stringValue(row, 'kind', 'payment') as PaymentEntryKind;
+  const status = stringValue(row, 'status');
+  const amount = numberValue(row, 'amount');
+  const appointmentAmount = optionalNumber(row, 'appointment_amount');
+  const providerReference = optionalString(row, 'provider_reference');
+  return {
+    id: stringValue(row, 'id'),
+    salonId: stringValue(row, 'salon_id'),
+    branchId: optionalString(row, 'branch_id'),
+    appointmentId: optionalString(row, 'appointment_id'),
+    appointmentAmount,
+    serviceName: optionalString(row, 'service_name'),
+    clientName: stringValue(row, 'client_name'),
+    amount,
+    method: stringValue(row, 'method') as PaymentMethod,
+    kind,
+    type: kind !== 'payment' ? 'balance' : appointmentAmount !== undefined && amount >= appointmentAmount ? 'full' : 'deposit',
+    reference: providerReference ?? stringValue(row, 'id').slice(0, 8).toUpperCase(),
+    providerReference,
+    status: status === 'confirmed' ? 'completed' : status === 'pending' ? 'pending' : 'cancelled',
+    date,
+    time,
+    createdAt,
+    cashSessionId: optionalString(row, 'cash_session_id'),
+    originalEntryId: optionalString(row, 'original_entry_id'),
+    reason: optionalString(row, 'reason'),
+    settlementMode: optionalString(row, 'settlement_mode') as PaymentSettlementMode | undefined,
+    settlementNote: optionalString(row, 'settlement_note'),
+  };
+}
+
+function mapCashSession(row: DbRow): CashSession {
+  const counted = optionalNumber(row, 'counted_balance');
+  const difference = optionalNumber(row, 'difference');
+  const totalCashOut = numberValue(row, 'total_cash_out');
+  const totalMobileMoneyOut = numberValue(row, 'total_mobile_money_out');
+  return {
+    id: stringValue(row, 'id'),
+    salonId: stringValue(row, 'salon_id'),
+    branchId: stringValue(row, 'branch_id'),
+    registerId: stringValue(row, 'register_id'),
+    registerName: optionalString(row, 'register_name'),
+    openedAt: stringValue(row, 'opened_at'),
+    closedAt: optionalString(row, 'closed_at'),
+    reconciledAt: optionalString(row, 'reconciled_at'),
+    openingBalance: numberValue(row, 'opening_balance'),
+    totalCashIn: numberValue(row, 'total_cash_in'),
+    totalCashOut,
+    totalMobileMoneyIn: numberValue(row, 'total_mobile_money_in'),
+    totalMobileMoneyOut,
+    totalOut: totalCashOut + totalMobileMoneyOut,
+    theoreticalBalance: numberValue(row, 'theoretical_balance'),
+    expectedBalance: optionalNumber(row, 'expected_balance'),
+    actualBalance: counted,
+    countedBalance: counted,
+    discrepancy: difference,
+    difference,
+    status: stringValue(row, 'status') as CashSession['status'],
+    openingNote: optionalString(row, 'opening_note'),
+    closingNote: optionalString(row, 'closing_note'),
+    reconciliationNote: optionalString(row, 'reconciliation_note'),
+    notes: optionalString(row, 'closing_note'),
+  };
+}
+
+function mapFinancialSummary(row: DbRow): FinancialSummary {
+  const byMethodRaw = row.by_method;
+  const byMethod: Record<string, number> = {};
+  if (byMethodRaw && typeof byMethodRaw === 'object') {
+    for (const [key, value] of Object.entries(byMethodRaw as Record<string, unknown>)) {
+      byMethod[key] = Number(value ?? 0);
+    }
+  }
+  return {
+    revenueBilled: numberValue(row, 'revenue_billed'),
+    revenueCollected: numberValue(row, 'revenue_collected'),
+    outstanding: numberValue(row, 'outstanding'),
+    refunds: numberValue(row, 'refunds'),
+    expenses: numberValue(row, 'expenses'),
+    netBalance: numberValue(row, 'net_balance'),
+    pendingAmount: numberValue(row, 'pending_amount'),
+    paymentCount: numberValue(row, 'payment_count'),
+    byMethod,
+  };
+}
+
+function mapAppointmentBalance(row: DbRow): AppointmentBalance {
+  return {
+    appointmentId: stringValue(row, 'appointment_id'),
+    billed: numberValue(row, 'billed'),
+    collected: numberValue(row, 'collected'),
+    outstanding: numberValue(row, 'outstanding'),
+    pending: numberValue(row, 'pending'),
+    refunded: numberValue(row, 'refunded'),
   };
 }
 
@@ -161,12 +294,16 @@ function mapExpense(row: DbRow): Expense {
   return {
     id: stringValue(row, 'id'),
     salonId: stringValue(row, 'salon_id'),
+    branchId: optionalString(row, 'branch_id') ?? null,
     title: stringValue(row, 'title'),
     category: stringValue(row, 'category') as Expense['category'],
     amount: numberValue(row, 'amount'),
     date: stringValue(row, 'spent_on'),
     paymentMethod: undefined,
     notes: stringValue(row, 'notes'),
+    receiptRef: optionalString(row, 'receipt_ref'),
+    createdBy: optionalString(row, 'created_by'),
+    createdAt: optionalString(row, 'created_at'),
   };
 }
 
@@ -200,6 +337,63 @@ function mapReward(row: DbRow): LoyaltyReward {
   };
 }
 
+function mapLoyaltyProgram(salonId: string, row: DbRow | null): LoyaltySettings {
+  return {
+    salonId,
+    pointsPer100Fcfa: row ? numberValue(row, 'points_per_100_xof') : 1,
+    welcomeBonus: row ? numberValue(row, 'welcome_bonus') : 0,
+    silverThreshold: row ? numberValue(row, 'silver_threshold') : 100,
+    goldThreshold: row ? numberValue(row, 'gold_threshold') : 250,
+    vipThreshold: row ? numberValue(row, 'vip_threshold') : 500,
+    programEnabled: row ? booleanValue(row, 'is_enabled') : true,
+  };
+}
+
+function mapLoyaltyAccount(row: DbRow): LoyaltyAccount {
+  return {
+    salonId: stringValue(row, 'salon_id'),
+    clientId: stringValue(row, 'client_id'),
+    pointsBalance: numberValue(row, 'points_balance'),
+    totalEarned: numberValue(row, 'total_earned'),
+    totalRedeemed: numberValue(row, 'total_redeemed'),
+    tier: stringValue(row, 'tier', 'bronze') as LoyaltyAccount['tier'],
+    updatedAt: stringValue(row, 'updated_at'),
+  };
+}
+
+function mapLoyaltyLedgerEntry(row: DbRow): LoyaltyLedgerEntry {
+  return {
+    id: stringValue(row, 'id'),
+    salonId: stringValue(row, 'salon_id'),
+    clientId: stringValue(row, 'client_id'),
+    appointmentId: optionalString(row, 'appointment_id') ?? null,
+    rewardId: optionalString(row, 'reward_id') ?? null,
+    kind: stringValue(row, 'kind') as LoyaltyLedgerEntry['kind'],
+    points: numberValue(row, 'points'),
+    balanceAfter: numberValue(row, 'balance_after'),
+    reason: stringValue(row, 'reason'),
+    createdAt: stringValue(row, 'created_at'),
+  };
+}
+
+function mapNotification(row: DbRow): AppointmentNotification {
+  return {
+    id: stringValue(row, 'id'),
+    salonId: stringValue(row, 'salon_id'),
+    appointmentId: stringValue(row, 'appointment_id'),
+    channel: stringValue(row, 'channel') as AppointmentNotification['channel'],
+    kind: stringValue(row, 'kind') as AppointmentNotification['kind'],
+    recipient: stringValue(row, 'recipient'),
+    status: stringValue(row, 'status') as AppointmentNotification['status'],
+    scheduledAt: stringValue(row, 'scheduled_at'),
+    createdAt: stringValue(row, 'created_at'),
+    sentAt: optionalString(row, 'sent_at') ?? null,
+    error: optionalString(row, 'error') ?? null,
+    attempts: numberValue(row, 'attempts'),
+    providerMessageId: optionalString(row, 'provider_message_id') ?? null,
+  };
+}
+
 function mapReview(row: DbRow): Review {
   return {
     id: stringValue(row, 'id'),
@@ -212,17 +406,102 @@ function mapReview(row: DbRow): Review {
   };
 }
 
+function mapStaffSchedule(row: DbRow): StaffSchedule {
+  return {
+    id: stringValue(row, 'id'),
+    weekday: numberValue(row, 'weekday'),
+    startsAt: stringValue(row, 'starts_at').slice(0, 5),
+    endsAt: stringValue(row, 'ends_at').slice(0, 5),
+  };
+}
+
+function mapStaffAbsence(row: DbRow): StaffAbsence {
+  return {
+    id: stringValue(row, 'id'),
+    startsOn: stringValue(row, 'starts_on'),
+    endsOn: stringValue(row, 'ends_on'),
+    reason: stringValue(row, 'reason'),
+  };
+}
+
 type ClientInput = Pick<Client, 'name' | 'phone'> &
   Partial<Pick<Client, 'email' | 'segment' | 'favoriteService' | 'notes'>>;
 type ServiceInput = Pick<Service, 'name' | 'category' | 'price' | 'durationMinutes'> &
   Partial<Pick<Service, 'description' | 'prepMinutes' | 'popular' | 'isActive'>>;
 type StaffInput = Pick<StaffMember, 'name' | 'role' | 'commissionRate'> &
   Partial<Pick<StaffMember, 'phone' | 'email' | 'specialties' | 'branchId' | 'isAvailable' | 'isActive' | 'serviceIds'>>;
-type ExpenseInput = Pick<Expense, 'title' | 'category' | 'amount' | 'date'> & Partial<Pick<Expense, 'notes'>>;
+type ExpenseInput = Pick<Expense, 'title' | 'category' | 'amount' | 'date'> &
+  Partial<Pick<Expense, 'notes' | 'branchId' | 'receiptRef'>>;
+
+export interface RecordPaymentInput {
+  appointmentId: string;
+  amount: number;
+  method: PaymentMethod;
+  idempotencyKey: string;
+  providerReference?: string | null;
+  reason?: string;
+}
+
+export interface PaymentCorrectionInput {
+  originalEntryId: string;
+  kind: Exclude<PaymentEntryKind, 'payment'>;
+  amount: number;
+  reason: string;
+  idempotencyKey: string;
+  providerReference?: string | null;
+  settlementNote?: string;
+}
+
+export interface PaymentListParams {
+  from?: string;
+  to?: string;
+  appointmentId?: string;
+  cashSessionId?: string;
+  status?: 'pending' | 'confirmed' | 'failed';
+  limit?: number;
+}
 type StockInput = Pick<StockItem, 'name' | 'category' | 'quantity' | 'minThreshold' | 'unitCost'> &
   Partial<Pick<StockItem, 'supplier'>>;
 type RewardInput = Pick<LoyaltyReward, 'name' | 'pointsCost' | 'category'> &
   Partial<Pick<LoyaltyReward, 'description' | 'isActive' | 'discountPercentage' | 'freeServiceName'>>;
+
+export interface AppointmentInput {
+  serviceId: string;
+  startsAt: string;
+  clientName: string;
+  clientPhone: string;
+  staffId?: string | null;
+  clientId?: string | null;
+  branchId?: string | null;
+  source?: 'direct' | 'whatsapp' | 'phone';
+  notes?: string;
+}
+
+export interface RescheduleInput {
+  staffId?: string | null;
+  serviceId?: string | null;
+  startsAt?: string | null;
+  notes?: string | null;
+}
+
+export interface WalkInInput {
+  serviceId: string;
+  idempotencyKey: string;
+  clientName?: string | null;
+  clientPhone?: string | null;
+  clientId?: string | null;
+  staffId?: string | null;
+  branchId?: string | null;
+  startImmediately?: boolean;
+  notes?: string;
+}
+
+export interface ReviewInput {
+  author: string;
+  rating: number;
+  comment: string;
+  appointmentId?: string | null;
+}
 
 interface StaffSchedule {
   id: string;
@@ -275,8 +554,9 @@ export function salonApi(salonId: string) {
 
   return {
     async workspace() {
-      const [salonResult, clients, services, staff, expenses, stock, rewards, reviews] = await Promise.all([
-        supabase.from('salons').select('id, name').eq('id', salonId).single(),
+      const [salonResult, branchesResult, clients, services, staff, expenses, stock, rewards, reviews] = await Promise.all([
+        supabase.from('salons').select('*').eq('id', salonId).single(),
+        supabase.from('branches').select('id, name').eq('salon_id', salonId).order('created_at'),
         listClients(),
         listServices(true),
         listStaff(),
@@ -286,7 +566,8 @@ export function salonApi(salonId: string) {
         listReviews(),
       ]);
       const salon = unwrap(salonResult);
-      return { salon, clients, services, staff, expenses, stock, rewards, reviews };
+      const branches = (unwrap(branchesResult) ?? []) as { id: string; name: string }[];
+      return { salon, branches, clients, services, staff, expenses, stock, rewards, reviews };
     },
     clients: {
       list: listClients,
@@ -400,13 +681,39 @@ export function salonApi(salonId: string) {
         const { error } = await supabase.from('staff').delete().eq('salon_id', salonId).eq('id', id);
         if (error) throwSupabaseError(error);
       },
-      schedule: (_id: string): Promise<StaffSchedule[]> => unavailable('horaires du personnel'),
-      addSchedule: (_id: string, _data: unknown): Promise<StaffSchedule> =>
-        unavailable('création d’horaires du personnel'),
-      removeSchedule: (_id: string): Promise<void> => unavailable('suppression d’horaires du personnel'),
-      absences: (_id: string): Promise<StaffAbsence[]> => unavailable('absences du personnel'),
-      addAbsence: (_id: string, _data: unknown): Promise<StaffAbsence> => unavailable('création d’absence'),
-      removeAbsence: (_id: string): Promise<void> => unavailable('suppression d’absence'),
+      async schedule(staffId: string): Promise<StaffSchedule[]> {
+        const result = await supabase.from('staff_schedules').select('*')
+          .eq('salon_id', salonId).eq('staff_id', staffId)
+          .order('weekday').order('starts_at');
+        return (unwrap(result) ?? []).map((row) => mapStaffSchedule(row as DbRow));
+      },
+      async addSchedule(staffId: string, data: { weekday: number; startsAt: string; endsAt: string }): Promise<StaffSchedule> {
+        const result = await supabase.from('staff_schedules').insert({
+          salon_id: salonId, staff_id: staffId,
+          weekday: data.weekday, starts_at: data.startsAt, ends_at: data.endsAt,
+        }).select('*').single();
+        return mapStaffSchedule(unwrap(result) as DbRow);
+      },
+      async removeSchedule(id: string): Promise<void> {
+        const { error } = await supabase.from('staff_schedules').delete().eq('salon_id', salonId).eq('id', id);
+        if (error) throwSupabaseError(error);
+      },
+      async absences(staffId: string): Promise<StaffAbsence[]> {
+        const result = await supabase.from('staff_absences').select('*')
+          .eq('salon_id', salonId).eq('staff_id', staffId).order('starts_on');
+        return (unwrap(result) ?? []).map((row) => mapStaffAbsence(row as DbRow));
+      },
+      async addAbsence(staffId: string, data: { startsOn: string; endsOn: string; reason?: string }): Promise<StaffAbsence> {
+        const result = await supabase.from('staff_absences').insert({
+          salon_id: salonId, staff_id: staffId,
+          starts_on: data.startsOn, ends_on: data.endsOn, reason: data.reason ?? '',
+        }).select('*').single();
+        return mapStaffAbsence(unwrap(result) as DbRow);
+      },
+      async removeAbsence(id: string): Promise<void> {
+        const { error } = await supabase.from('staff_absences').delete().eq('salon_id', salonId).eq('id', id);
+        if (error) throwSupabaseError(error);
+      },
     },
     appointments: {
       async list(params: { from?: string; to?: string; staffId?: string } = {}) {
@@ -417,28 +724,255 @@ export function salonApi(salonId: string) {
         const result = await query.order('starts_at');
         return (unwrap(result) ?? []).map((row) => mapAppointment(row as DbRow));
       },
-      create: (_data: unknown): Promise<Appointment> => unavailable('création de rendez-vous'),
-      reschedule: (_id: string, _data: unknown): Promise<Appointment> =>
-        unavailable('déplacement de rendez-vous'),
-      transition: (_id: string, _status: string, _reason?: string): Promise<Appointment> =>
-        unavailable('changement de statut de rendez-vous'),
-      cancel: (_id: string, _reason: string): Promise<Appointment> =>
-        unavailable('annulation de rendez-vous'),
-      events: (_id: string): Promise<unknown[]> => unavailable('historique de rendez-vous'),
-      availability: (_date: string): Promise<Availability> => unavailable('calcul des disponibilités'),
+      async create(data: AppointmentInput): Promise<Appointment> {
+        const result = await supabase.rpc('create_appointment', {
+          p_salon_id: salonId,
+          p_service_id: data.serviceId,
+          p_starts_at: data.startsAt,
+          p_client_name: data.clientName,
+          p_client_phone: data.clientPhone,
+          p_staff_id: data.staffId ?? null,
+          p_client_id: data.clientId ?? null,
+          p_branch_id: data.branchId ?? null,
+          p_source: data.source ?? 'direct',
+          p_notes: data.notes ?? '',
+        });
+        return mapAppointment(unwrap(result) as DbRow);
+      },
+      async registerWalkIn(data: WalkInInput): Promise<Appointment> {
+        const result = await supabase.rpc('register_walk_in', {
+          p_salon_id: salonId,
+          p_service_id: data.serviceId,
+          p_idempotency_key: data.idempotencyKey,
+          p_client_name: data.clientName ?? null,
+          p_client_phone: data.clientPhone ?? null,
+          p_client_id: data.clientId ?? null,
+          p_staff_id: data.staffId ?? null,
+          p_branch_id: data.branchId ?? null,
+          p_start_immediately: data.startImmediately ?? false,
+          p_notes: data.notes ?? '',
+        });
+        return mapAppointment(unwrap(result) as DbRow);
+      },
+      async startWalkIn(id: string, staffId?: string | null): Promise<Appointment> {
+        const result = await supabase.rpc('start_walk_in', {
+          p_salon_id: salonId,
+          p_appointment_id: id,
+          p_staff_id: staffId ?? null,
+        });
+        return mapAppointment(unwrap(result) as DbRow);
+      },
+      async completeWalkIn(id: string): Promise<Appointment> {
+        const result = await supabase.rpc('complete_walk_in', {
+          p_salon_id: salonId,
+          p_appointment_id: id,
+        });
+        return mapAppointment(unwrap(result) as DbRow);
+      },
+      async reschedule(id: string, data: RescheduleInput): Promise<Appointment> {
+        const result = await supabase.rpc('reschedule_appointment', {
+          p_salon_id: salonId,
+          p_appointment_id: id,
+          p_staff_id: data.staffId ?? null,
+          p_service_id: data.serviceId ?? null,
+          p_starts_at: data.startsAt ?? null,
+          p_notes: data.notes ?? null,
+        });
+        return mapAppointment(unwrap(result) as DbRow);
+      },
+      async transition(id: string, status: string, reason?: string): Promise<Appointment> {
+        const result = await supabase.rpc('transition_appointment', {
+          p_salon_id: salonId,
+          p_appointment_id: id,
+          p_status: status,
+          p_reason: reason ?? null,
+        });
+        return mapAppointment(unwrap(result) as DbRow);
+      },
+      async cancel(id: string, reason: string): Promise<Appointment> {
+        const result = await supabase.rpc('cancel_appointment', {
+          p_salon_id: salonId,
+          p_appointment_id: id,
+          p_reason: reason,
+        });
+        return mapAppointment(unwrap(result) as DbRow);
+      },
+      async events(id: string): Promise<unknown[]> {
+        const result = await supabase.from('appointment_events').select('*')
+          .eq('salon_id', salonId).eq('appointment_id', id).order('created_at');
+        return unwrap(result) ?? [];
+      },
+      async availability(date: string, serviceId?: string): Promise<Availability> {
+        const result = await supabase.rpc('day_availability', {
+          p_salon_id: salonId,
+          p_date: date,
+          p_service_id: serviceId ?? null,
+        });
+        const byStaff: Availability = {};
+        for (const row of (unwrap(result) ?? []) as DbRow[]) {
+          const staffId = stringValue(row, 'staff_id');
+          (byStaff[staffId] ??= []).push({
+            startsAt: stringValue(row, 'starts_at'),
+            available: booleanValue(row, 'available'),
+          });
+        }
+        return byStaff;
+      },
     },
     expenses: {
       list: listExpenses,
       async create(data: ExpenseInput) {
-        const result = await supabase.from('expenses').insert({
-          salon_id: salonId,
-          title: data.title,
-          category: data.category,
-          amount: data.amount,
-          spent_on: data.date,
-          notes: data.notes ?? '',
-        }).select('*').single();
+        const result = await supabase.rpc('record_expense', {
+          p_salon_id: salonId,
+          p_title: data.title,
+          p_category: data.category,
+          p_amount: data.amount,
+          p_spent_on: data.date,
+          p_branch_id: data.branchId ?? null,
+          p_notes: data.notes ?? '',
+          p_receipt_ref: data.receiptRef ?? null,
+        });
         return mapExpense(unwrap(result) as DbRow);
+      },
+    },
+    payments: {
+      async list(params: PaymentListParams = {}) {
+        const result = await supabase.rpc('list_payments', {
+          p_salon_id: salonId,
+          p_from: params.from ?? null,
+          p_to: params.to ?? null,
+          p_appointment_id: params.appointmentId ?? null,
+          p_cash_session_id: params.cashSessionId ?? null,
+          p_status: params.status ?? null,
+          p_limit: params.limit ?? 200,
+        });
+        const data = unwrap(result);
+        return (Array.isArray(data) ? data : []).map((row) => mapPayment(row as DbRow));
+      },
+      async record(data: RecordPaymentInput) {
+        const result = await supabase.rpc('record_payment', {
+          p_salon_id: salonId,
+          p_appointment_id: data.appointmentId,
+          p_amount: data.amount,
+          p_method: data.method,
+          p_idempotency_key: data.idempotencyKey,
+          p_provider_reference: data.providerReference ?? null,
+          p_reason: data.reason ?? '',
+        });
+        return mapPayment(unwrap(result) as DbRow);
+      },
+      async correct(data: PaymentCorrectionInput) {
+        const result = await supabase.rpc('record_payment_correction', {
+          p_salon_id: salonId,
+          p_original_entry_id: data.originalEntryId,
+          p_kind: data.kind,
+          p_amount: data.amount,
+          p_reason: data.reason,
+          p_idempotency_key: data.idempotencyKey,
+          p_provider_reference: data.providerReference ?? null,
+          p_settlement_note: data.settlementNote ?? '',
+        });
+        return mapPayment(unwrap(result) as DbRow);
+      },
+      async confirm(paymentId: string, providerReference: string, settlementNote: string) {
+        const result = await supabase.rpc('confirm_pending_payment', {
+          p_salon_id: salonId,
+          p_payment_id: paymentId,
+          p_provider_reference: providerReference,
+          p_settlement_note: settlementNote,
+        });
+        return mapPayment(unwrap(result) as DbRow);
+      },
+      async reject(paymentId: string, reason: string) {
+        const result = await supabase.rpc('reject_pending_payment', {
+          p_salon_id: salonId,
+          p_payment_id: paymentId,
+          p_reason: reason,
+        });
+        return mapPayment(unwrap(result) as DbRow);
+      },
+      async balance(appointmentId: string) {
+        const result = await supabase.rpc('get_appointment_balance', {
+          p_salon_id: salonId,
+          p_appointment_id: appointmentId,
+        });
+        return mapAppointmentBalance(unwrap(result) as DbRow);
+      },
+      async events(paymentId: string) {
+        const result = await supabase.from('payment_events').select('*')
+          .eq('salon_id', salonId).eq('payment_id', paymentId).order('created_at');
+        return (unwrap(result) ?? []) as DbRow[];
+      },
+    },
+    cash: {
+      async registers() {
+        const result = await supabase.from('cash_registers').select('*')
+          .eq('salon_id', salonId).order('created_at');
+        return (unwrap(result) ?? []) as DbRow[];
+      },
+      async ensureRegister(branchId: string) {
+        const result = await supabase.rpc('ensure_default_register', {
+          p_salon_id: salonId,
+          p_branch_id: branchId,
+        });
+        return unwrap(result) as string;
+      },
+      async sessions(limit = 20) {
+        const result = await supabase.rpc('list_cash_sessions', {
+          p_salon_id: salonId,
+          p_limit: limit,
+        });
+        const data = unwrap(result);
+        return (Array.isArray(data) ? data : []).map((row) => mapCashSession(row as DbRow));
+      },
+      async get(sessionId: string) {
+        const result = await supabase.rpc('get_cash_session', {
+          p_salon_id: salonId,
+          p_session_id: sessionId,
+        });
+        return mapCashSession(unwrap(result) as DbRow);
+      },
+      async open(branchId: string, openingBalance: number, note = '', registerId?: string | null) {
+        const result = await supabase.rpc('open_cash_session', {
+          p_salon_id: salonId,
+          p_branch_id: branchId,
+          p_opening_balance: openingBalance,
+          p_register_id: registerId ?? null,
+          p_note: note,
+        });
+        const sessionId = unwrap(result) as string;
+        return this.get(sessionId);
+      },
+      async close(sessionId: string, countedBalance: number, note = '') {
+        const result = await supabase.rpc('close_cash_session', {
+          p_salon_id: salonId,
+          p_session_id: sessionId,
+          p_counted_balance: countedBalance,
+          p_note: note,
+        });
+        const id = unwrap(result) as string;
+        return this.get(id);
+      },
+      async reconcile(sessionId: string, note: string) {
+        const result = await supabase.rpc('reconcile_cash_session', {
+          p_salon_id: salonId,
+          p_session_id: sessionId,
+          p_note: note,
+        });
+        const id = unwrap(result) as string;
+        return this.get(id);
+      },
+    },
+    reports: {
+      async summary(from: string, to: string) {
+        const result = await supabase.rpc('financial_summary', {
+          p_salon_id: salonId,
+          p_from: from,
+          p_to: to,
+        });
+        const row = firstRow(unwrap(result) as DbRow | DbRow[]);
+        if (!row) throw new ApiError('Supabase n’a retourné aucun rapport.');
+        return mapFinancialSummary(row);
       },
     },
     stock: {
@@ -503,10 +1037,101 @@ export function salonApi(salonId: string) {
         if (error) throwSupabaseError(error);
       },
     },
+    notifications: {
+      async list(limit = 200): Promise<AppointmentNotification[]> {
+        const result = await supabase.from('appointment_notifications').select('*')
+          .eq('salon_id', salonId).order('created_at', { ascending: false }).limit(limit);
+        return (unwrap(result) ?? []).map((row) => mapNotification(row as DbRow));
+      },
+      async retry(id: string): Promise<AppointmentNotification> {
+        const result = await supabase.rpc('retry_notification', { p_salon_id: salonId, p_id: id });
+        return mapNotification(unwrap(result) as DbRow);
+      },
+      // L'envoi réel est effectué par l'edge function (secrets fournisseur côté
+      // serveur). Le navigateur ne fait que déclencher le traitement du salon.
+      async dispatch(limit = 50): Promise<NotificationDispatchResult> {
+        const { data, error } = await supabase.functions.invoke('notifications-dispatcher', {
+          body: { salon_id: salonId, limit },
+        });
+        if (error) {
+          throw new ApiError(
+            `Expéditeur injoignable : ${error.message}. Vérifiez que la fonction « notifications-dispatcher » est déployée.`,
+            502,
+          );
+        }
+        const payload = (data ?? {}) as {
+          processed?: number; sent?: number; failed?: number; skipped?: number;
+          provider_configured?: boolean; error?: string;
+        };
+        if (payload.error) throw new ApiError(payload.error, 400);
+        return {
+          processed: Number(payload.processed ?? 0),
+          sent: Number(payload.sent ?? 0),
+          failed: Number(payload.failed ?? 0),
+          skipped: Number(payload.skipped ?? 0),
+          providerConfigured: payload.provider_configured !== false,
+        };
+      },
+    },
+    loyalty: {
+      async program(): Promise<LoyaltySettings> {
+        const result = await supabase.from('loyalty_programs').select('*').eq('salon_id', salonId).maybeSingle();
+        if (result.error) throwSupabaseError(result.error);
+        return mapLoyaltyProgram(salonId, (result.data as DbRow | null) ?? null);
+      },
+      async setProgram(settings: Partial<LoyaltySettings>): Promise<LoyaltySettings> {
+        const payload: Record<string, unknown> = {};
+        if (settings.programEnabled !== undefined) payload.is_enabled = settings.programEnabled;
+        if (settings.pointsPer100Fcfa !== undefined) payload.points_per_100_xof = settings.pointsPer100Fcfa;
+        if (settings.welcomeBonus !== undefined) payload.welcome_bonus = settings.welcomeBonus;
+        if (settings.silverThreshold !== undefined) payload.silver_threshold = settings.silverThreshold;
+        if (settings.goldThreshold !== undefined) payload.gold_threshold = settings.goldThreshold;
+        if (settings.vipThreshold !== undefined) payload.vip_threshold = settings.vipThreshold;
+        const result = await supabase.rpc('set_loyalty_program', { p_salon_id: salonId, p_settings: payload });
+        return mapLoyaltyProgram(salonId, unwrap(result) as DbRow);
+      },
+      async accounts(): Promise<LoyaltyAccount[]> {
+        const result = await supabase.from('loyalty_accounts').select('*')
+          .eq('salon_id', salonId).order('points_balance', { ascending: false });
+        return (unwrap(result) ?? []).map((row) => mapLoyaltyAccount(row as DbRow));
+      },
+      async ledger(limit = 100): Promise<LoyaltyLedgerEntry[]> {
+        const result = await supabase.from('loyalty_transactions').select('*')
+          .eq('salon_id', salonId).order('created_at', { ascending: false }).limit(limit);
+        return (unwrap(result) ?? []).map((row) => mapLoyaltyLedgerEntry(row as DbRow));
+      },
+      async redeem(clientId: string, rewardId: string) {
+        const result = await supabase.rpc('redeem_loyalty_reward', {
+          p_salon_id: salonId, p_client_id: clientId, p_reward_id: rewardId,
+        });
+        return unwrap(result) as { transaction_id: string; points_balance: number; tier: string; reward_name: string };
+      },
+      async adjust(clientId: string, points: number, reason: string) {
+        const result = await supabase.rpc('adjust_loyalty_points', {
+          p_salon_id: salonId, p_client_id: clientId, p_points: points, p_reason: reason,
+        });
+        return unwrap(result) as { transaction_id: string; points_balance: number; tier: string };
+      },
+    },
     reviews: {
       list: listReviews,
-      create: (_data: unknown): Promise<Review> => unavailable('création d’avis publics'),
-      remove: (_id: string): Promise<void> => unavailable('suppression d’avis'),
+      async create(data: ReviewInput): Promise<Review> {
+        const result = await supabase.rpc('create_review', {
+          p_salon_id: salonId,
+          p_author: data.author,
+          p_rating: data.rating,
+          p_comment: data.comment,
+          p_appointment_id: data.appointmentId ?? null,
+        });
+        return mapReview(unwrap(result) as DbRow);
+      },
+      async remove(id: string): Promise<void> {
+        const { error } = await supabase.rpc('delete_review', {
+          p_salon_id: salonId,
+          p_review_id: id,
+        });
+        if (error) throwSupabaseError(error);
+      },
     },
   };
 }

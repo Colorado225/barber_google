@@ -51,7 +51,7 @@ export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({
     setSelectedTime('');
     setAvailabilityError(null);
 
-    void salonApi(activeSalon.id).appointments.availability(selectedDate)
+    void salonApi(activeSalon.id).appointments.availability(selectedDate, selectedServiceId || undefined)
       .then((byStaff: Record<string, { startsAt: string; available: boolean }[]>) => {
         if (!active) return;
         const staffSlots = selectedStaffId === 'any'
@@ -83,7 +83,7 @@ export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({
     return () => {
       active = false;
     };
-  }, [activeSalon.id, selectedDate, selectedStaffId, initialTime]);
+  }, [activeSalon.id, selectedDate, selectedStaffId, selectedServiceId, initialTime]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,7 +105,8 @@ export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({
       date: selectedDate,
       time: selectedTime,
       paymentMethod,
-      notes: notes ? `[Source: ${source}] ${notes}` : `[Source: ${source}] Prise de RDV au salon`
+      source,
+      notes: notes.trim()
     });
 
     if (res.success) {

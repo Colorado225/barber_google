@@ -15,7 +15,7 @@ import reactRefresh from 'eslint-plugin-react-refresh';
 // qu'une version compatible TS 7 sera publiée.
 export default [
   {
-    ignores: ['dist/**', 'node_modules/**', 'coverage/**', '**/*.ts', '**/*.tsx'],
+    ignores: ['dist/**', 'node_modules/**', 'coverage/**', 'supabase/functions/**', '**/*.ts', '**/*.tsx'],
   },
   js.configs.recommended,
   {

@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
-import { ExpenseCategory, PaymentMethod } from '../../types';
+import { ExpenseCategory } from '../../types';
+import { paymentSignedAmount } from '../../lib/analytics';
 import {
   Wallet,
   TrendingDown,
@@ -34,7 +35,7 @@ export const FinanceExpensesView: React.FC = () => {
   );
 
   const totalRevenue = useMemo(
-    () => salonTransactions.reduce((acc, t) => acc + t.amount, 0),
+    () => salonTransactions.reduce((acc, t) => acc + paymentSignedAmount(t), 0),
     [salonTransactions]
   );
 
@@ -51,7 +52,7 @@ export const FinanceExpensesView: React.FC = () => {
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<ExpenseCategory>('products');
   const [amount, setAmount] = useState<number>(10000);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('orange_money');
+  const [receiptRef, setReceiptRef] = useState('');
   const [notes, setNotes] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -67,13 +68,14 @@ export const FinanceExpensesView: React.FC = () => {
       category,
       amount: Number(amount),
       date: new Date().toISOString().slice(0, 10),
-      paymentMethod,
+      receiptRef: receiptRef.trim(),
       notes: notes.trim()
     });
 
     setIsModalOpen(false);
     setTitle('');
     setAmount(10000);
+    setReceiptRef('');
     setNotes('');
   };
 
@@ -156,7 +158,7 @@ export const FinanceExpensesView: React.FC = () => {
                 <th className="p-3.5">Date</th>
                 <th className="p-3.5">Libellé de la dépense</th>
                 <th className="p-3.5">Catégorie</th>
-                <th className="p-3.5">Moyen de paiement</th>
+                <th className="p-3.5">Justificatif</th>
                 <th className="p-3.5">Montant</th>
                 <th className="p-3.5 text-right">Action</th>
               </tr>
@@ -183,8 +185,8 @@ export const FinanceExpensesView: React.FC = () => {
                         {categoryLabels[exp.category] || exp.category}
                       </span>
                     </td>
-                    <td className="p-3.5 uppercase text-stone-400 font-semibold text-[11px]">
-                      {exp.paymentMethod?.replace('_', ' ') ?? '—'}
+                    <td className="p-3.5 text-stone-400 font-semibold text-[11px]">
+                      {exp.receiptRef || '—'}
                     </td>
                     <td className="p-3.5 font-extrabold text-red-400">
                       -{formatPrice(exp.amount)}
@@ -261,8 +263,8 @@ export const FinanceExpensesView: React.FC = () => {
                   <input
                     type="number"
                     required
-                    min="500"
-                    step="500"
+                    min="1"
+                    step="1"
                     value={amount}
                     onChange={(e) => setAmount(Number(e.target.value))}
                     className="w-full bg-[#111113] border border-[#28282d] rounded-xl px-3 py-2 text-xs font-bold text-red-400 focus:outline-none focus:border-[#C9A45C]"
@@ -272,18 +274,15 @@ export const FinanceExpensesView: React.FC = () => {
 
               <div>
                 <label className="text-xs font-semibold text-stone-300 block mb-1">
-                  Mode de règlement utilisé
+                  Référence justificatif (reçu, facture)
                 </label>
-                <select
-                  value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-                  className="w-full bg-[#111113] border border-[#28282d] rounded-xl px-3 py-2 text-xs text-stone-200 focus:outline-none focus:border-[#C9A45C]"
-                >
-                  <option value="orange_money">Orange Money</option>
-                  <option value="wave">Wave Mobile Money</option>
-                  <option value="cash">Espèces</option>
-                  <option value="mtn_momo">MTN MoMo</option>
-                </select>
+                <input
+                  type="text"
+                  value={receiptRef}
+                  onChange={(e) => setReceiptRef(e.target.value)}
+                  placeholder="Ex: FAC-2026-014"
+                  className="w-full bg-[#111113] border border-[#28282d] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#C9A45C]"
+                />
               </div>
 
               <div>

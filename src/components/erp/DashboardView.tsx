@@ -6,6 +6,7 @@ import {
   buildRevenueSeries,
   buildServicePerformance,
   computeAverageBasket,
+  paymentSignedAmount,
   PeriodKey
 } from '../../lib/analytics';
 import {
@@ -28,16 +29,19 @@ import {
   ChevronRight,
   Filter,
   Layers,
-  ArrowDownRight
+  ArrowDownRight,
+  UserPlus
 } from 'lucide-react';
 
 interface DashboardViewProps {
   onOpenNewAppointment: () => void;
+  onOpenWalkIn: () => void;
   onOpenNewPayment: () => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenNewAppointment,
+  onOpenWalkIn,
   onOpenNewPayment
 }) => {
   const {
@@ -95,7 +99,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   // Financial calculations
   const totalRevenue = useMemo(
-    () => salonTransactions.reduce((acc, t) => acc + t.amount, 0),
+    () => salonTransactions.reduce((acc, t) => acc + paymentSignedAmount(t), 0),
     [salonTransactions]
   );
 
@@ -125,11 +129,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   // Breakdown by payment method
   const mobileMoneyTotal = salonTransactions
     .filter((t) => ['wave', 'orange_money', 'mtn_momo', 'moov_money'].includes(t.method))
-    .reduce((acc, t) => acc + t.amount, 0);
+    .reduce((acc, t) => acc + paymentSignedAmount(t), 0);
 
   const cashTotal = salonTransactions
     .filter((t) => t.method === 'cash')
-    .reduce((acc, t) => acc + t.amount, 0);
+    .reduce((acc, t) => acc + paymentSignedAmount(t), 0);
 
   const lowStockItems = salonStocks.filter((item) => item.quantity <= item.minThreshold);
 
@@ -307,6 +311,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2.5">
+          <button
+            onClick={onOpenWalkIn}
+            className="bg-[#C9A45C]/15 hover:bg-[#C9A45C]/25 text-[#E5C378] border border-[#C9A45C]/40 font-semibold text-xs px-3.5 py-2 rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm"
+          >
+            <UserPlus className="w-3.5 h-3.5" />
+            <span>+ Client de passage</span>
+          </button>
+
           <button
             onClick={onOpenNewAppointment}
             className="bg-[#242429] hover:bg-[#2c2c33] text-white border border-[#383840] font-semibold text-xs px-3.5 py-2 rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm"

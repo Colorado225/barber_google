@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Appointment, AppointmentStatus, StaffMember } from '../../types';
+import { APPOINTMENT_TRANSITIONS, canTransition } from '../../lib/appointment-workflow';
 import {
   Calendar as CalendarIcon,
   Clock,
@@ -819,12 +820,11 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
                             }}
                             className={`text-xs px-2.5 py-1 rounded-lg border font-semibold focus:outline-none cursor-pointer ${cfg.badge}`}
                           >
-                            <option value="pending" className="bg-[#18181b] text-white">En attente</option>
-                            <option value="confirmed" className="bg-[#18181b] text-white">Confirmé</option>
-                            <option value="checked_in" className="bg-[#18181b] text-white">Arrivé au salon</option>
-                            <option value="in_progress" className="bg-[#18181b] text-white">Au fauteuil (En cours)</option>
-                            <option value="completed" className="bg-[#18181b] text-white">Terminé</option>
-                            <option value="cancelled" className="bg-[#18181b] text-white">Annulé</option>
+                            {[apt.status, ...APPOINTMENT_TRANSITIONS[apt.status]].map((s) => (
+                              <option key={s} value={s} className="bg-[#18181b] text-white">
+                                {statusLabels[s].label}
+                              </option>
+                            ))}
                           </select>
                         </td>
 
@@ -974,8 +974,9 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <button
                   type="button"
+                  disabled={!canTransition(currentInspected.status, 'confirmed')}
                   onClick={() => updateAppointmentStatus(currentInspected.id, 'confirmed')}
-                  className={`p-2 rounded-xl border text-[11px] font-bold transition-all ${
+                  className={`p-2 rounded-xl border text-[11px] font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                     currentInspected.status === 'confirmed'
                       ? 'bg-emerald-950 border-emerald-500 text-emerald-300'
                       : 'bg-[#18181c] border-[#29292e] text-stone-400 hover:text-white'
@@ -986,8 +987,9 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
 
                 <button
                   type="button"
+                  disabled={!canTransition(currentInspected.status, 'checked_in')}
                   onClick={() => updateAppointmentStatus(currentInspected.id, 'checked_in')}
-                  className={`p-2 rounded-xl border text-[11px] font-bold transition-all ${
+                  className={`p-2 rounded-xl border text-[11px] font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                     currentInspected.status === 'checked_in'
                       ? 'bg-purple-950 border-purple-500 text-purple-300'
                       : 'bg-[#18181c] border-[#29292e] text-stone-400 hover:text-white'
@@ -998,8 +1000,9 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
 
                 <button
                   type="button"
+                  disabled={!canTransition(currentInspected.status, 'in_progress')}
                   onClick={() => updateAppointmentStatus(currentInspected.id, 'in_progress')}
-                  className={`p-2 rounded-xl border text-[11px] font-bold transition-all ${
+                  className={`p-2 rounded-xl border text-[11px] font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                     currentInspected.status === 'in_progress'
                       ? 'bg-amber-950 border-[#C9A45C] text-[#E5C378]'
                       : 'bg-[#18181c] border-[#29292e] text-stone-400 hover:text-white'
@@ -1010,8 +1013,9 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
 
                 <button
                   type="button"
+                  disabled={!canTransition(currentInspected.status, 'completed')}
                   onClick={() => updateAppointmentStatus(currentInspected.id, 'completed')}
-                  className={`p-2 rounded-xl border text-[11px] font-bold transition-all ${
+                  className={`p-2 rounded-xl border text-[11px] font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                     currentInspected.status === 'completed'
                       ? 'bg-stone-800 border-stone-500 text-white'
                       : 'bg-[#18181c] border-[#29292e] text-stone-400 hover:text-white'
