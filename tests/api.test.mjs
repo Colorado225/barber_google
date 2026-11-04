@@ -43,6 +43,7 @@ before(async () => {
   await db.exec(await readFile(new URL('../database/migrations/20261103020000_salon_resources.sql', import.meta.url), 'utf8'));
   await db.exec(await readFile(new URL('../database/migrations/20261103030000_lot2_account_security.sql', import.meta.url), 'utf8'));
   await db.exec(await readFile(new URL('../database/migrations/20261103040000_lot3_operations.sql', import.meta.url), 'utf8'));
+  await db.exec(await readFile(new URL('../database/migrations/20261103060000_lot3_fitions.sql', import.meta.url), 'utf8'));
 
   const authRepository = createAuthRepository(db);
   const salonRepository = createSalonRepository(db);

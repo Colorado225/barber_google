@@ -393,3 +393,52 @@ export interface LoyaltySettings {
   vipThreshold: number; // e.g. 500 points
   programEnabled: boolean;
 }
+
+export type SalonMarketplaceSectionId =
+  | 'hero'
+  | 'gallery'
+  | 'featured_services'
+  | 'team'
+  | 'trust'
+  | 'location_hours'
+  | 'reviews';
+
+export type SalonMarketplaceLayout = 'classic' | 'elegant' | 'editorial';
+
+export type SalonCardStyle = 'rounded-3xl' | 'rounded-2xl' | 'rounded-xl';
+
+export interface SalonMarketplaceSection {
+  id: SalonMarketplaceSectionId;
+  enabled: boolean;
+  position: number;
+}
+
+export interface SalonMarketplaceViewConfig {
+  layout: SalonMarketplaceLayout;
+  accentColor: string;
+  cardStyle?: SalonCardStyle;
+  sections: SalonMarketplaceSection[];
+  featuredServiceIds: string[];
+  visibleStaffIds: string[];
+  featuredGalleryImageIds: string[];
+  showAddress: boolean;
+  showPhone: boolean;
+  showWhatsapp: boolean;
+  customTagline?: string;
+  customDescription?: string;
+  themeMode?: 'dark' | 'light' | 'auto';
+  featuredBranchId?: string;
+}
+
+export interface SalonMarketplaceSettingsRecord {
+  salonId: string;
+  layout: SalonMarketplaceLayout;
+  accentColor: string;
+  cardStyle: SalonCardStyle;
+  draftConfig: SalonMarketplaceViewConfig;
+  publishedConfig: SalonMarketplaceViewConfig | null;
+  isPublished: boolean;
+  publishedAt?: string | null;
+  updatedAt: string;
+}
+

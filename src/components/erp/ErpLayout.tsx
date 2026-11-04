@@ -110,6 +110,7 @@ export const ErpLayout: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ErpTab>(() => {
     if (typeof window === 'undefined') return 'dashboard';
     const segment = window.location.pathname.split('/app/')[1]?.split('/')[0];
+    if (segment === 'marketplace-personnalisation') return 'marketplace_showcase';
     const match = (Object.entries(TAB_PATHS) as [ErpTab, string][]).find(
       ([, path]) => path === segment
     );
@@ -140,7 +141,7 @@ export const ErpLayout: React.FC = () => {
     { id: 'loyalty', label: 'Fidélité', icon: Heart, permission: 'loyalty.read' },
     { id: 'expenses', label: 'Dépenses & Bilan', icon: TrendingDown, permission: 'expenses.read' },
     { id: 'inventory', label: 'Stocks & Produits', icon: Package, permission: 'stock.read' },
-    { id: 'marketplace_showcase', label: 'Vitrine Marketplace', icon: Globe, permission: 'salon.read' },
+    { id: 'marketplace_showcase', label: 'Vitrine & Personnalisation', icon: Globe, permission: 'salon.read' },
     { id: 'reports', label: 'Rapports', icon: BarChart3, permission: 'reports.read' },
     { id: 'qr_code', label: 'QR Code Réservation', icon: QrCode, permission: 'salon.read' },
     { id: 'storefront', label: 'Personnalisation Salon', icon: Store, permission: 'salon.update' },

@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { Salon } from '../../types';
 import { useOptionalApp } from '../../context/AppContext';
 import { Star, MapPin, Sparkles } from 'lucide-react';
@@ -98,9 +99,19 @@ export const SalonCard: React.FC<SalonCardProps> = ({ salon }) => {
             </span>
           </div>
 
-          <span className="text-xs font-semibold text-stone-300 group-hover:text-white bg-[#222226] group-hover:bg-[#C9A45C] group-hover:text-[#101010] px-3 py-1.5 rounded-lg transition-all">
-            Réserver
-          </span>
+          <div className="flex items-center gap-2">
+            <Link
+              to={`/salons/${salon.slug || salon.id}`}
+              onClick={(e) => e.stopPropagation()}
+              className="text-[11px] font-medium text-stone-400 hover:text-[#C9A45C] px-2.5 py-1.5 rounded-lg bg-[#1d1d21] hover:bg-[#25252b] border border-stone-800 transition-colors"
+            >
+              Vitrine
+            </Link>
+
+            <span className="text-xs font-semibold text-stone-300 group-hover:text-white bg-[#222226] group-hover:bg-[#C9A45C] group-hover:text-[#101010] px-3 py-1.5 rounded-lg transition-all">
+              Réserver
+            </span>
+          </div>
         </div>
       </div>
     </div>

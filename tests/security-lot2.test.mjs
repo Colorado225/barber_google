@@ -32,7 +32,8 @@ const MIGRATIONS = [
   '20261103020000_salon_resources.sql',
   '20261103030000_lot2_account_security.sql',
   '20261103040000_lot3_operations.sql',
-  '20261103050000_lot4_finance.sql'
+  '20261103050000_lot4_finance.sql',
+  '20261103060000_lot3_fitions.sql'
 ];
 
 const cookieOf = (res) => {

@@ -63,6 +63,9 @@ create index bc_payment_entries_session_idx on public.bc_payment_entries (cash_s
 create function barber_private.forbid_financial_tampering()
 returns trigger language plpgsql security definer set search_path = '' as $$
 begin
+  if tg_op = 'UPDATE' and old.payment_status = 'pending' and new.payment_status = 'confirmed' then
+    return new;
+  end if;
   raise exception 'Financial entries are immutable' using errcode = '42501';
 end $$;
 revoke all on function barber_private.forbid_financial_tampering() from public;
@@ -252,6 +255,10 @@ begin
        and kind = case when p_kind = 'payment_reversal' then 'payment' else 'refund' end
        and amount = p_amount and method = p_method;
     if not found then raise exception 'Invalid original entry' using errcode = '22023'; end if;
+  elsif p_kind = 'refund' and p_original is not null then
+    select * into orig from public.bc_payment_entries
+     where id = p_original and appointment_id = a.id and kind = 'payment';
+    if not found then raise exception 'Invalid original entry' using errcode = '22023'; end if;
   elsif p_original is not null then
     raise exception 'Unexpected original entry' using errcode = '22023';
   end if;
@@ -360,9 +367,10 @@ returns table (
   ), entries as (
     select e.kind, e.amount
       from public.bc_payment_entries e
+      left join public.bc_appointments a on a.id = e.appointment_id
      where e.salon_id = p_salon
        and e.payment_status = 'confirmed'
-       and (e.created_at at time zone 'Africa/Abidjan')::date between p_from and p_to
+       and coalesce((a.starts_at at time zone 'Africa/Abidjan')::date, (e.created_at at time zone 'Africa/Abidjan')::date) between p_from and p_to
        and barber_private.has_salon_permission(p_salon, 'payments.read')
   ), exp as (
     select coalesce(sum(x.amount), 0) as total

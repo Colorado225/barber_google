@@ -119,6 +119,7 @@ as $$
         when 'finance.write' then m.role in ('owner', 'manager', 'cashier')
         when 'payments.refund' then m.role in ('owner', 'manager')
         when 'stock.write' then m.role in ('owner', 'manager')
+        when 'expenses.read' then m.role in ('owner', 'manager', 'accountant')
         when 'expenses.manage' then m.role in ('owner', 'manager')
         when 'loyalty.write' then m.role in ('owner', 'manager')
         -- Rapports, succursales

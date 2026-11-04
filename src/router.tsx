@@ -1,6 +1,7 @@
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import App from './App';
 import { MarketplaceHome } from './components/marketplace/MarketplaceHome';
+import { SalonPublicPage } from './components/marketplace/salon/SalonPublicPage';
 import { BookingPortalView } from './components/marketplace/BookingPortalView';
 import { MyBookingsView } from './components/marketplace/MyBookingsView';
 import { ErpLayout } from './components/erp/ErpLayout';
@@ -55,10 +56,8 @@ const router = createBrowserRouter([
         element: <MarketplaceHome />,
       },
       {
-        // Public salon page reached by QR code: the home opens the salon's
-        // booking profile from the `:slug` segment, then canonicalises the URL.
         path: 'salons/:slug',
-        element: <MarketplaceHome />,
+        element: <SalonPublicPage />,
       },
       {
         // Portail client persistant : le jeton secret de la réservation suffit,

@@ -1,4 +1,12 @@
-import type { PaymentMethod, Review, Salon, SalonGalleryItem, Service, StaffMember } from '../types';
+import type {
+  PaymentMethod,
+  Review,
+  Salon,
+  SalonGalleryItem,
+  SalonMarketplaceViewConfig,
+  Service,
+  StaffMember
+} from '../types';
 import { getSupabaseClient } from './supabase';
 import { ApiError } from './api';
 
@@ -44,6 +52,7 @@ export interface PublicSalonDetail {
   rating: number | null;
   reviewCount: number;
   minPrice: number | null;
+  customizer?: SalonMarketplaceViewConfig;
 }
 
 function unwrap<T>(result: { data: T | null; error: { message: string; code?: string } | null }): T {
@@ -190,6 +199,7 @@ export async function getMarketplaceSalonDetail(key: string): Promise<PublicSalo
     rating: data.rating === null || data.rating === undefined ? null : Number(data.rating),
     reviewCount: Number(data.review_count ?? 0),
     minPrice: data.min_price === null || data.min_price === undefined ? null : Number(data.min_price),
+    customizer: data.customizer ? (data.customizer as SalonMarketplaceViewConfig) : undefined,
   };
 }
 

@@ -287,11 +287,12 @@ export function createFinanceRepository(db) {
 
     const byPaymentMethod = async (salonId, from, to) => {
       const r = await q(
-        `select method, sum(amount)::bigint as total, count(*)::int as count
-           from public.bc_payment_entries
-          where salon_id = $1 and payment_status = 'confirmed' and kind = 'payment'
-            and (created_at at time zone 'Africa/Abidjan')::date between $2::date and $3::date
-          group by method order by total desc`,
+        `select e.method, sum(e.amount)::bigint as total, count(*)::int as count
+           from public.bc_payment_entries e
+           left join public.bc_appointments a on a.id = e.appointment_id
+          where e.salon_id = $1 and e.payment_status = 'confirmed' and e.kind = 'payment'
+            and coalesce((a.starts_at at time zone 'Africa/Abidjan')::date, (e.created_at at time zone 'Africa/Abidjan')::date) between $2::date and $3::date
+          group by e.method order by total desc`,
         [salonId, from, to]
       );
       return r.rows.map((x) => ({ method: x.method, total: num(x.total), count: num(x.count) }));
@@ -336,8 +337,9 @@ export function createFinanceRepository(db) {
       const r = await q(
         `select d::date as day,
                 coalesce((select sum(e.amount) from public.bc_payment_entries e
-                           where e.salon_id = $1 and e.payment_status = 'confirmed' and e.kind = 'payment'
-                             and (e.created_at at time zone 'Africa/Abidjan')::date = d::date), 0)::bigint as collected,
+                           left join public.bc_appointments a on a.id = e.appointment_id
+                          where e.salon_id = $1 and e.payment_status = 'confirmed' and e.kind = 'payment'
+                            and coalesce((a.starts_at at time zone 'Africa/Abidjan')::date, (e.created_at at time zone 'Africa/Abidjan')::date) = d::date), 0)::bigint as collected,
                 coalesce((select sum(x.amount) from public.bc_expenses x
                            where x.salon_id = $1 and x.spent_on = d::date), 0)::bigint as expenses
            from generate_series($2::date, $3::date, interval '1 day') as d

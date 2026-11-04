@@ -109,22 +109,6 @@ create policy bc_memberships_read_self on public.bc_memberships for select to bc
 
 revoke all on public.bc_organizations, public.bc_salons, public.bc_branches, public.bc_memberships from public, bc_app;
 grant select on public.bc_organizations, public.bc_salons, public.bc_branches, public.bc_memberships to bc_app;
--- Grant additional permissions for business operations (caisse, rapports, permissions)
-grant insert, update on public.bc_staff to bc_app;
-grant insert, update on public.bc_appointments to bc_app;
-grant insert, update on public.bc_expenses to bc_app;
-grant insert, update on public.bc_stock_items to bc_app;
-grant insert, update on public.bc_rewards to bc_app;
-grant insert, update on public.bc_reviews to bc_app;
-grant select, insert, update on public.bc_services to bc_app;
-grant select, insert, update on public.bc_clients to bc_app;
--- Grant full access for cashier/barber operations needed by tests
-grant all on public.bc_staff to bc_app;
-grant all on public.bc_appointments to bc_app;
-grant all on public.bc_expenses to bc_app;
-grant all on public.bc_stock_items to bc_app;
-grant all on public.bc_rewards to bc_app;
-grant all on public.bc_reviews to bc_app;
 -- Les clés de rattachement et les rôles ne sont jamais modifiables directement.
 grant update (name) on public.bc_salons to bc_app;
 grant insert (salon_id, name, timezone), update (name, timezone) on public.bc_branches to bc_app;

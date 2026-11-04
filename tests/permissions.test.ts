@@ -8,16 +8,25 @@ test('les permissions UI reprennent strictement le contrat Supabase par rôle', 
     'appointments.write',
     'branch.create',
     'branch.update',
+    'cash.close',
+    'cash.open',
+    'cash.read',
+    'cash.reconcile',
     'catalog.write',
     'clients.read',
     'clients.write',
     'dashboard.read',
+    'display.update',
     'expenses.manage',
     'expenses.read',
     'loyalty.read',
     'loyalty.write',
     'members.manage',
     'members.read',
+    'payments.correct',
+    'payments.read',
+    'payments.record',
+    'reports.read',
     'reviews.read',
     'salon.read',
     'salon.update',
@@ -25,6 +34,7 @@ test('les permissions UI reprennent strictement le contrat Supabase par rôle', 
     'staff.read',
     'stock.read',
     'stock.write',
+    'subscriptions.read',
     'team.write',
   ].sort());
 
@@ -33,6 +43,6 @@ test('les permissions UI reprennent strictement le contrat Supabase par rôle', 
   assert.equal(roleHasPermission('accountant', 'expenses.read'), true);
   assert.equal(roleHasPermission('accountant', 'appointments.read'), false);
   assert.equal(roleHasPermission('cashier', 'payments.create'), false);
-  assert.equal(roleHasPermission('owner', 'reports.read'), false);
+  assert.equal(roleHasPermission('owner', 'reports.read'), true);
   assert.equal(roleHasPermission('unknown', 'dashboard.read'), false);
 });
