@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { getRolePermissions, roleHasPermission } from '../src/lib/permissions';
 
-test('les permissions UI reprennent strictement le contrat Supabase par rôle', () => {
+test('miroir frontend des permissions : liste owner et cas limites (parité serveur complète : permissions-parity)', () => {
   assert.deepEqual(
     getRolePermissions('owner').sort(),
     [
@@ -18,7 +18,6 @@ test('les permissions UI reprennent strictement le contrat Supabase par rôle', 
       'clients.read',
       'clients.write',
       'dashboard.read',
-      'display.update',
       'expenses.manage',
       'expenses.read',
       'loyalty.read',
