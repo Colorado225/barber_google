@@ -1,0 +1,40 @@
+# Lot 0 — Matrice fonctionnelle (ERP)
+
+État frontend : Présent / Partiel / Absent · État API : RPC / PostgREST+RLS /
+Simulé / Absent · Conclusion : OPÉRATIONNEL = prouvé par test d'intégration
+ou exécution ; Partiel = écart identifié ; NON OPÉRATIONNEL = inutilisable en
+réel. « Tests » = suites exécutées le 2026-11-04 (toutes vertes).
+
+| Module | Écran | Frontend | API/RPC | SQL | Sécurité | Tests | Conclusion | Priorité |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Auth & onboarding | LoginPage, SignupPage, VerifyEmail, Forgot/Reset, OnboardingGate | Présent | Supabase Auth + `initialize_user_onboarding`, `create_salon` | `onboarding_state`, `organizations`, `memberships` | Session + e-mail vérifié + workspace exigés avant `/app/*` | `business-onboarding` (3), `supabase-core` (3) | OPÉRATIONNEL (intégration) | — |
+| Dashboard | DashboardView (960 l.) | Présent | Agrégation cliente des données chargées (`lib/analytics.ts`, aucun fallback inventé) | appointments/payments réels | `dashboard.read` | indirect (analytics via suites UI) | Partiel : définitions d'indicateurs à formaliser (CA encaissé = paiements confirmés ? à confirmer par test dédié) | Moyenne |
+| Planning & RDV | PlanningView, AppointmentsCalendarView (1 070 l.), TodayView, NewAppointmentModal | Présent | RPC `create_appointment`, `transition_appointment`, `cancel_appointment`, `reschedule_appointment`, `day_availability` | `appointments`, `appointment_events`, exclusion anti-chevauchement | Machine à états serveur, `appointments.*` | `supabase-operations` (10), `supabase-client-journey` (9) | OPÉRATIONNEL (intégration) | — |
+| Sans rendez-vous | WalkInView, WalkInModal | Présent | RPC `register_walk_in`, `start_walk_in`, `complete_walk_in` | mêmes tables RDV (pas de système parallèle) | `appointments.write` | `supabase-walk-in` (5) | OPÉRATIONNEL | — |
+| Demandes en ligne (inbox) | OnlineRequestsView | Présent | Filtre `source='marketplace'` sur les RDV chargés ; transitions via RPC communes | appointments | `appointments.read/write` | via operations/journey | Partiel : Confirmer/Refuser présents ; proposition de créneau et réaffectation absentes de l'inbox | Moyenne |
+| Prestations & tarifs | ServicesView | Présent | PostgREST+RLS (insert/update/is_active) | `services` (prix bigint, durée, `prep_minutes`, catégories fermées, snapshot à la réservation) | `catalog.write`, RLS | operations, marketplace | OPÉRATIONNEL. Pas de flag « visibilité marketplace » par prestation (actif = public) | Faible |
+| Équipe & horaires | StaffView, StaffSchedulePanel, BranchHoursManager | Présent | PostgREST+RLS (`staff`, `staff_schedules`, `staff_absences`, `branch_hours`) | compétences `service_ids`, absences intégrées à `is_slot_available` | `team.write` | `supabase-branch-hours` (3), `branch-hours` UI (3), operations | OPÉRATIONNEL | — |
+| Clients / CRM | ClientsView, CrmClientsView | Présent | PostgREST+RLS ; auto-link SQL `ensure_client_for_contact` (téléphone CI normalisé, index fonctionnel) | `clients` | `clients.*` | journey, operations | OPÉRATIONNEL. Détection d'ambiguïté = pas de fusion auto (correspondance exacte normalisée) | — |
+| Caisse & paiements | CashRegisterView, NewPaymentModal | Présent | RPC `record_payment`, `record_payment_correction`, `confirm/reject_pending_payment`, `get_appointment_balance`, `open/close/reconcile_cash_session`… | `payments` (bigint, méthodes cash/wave/orange_money/mtn_momo/moov_money/card), `payment_events`, `cash_sessions/registers` | `payments.*`, `cash.*` ; non-espèces = `pending` puis confirmation manuelle tracée — **aucune confirmation opérateur automatique (correctement)** | `supabase-finance` (11), `finance-lot4` legacy (12) | OPÉRATIONNEL (intégration). Paiement partiel = solde calculé par journal | — |
+| Dépenses | ExpensesView, FinanceExpensesView | Présent | RPC `record_expense` + PostgREST | `expenses` | `expenses.*` | finance | OPÉRATIONNEL. Justificatifs (fichiers) : absents (Lot 5) | Faible |
+| Stocks | InventoryView | Présent | PostgREST+RLS | `stock_items` uniquement (seuil + alerte dashboard) | `stock.*` | — dédié absent | Partiel : pas de mouvements/fournisseurs/consommation (Lot 7) | Faible |
+| Fidélité | LoyaltyView | Présent | `salonApi.loyalty` (setProgram, redeem, adjust) ; triggers `loyalty_on_appointment_change` | `loyalty_programs/accounts/transactions`, `rewards` (journal de points) | `loyalty.*` | journey (points après RDV) | OPÉRATIONNEL (intégration) ; segmentation/campagnes absentes (Lot 6) | — |
+| Avis (côté salon) | via AppContext `reviews.create` (réponse ?) | Partiel | PostgREST `reviews` ; modération (`20261104090200`) | `reviews` sans colonne de réponse du salon | `reviews.read` | marketplace | Partiel : **réponse du propriétaire aux avis absente du modèle** | Moyenne |
+| Notifications (ERP) | NotificationsView | Présent | `notifications.list/dispatch/retry` ; file `appointment_notifications` ; `claim_due_notifications` ; pg_cron 5 min → pg_net → Edge | statuts tracés (pending/sent/failed/skipped + identifiant fournisseur) | `can_manage_notifications` | journey, operations | Partiel → **envoi réel NON OPÉRATIONNEL** (aucun secret fournisseur sur le projet lié) | **Élevée** |
+| Profil salon & publication | SalonProfileSettingsView (605 l.), SalonQrCodeView | Présent | RPC profil/publication (`set_salon_publication`, critères adresse+tél+couverture+prestation) | `salons` (slug, gallery jsonb, cover_url…) | `salon.update` | marketplace (7) | OPÉRATIONNEL | — |
+| Vitrine marketplace (personnalisation) | MarketplaceShowcaseView → `features/marketplace-customizer` | Présent | RPC get/save/publish/unpublish/revert | `salon_marketplace_settings` | `salon.read/update`, validation serveur stricte | PGlite 12 + UI 8 | **Partiel en production** : RPC `publish_*` absente de la base liée (voir ETAT-DES-LIEUX F1) | **Critique** |
+| Rapports | ReportsView | Présent | Agrégations clientes + vues SQL finance (`20261104100200`) | payments/appointments | `reports.read` | finance | Partiel : périmètre exact des agrégats à documenter | Faible |
+| Abonnement SaaS | SaaSPlanView | Écran d'attente uniquement | Absent | aucune table | `subscriptions.read` (permission orpheline) | — | NON OPÉRATIONNEL (assumé dans l'UI) — Lot 8, hors feuille de route actuelle | Faible |
+| Administration plateforme | — | Absent | Absent | Absent | — | — | Absent (Lot 8) | Faible |
+| Boutique (ShopView / `/vitrine`) | ShopView | Présent | À requalifier (route publique `vitrine` hors ERP) | — | — | navigation (2) | À VÉRIFIER : doublon conceptuel possible avec la vitrine salon | Faible |
+
+## État transversal
+
+- **Chargement** : `AppContext` (1 336 l.) charge tout le périmètre salon via
+  `salonApi` (1 137 l.) puis met à jour l'état local après mutation —
+  fonctionnel mais sans invalidation ciblée ni Realtime (rafraîchissement
+  inter-postes par rechargement). DÉDUIT : suffisant à petite échelle,
+  à traiter en Lot 1/4 (rafraîchissement ciblé inbox/planning d'abord).
+- **Erreurs** : `ApiError` centralisée (`lib/api.ts`), toasts UI.
+- **Formats** : FCFA via `formatPrice` (AppContext), fuseau `Africa/Abidjan`
+  côté notifications (`abidjan()` dans l'Edge) et branches (`timezone`).
