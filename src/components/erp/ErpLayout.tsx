@@ -50,6 +50,7 @@ import {
   Inbox,
   Send
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 export type ErpTab =
   | 'dashboard'
@@ -128,7 +129,7 @@ export const ErpLayout: React.FC = () => {
   const canSee = (permission: string) =>
     memberships.length > 0 && hasPermission(permission, activeSalon?.id);
 
-  const navItems: { id: ErpTab; label: string; icon: any; permission?: string }[] = [
+  const navItems: { id: ErpTab; label: string; icon: LucideIcon; permission?: string }[] = [
     { id: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard, permission: 'dashboard.read' },
     { id: 'walk_in', label: 'Sans rendez-vous', icon: UserPlus, permission: 'appointments.read' },
     { id: 'online_requests', label: 'Demandes en ligne', icon: Inbox, permission: 'appointments.read' },

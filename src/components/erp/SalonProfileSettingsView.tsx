@@ -112,7 +112,11 @@ export const SalonProfileSettingsView: React.FC = () => {
     );
   };
 
-  const handleHourChange = (index: number, field: keyof OpeningHour, value: any) => {
+  const handleHourChange = <K extends keyof OpeningHour>(
+    index: number,
+    field: K,
+    value: OpeningHour[K]
+  ) => {
     setOpeningHours((prev) => {
       const next = [...prev];
       next[index] = { ...next[index], [field]: value };

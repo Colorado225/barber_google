@@ -159,8 +159,8 @@ export const SalonMarketplaceCustomizer: React.FC = () => {
       setSettings(updated);
       setInitialConfig(draftConfig);
       addToast("Brouillon de la vitrine enregistré avec succès.", 'success');
-    } catch (err: any) {
-      addToast(err?.message || "Erreur lors de l'enregistrement du brouillon.", 'error');
+    } catch (err) {
+      addToast((err instanceof Error ? err.message : '') || "Erreur lors de l'enregistrement du brouillon.", 'error');
     } finally {
       setSaving(false);
     }
@@ -178,8 +178,8 @@ export const SalonMarketplaceCustomizer: React.FC = () => {
       setSettings(updated);
       setInitialConfig(draftConfig);
       addToast("Votre vitrine est désormais publiée et visible sur la marketplace !", 'success');
-    } catch (err: any) {
-      addToast(err?.message || "Impossible de publier la vitrine. Vérifiez l'adresse, téléphone et photo de couverture.", 'error');
+    } catch (err) {
+      addToast((err instanceof Error ? err.message : '') || "Impossible de publier la vitrine. Vérifiez l'adresse, téléphone et photo de couverture.", 'error');
     } finally {
       setPublishing(false);
     }
@@ -192,8 +192,8 @@ export const SalonMarketplaceCustomizer: React.FC = () => {
       await unpublishCustomizer(activeSalon.id);
       setSettings((prev) => (prev ? { ...prev, isPublished: false } : null));
       addToast("La vitrine a été dépubliée de la marketplace.", 'info');
-    } catch (err: any) {
-      addToast(err?.message || "Erreur lors de la dépublication.", 'error');
+    } catch (err) {
+      addToast((err instanceof Error ? err.message : '') || "Erreur lors de la dépublication.", 'error');
     } finally {
       setPublishing(false);
     }
@@ -209,8 +209,8 @@ export const SalonMarketplaceCustomizer: React.FC = () => {
       setDraftConfig(cfg);
       setInitialConfig(cfg);
       addToast("Modifications non enregistrées annulées.", 'info');
-    } catch (err: any) {
-      addToast(err?.message || "Erreur lors de l'annulation.", 'error');
+    } catch (err) {
+      addToast((err instanceof Error ? err.message : '') || "Erreur lors de l'annulation.", 'error');
     } finally {
       setSaving(false);
     }

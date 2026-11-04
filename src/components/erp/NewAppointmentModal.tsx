@@ -235,7 +235,7 @@ export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({
               <label className="text-[11px] font-semibold text-stone-300 block mb-1">Source de réservation</label>
               <select
                 value={source}
-                onChange={(e) => setSource(e.target.value as any)}
+                onChange={(e) => setSource(e.target.value as typeof source)}
                 className="w-full bg-[#111113] border border-[#29292e] rounded-xl px-3 py-2 text-xs text-stone-200 focus:outline-none focus:border-[#C9A45C]"
               >
                 <option value="phone">Appel Téléphonique</option>
@@ -248,7 +248,7 @@ export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({
               <label className="text-[11px] font-semibold text-stone-300 block mb-1">Mode de règlement</label>
               <select
                 value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value as any)}
+                onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
                 className="w-full bg-[#111113] border border-[#29292e] rounded-xl px-3 py-2 text-xs text-stone-200 focus:outline-none focus:border-[#C9A45C]"
               >
                 <option value="cash">Espèces au salon</option>

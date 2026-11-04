@@ -557,7 +557,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             {/* Day of week filter */}
             <select
               value={busyHoursDayFilter}
-              onChange={(e) => setBusyHoursDayFilter(e.target.value as any)}
+              onChange={(e) => setBusyHoursDayFilter(e.target.value as typeof busyHoursDayFilter)}
               className="bg-[#111113] border border-[#2a2a2f] rounded-xl px-3 py-1.5 text-xs text-stone-200 focus:outline-none focus:border-[#C9A45C]"
             >
               <option value="all">Toute la semaine (Moyenne)</option>
