@@ -38,7 +38,6 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     'cash.reconcile',
     ...REPORTS,
     'subscriptions.read',
-    'display.update',
   ],
   manager: [
     ...MEMBER_PERMISSIONS,
@@ -59,7 +58,6 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     ...FINANCE_RECORD,
     ...FINANCE_CORRECT,
     ...REPORTS,
-    'display.update',
   ],
   receptionist: [
     ...MEMBER_PERMISSIONS,
@@ -67,7 +65,6 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     'appointments.read',
     'appointments.write',
     'stock.read',
-    'payments.read',
   ],
   barber: [...MEMBER_PERMISSIONS, 'appointments.read', 'stock.read'],
   cashier: [...MEMBER_PERMISSIONS, 'appointments.read', 'stock.read', ...FINANCE_READ, ...FINANCE_RECORD],
