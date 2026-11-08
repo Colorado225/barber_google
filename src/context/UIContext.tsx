@@ -9,7 +9,7 @@ interface Toast {
   type: 'success' | 'error' | 'info';
 }
 
-interface UIContextValue {
+export interface UIContextValue {
   mode: AppMode;
   setMode: (mode: AppMode) => void;
   toasts: Toast[];
