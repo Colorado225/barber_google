@@ -1,6 +1,9 @@
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import App from './App';
 import { MarketplaceHome } from './components/marketplace/MarketplaceHome';
+import { SalonPublicPage } from './components/marketplace/salon/SalonPublicPage';
+import { BookingPortalView } from './components/marketplace/BookingPortalView';
+import { MyBookingsView } from './components/marketplace/MyBookingsView';
 import { ErpLayout } from './components/erp/ErpLayout';
 import { SalonProvider } from './context/SalonContext';
 import { DashboardView } from './components/erp/DashboardView';
@@ -53,10 +56,18 @@ const router = createBrowserRouter([
         element: <MarketplaceHome />,
       },
       {
-        // Public salon page reached by QR code: the home opens the salon's
-        // booking profile from the `:slug` segment, then canonicalises the URL.
         path: 'salons/:slug',
-        element: <MarketplaceHome />,
+        element: <SalonPublicPage />,
+      },
+      {
+        // Portail client persistant : le jeton secret de la réservation suffit,
+        // aucun compte n'est nécessaire pour suivre, annuler ou noter.
+        path: 'reservation/:token',
+        element: <BookingPortalView />,
+      },
+      {
+        path: 'mes-reservations',
+        element: <MyBookingsView />,
       },
       {
         path: 'connexion',
@@ -82,11 +93,11 @@ const router = createBrowserRouter([
         path: 'reinitialiser',
         element: <ResetPasswordPage />,
       },
-          {
-            path: 'vitrine',
-            element: <ShopView />,
-          },
-        ],
+      {
+        path: 'vitrine',
+        element: <ShopView />,
+      },
+    ],
   },
 ]);
 

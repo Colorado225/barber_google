@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
-import { ExpenseCategory, PaymentMethod } from '../../types';
+import { ExpenseCategory } from '../../types';
+import { paymentSignedAmount } from '../../lib/analytics';
 import {
   Wallet,
   TrendingDown,
@@ -10,38 +11,28 @@ import {
   Calendar,
   CreditCard,
   PieChart,
-  X
+  X,
 } from 'lucide-react';
 
 export const FinanceExpensesView: React.FC = () => {
-  const {
-    activeSalon,
-    expenses,
-    transactions,
-    formatPrice,
-    addExpense,
-    deleteExpense
-  } = useApp();
+  const { activeSalon, expenses, transactions, formatPrice, addExpense, deleteExpense } = useApp();
 
   const salonExpenses = useMemo(
     () => expenses.filter((e) => e.salonId === activeSalon.id),
-    [expenses, activeSalon.id]
+    [expenses, activeSalon.id],
   );
 
   const salonTransactions = useMemo(
     () => transactions.filter((t) => t.salonId === activeSalon.id && t.status === 'completed'),
-    [transactions, activeSalon.id]
+    [transactions, activeSalon.id],
   );
 
   const totalRevenue = useMemo(
-    () => salonTransactions.reduce((acc, t) => acc + t.amount, 0),
-    [salonTransactions]
+    () => salonTransactions.reduce((acc, t) => acc + paymentSignedAmount(t), 0),
+    [salonTransactions],
   );
 
-  const totalExpenses = useMemo(
-    () => salonExpenses.reduce((acc, e) => acc + e.amount, 0),
-    [salonExpenses]
-  );
+  const totalExpenses = useMemo(() => salonExpenses.reduce((acc, e) => acc + e.amount, 0), [salonExpenses]);
 
   const netBalance = totalRevenue - totalExpenses;
 
@@ -51,7 +42,7 @@ export const FinanceExpensesView: React.FC = () => {
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<ExpenseCategory>('products');
   const [amount, setAmount] = useState<number>(10000);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('orange_money');
+  const [receiptRef, setReceiptRef] = useState('');
   const [notes, setNotes] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -67,13 +58,14 @@ export const FinanceExpensesView: React.FC = () => {
       category,
       amount: Number(amount),
       date: new Date().toISOString().slice(0, 10),
-      paymentMethod,
-      notes: notes.trim()
+      receiptRef: receiptRef.trim(),
+      notes: notes.trim(),
     });
 
     setIsModalOpen(false);
     setTitle('');
     setAmount(10000);
+    setReceiptRef('');
     setNotes('');
   };
 
@@ -85,7 +77,7 @@ export const FinanceExpensesView: React.FC = () => {
     products: 'Produits & Cosmétiques',
     maintenance: 'Maintenance & Réparations',
     marketing: 'Marketing & Publicité',
-    other: 'Charges diverses'
+    other: 'Charges diverses',
   };
 
   return (
@@ -109,23 +101,17 @@ export const FinanceExpensesView: React.FC = () => {
             <TrendingDown className="w-5 h-5 text-red-400" />
             <span>-{formatPrice(totalExpenses)}</span>
           </div>
-          <span className="text-[11px] text-stone-500">
-            {salonExpenses.length} postes de dépenses
-          </span>
+          <span className="text-[11px] text-stone-500">{salonExpenses.length} postes de dépenses</span>
         </div>
 
         <div className="p-5 rounded-2xl bg-[#161619] border border-[#27272c]">
           <span className="text-xs font-semibold text-stone-400">Résultat d'Exploitation Estimé</span>
           <div
-            className={`text-2xl font-extrabold mt-1 ${
-              netBalance >= 0 ? 'text-[#E5C378]' : 'text-red-400'
-            }`}
+            className={`text-2xl font-extrabold mt-1 ${netBalance >= 0 ? 'text-[#E5C378]' : 'text-red-400'}`}
           >
             {formatPrice(netBalance)}
           </div>
-          <span className="text-[11px] text-stone-500">
-            Marge brute dégagée sur la période
-          </span>
+          <span className="text-[11px] text-stone-500">Marge brute dégagée sur la période</span>
         </div>
       </div>
 
@@ -156,7 +142,7 @@ export const FinanceExpensesView: React.FC = () => {
                 <th className="p-3.5">Date</th>
                 <th className="p-3.5">Libellé de la dépense</th>
                 <th className="p-3.5">Catégorie</th>
-                <th className="p-3.5">Moyen de paiement</th>
+                <th className="p-3.5">Justificatif</th>
                 <th className="p-3.5">Montant</th>
                 <th className="p-3.5 text-right">Action</th>
               </tr>
@@ -174,21 +160,17 @@ export const FinanceExpensesView: React.FC = () => {
                     <td className="p-3.5 font-mono text-stone-400">{exp.date}</td>
                     <td className="p-3.5">
                       <div className="font-bold text-white">{exp.title}</div>
-                      {exp.notes && (
-                        <div className="text-[11px] text-stone-500 italic">{exp.notes}</div>
-                      )}
+                      {exp.notes && <div className="text-[11px] text-stone-500 italic">{exp.notes}</div>}
                     </td>
                     <td className="p-3.5">
                       <span className="text-[10px] bg-[#222226] text-stone-300 px-2 py-0.5 rounded border border-[#2d2d33]">
                         {categoryLabels[exp.category] || exp.category}
                       </span>
                     </td>
-                    <td className="p-3.5 uppercase text-stone-400 font-semibold text-[11px]">
-                      {exp.paymentMethod?.replace('_', ' ') ?? '—'}
+                    <td className="p-3.5 text-stone-400 font-semibold text-[11px]">
+                      {exp.receiptRef || '—'}
                     </td>
-                    <td className="p-3.5 font-extrabold text-red-400">
-                      -{formatPrice(exp.amount)}
-                    </td>
+                    <td className="p-3.5 font-extrabold text-red-400">-{formatPrice(exp.amount)}</td>
                     <td className="p-3.5 text-right">
                       <button
                         onClick={() => {
@@ -222,9 +204,7 @@ export const FinanceExpensesView: React.FC = () => {
 
             <form onSubmit={handleSubmit} className="space-y-3">
               <div>
-                <label className="text-xs font-semibold text-stone-300 block mb-1">
-                  Motif / Titre *
-                </label>
+                <label className="text-xs font-semibold text-stone-300 block mb-1">Motif / Titre *</label>
                 <input
                   type="text"
                   required
@@ -255,14 +235,12 @@ export const FinanceExpensesView: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold text-stone-300 block mb-1">
-                    Montant (FCFA) *
-                  </label>
+                  <label className="text-xs font-semibold text-stone-300 block mb-1">Montant (FCFA) *</label>
                   <input
                     type="number"
                     required
-                    min="500"
-                    step="500"
+                    min="1"
+                    step="1"
                     value={amount}
                     onChange={(e) => setAmount(Number(e.target.value))}
                     className="w-full bg-[#111113] border border-[#28282d] rounded-xl px-3 py-2 text-xs font-bold text-red-400 focus:outline-none focus:border-[#C9A45C]"
@@ -272,18 +250,15 @@ export const FinanceExpensesView: React.FC = () => {
 
               <div>
                 <label className="text-xs font-semibold text-stone-300 block mb-1">
-                  Mode de règlement utilisé
+                  Référence justificatif (reçu, facture)
                 </label>
-                <select
-                  value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-                  className="w-full bg-[#111113] border border-[#28282d] rounded-xl px-3 py-2 text-xs text-stone-200 focus:outline-none focus:border-[#C9A45C]"
-                >
-                  <option value="orange_money">Orange Money</option>
-                  <option value="wave">Wave Mobile Money</option>
-                  <option value="cash">Espèces</option>
-                  <option value="mtn_momo">MTN MoMo</option>
-                </select>
+                <input
+                  type="text"
+                  value={receiptRef}
+                  onChange={(e) => setReceiptRef(e.target.value)}
+                  placeholder="Ex: FAC-2026-014"
+                  className="w-full bg-[#111113] border border-[#28282d] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#C9A45C]"
+                />
               </div>
 
               <div>

@@ -6,8 +6,6 @@ import { useOptionalAuth } from '../../context/AuthContext';
 import { listSalonBranches, type SalonBranch } from '../../lib/branch-hours';
 import {
   Store,
-  Upload,
-  Image as ImageIcon,
   CheckCircle2,
   Eye,
   Camera,
@@ -18,7 +16,7 @@ import {
   Phone,
   MessageCircle,
   Mail,
-  Info
+  Info,
 } from 'lucide-react';
 
 export const SalonProfileSettingsView: React.FC = () => {
@@ -77,7 +75,8 @@ export const SalonProfileSettingsView: React.FC = () => {
           setSelectedBranch((current) => list.find((branch) => branch.id === current?.id) ?? list[0] ?? null);
         }
       } catch (error) {
-        if (mounted) setBranchesError(error instanceof Error ? error.message : 'Impossible de charger les succursales.');
+        if (mounted)
+          setBranchesError(error instanceof Error ? error.message : 'Impossible de charger les succursales.');
       } finally {
         if (mounted) setBranchesLoading(false);
       }
@@ -109,12 +108,10 @@ export const SalonProfileSettingsView: React.FC = () => {
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>(activeSalon.paymentMethods ?? []);
 
   const toggleMethod = (m: PaymentMethod) => {
-    setPaymentMethods((prev) =>
-      prev.includes(m) ? prev.filter((item) => item !== m) : [...prev, m]
-    );
+    setPaymentMethods((prev) => (prev.includes(m) ? prev.filter((item) => item !== m) : [...prev, m]));
   };
 
-  const handleHourChange = (index: number, field: keyof OpeningHour, value: any) => {
+  const handleHourChange = <K extends keyof OpeningHour>(index: number, field: K, value: OpeningHour[K]) => {
     setOpeningHours((prev) => {
       const next = [...prev];
       next[index] = { ...next[index], [field]: value };
@@ -122,31 +119,9 @@ export const SalonProfileSettingsView: React.FC = () => {
     });
   };
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === 'string') {
-          setLogo(reader.result);
-        }
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleCoverUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === 'string') {
-          setCoverImage(reader.result);
-        }
-      };
-      reader.readAsDataURL(file);
-    }
-  };
+  // Les images sont persistées sous forme d'URL HTTPS (pas de base64 en base).
+  const handleLogoUrl = (value: string) => setLogo(value.trim());
+  const handleCoverUrl = (value: string) => setCoverImage(value.trim());
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -167,7 +142,7 @@ export const SalonProfileSettingsView: React.FC = () => {
       address,
       minPrice: minPrice ? Number(minPrice) : undefined,
       openingHours,
-      paymentMethods
+      paymentMethods,
     });
   };
 
@@ -181,12 +156,15 @@ export const SalonProfileSettingsView: React.FC = () => {
             <span>Personnalisation de l'Établissement</span>
           </h2>
           <p className="text-xs text-stone-400 mt-1">
-            Configurez l'identité officielle de votre salon : logo, coordonnées professionnelles, horaires et tarifs.
+            Configurez l'identité officielle de votre salon : logo, coordonnées professionnelles, horaires et
+            tarifs.
           </p>
         </div>
 
         <button
-          onClick={() => setSelectedSalonForModal({ ...activeSalon, name, logo, coverImage, tagline, description })}
+          onClick={() =>
+            setSelectedSalonForModal({ ...activeSalon, name, logo, coverImage, tagline, description })
+          }
           className="bg-[#242429] hover:bg-[#2e2e34] text-white border border-[#3c3c44] font-semibold text-xs px-4 py-2.5 rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer shrink-0"
         >
           <Eye className="w-4 h-4 text-[#C9A45C]" />
@@ -212,24 +190,22 @@ export const SalonProfileSettingsView: React.FC = () => {
                   <Building2 className="w-10 h-10 text-stone-500" />
                 )}
               </div>
-              <label className="absolute -bottom-2 -right-2 bg-[#C9A45C] hover:bg-[#d8b56d] text-[#101010] p-1.5 rounded-full cursor-pointer shadow-md transition-transform group-hover:scale-110">
-                <Upload className="w-3.5 h-3.5" />
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleLogoUpload}
-                  className="hidden"
-                />
-              </label>
             </div>
 
             {/* Logo Controls */}
             <div className="flex-1 space-y-2 text-center sm:text-left">
               <h4 className="text-sm font-bold text-white">Logo de l'établissement</h4>
               <p className="text-xs text-stone-400">
-                Format carré recommandé (PNG, JPG ou SVG). Visible sur la Marketplace, les reçus et les tickets WhatsApp.
+                Collez l'URL HTTPS de votre logo (hébergement public ou Supabase Storage). Les fichiers base64
+                ne sont pas persistés.
               </p>
-
+              <input
+                type="url"
+                value={logo}
+                onChange={(e) => handleLogoUrl(e.target.value)}
+                placeholder="https://…/logo.png"
+                className="w-full bg-[#121214] border border-[#2d2d33] rounded-lg px-3 py-2 text-xs text-white"
+              />
             </div>
           </div>
 
@@ -241,16 +217,13 @@ export const SalonProfileSettingsView: React.FC = () => {
                 <p className="text-[11px] text-stone-400">Arrière-plan principal de votre établissement</p>
               </div>
 
-              <label className="bg-[#242429] hover:bg-[#2c2c32] text-stone-200 border border-[#393940] text-xs font-semibold px-3 py-1.5 rounded-lg cursor-pointer flex items-center gap-1.5 transition-colors">
-                <Upload className="w-3.5 h-3.5 text-[#C9A45C]" />
-                <span>Remplacer l'image</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleCoverUpload}
-                  className="hidden"
-                />
-              </label>
+              <input
+                type="url"
+                value={coverImage}
+                onChange={(e) => handleCoverUrl(e.target.value)}
+                placeholder="https://…/couverture.jpg"
+                className="w-full max-w-xs bg-[#121214] border border-[#2d2d33] rounded-lg px-3 py-1.5 text-xs text-white"
+              />
             </div>
 
             <div className="relative aspect-[21/9] sm:aspect-[24/8] rounded-xl overflow-hidden bg-black/50 border border-[#28282d]">
@@ -287,9 +260,7 @@ export const SalonProfileSettingsView: React.FC = () => {
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-stone-300 block mb-1">
-                Type d'établissement
-              </label>
+              <label className="text-xs font-semibold text-stone-300 block mb-1">Type d'établissement</label>
               <select
                 value={salonType}
                 onChange={(e) => setSalonType(e.target.value as SalonType)}
@@ -346,9 +317,7 @@ export const SalonProfileSettingsView: React.FC = () => {
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-stone-300 block mb-1">
-                Devise de facturation
-              </label>
+              <label className="text-xs font-semibold text-stone-300 block mb-1">Devise de facturation</label>
               <input
                 type="text"
                 disabled
@@ -551,7 +520,7 @@ export const SalonProfileSettingsView: React.FC = () => {
               { id: 'mtn_momo', label: 'MTN Mobile Money' },
               { id: 'moov_money', label: 'Moov Money' },
               { id: 'cash', label: 'Espèces (Au salon)' },
-              { id: 'card', label: 'Carte Bancaire (TPE)' }
+              { id: 'card', label: 'Carte Bancaire (TPE)' },
             ].map((item) => {
               const isChecked = paymentMethods.includes(item.id as PaymentMethod);
               return (
@@ -559,10 +528,11 @@ export const SalonProfileSettingsView: React.FC = () => {
                   key={item.id}
                   type="button"
                   onClick={() => toggleMethod(item.id as PaymentMethod)}
-                  className={`p-3 rounded-xl border text-left text-xs font-semibold transition-all ${isChecked
-                    ? 'bg-[#C9A45C]/15 border-[#C9A45C] text-[#C9A45C]'
-                    : 'bg-[#111113] border-[#29292e] text-stone-400 hover:border-stone-500'
-                    }`}
+                  className={`p-3 rounded-xl border text-left text-xs font-semibold transition-all ${
+                    isChecked
+                      ? 'bg-[#C9A45C]/15 border-[#C9A45C] text-[#C9A45C]'
+                      : 'bg-[#111113] border-[#29292e] text-stone-400 hover:border-stone-500'
+                  }`}
                 >
                   {item.label}
                 </button>
@@ -578,13 +548,21 @@ export const SalonProfileSettingsView: React.FC = () => {
             <span>Gestion des Succursales</span>
           </div>
           {!isAuthenticated ? (
-            <p className="text-xs text-stone-400">La gestion des succursales est disponible dans un espace authentifié.</p>
+            <p className="text-xs text-stone-400">
+              La gestion des succursales est disponible dans un espace authentifié.
+            </p>
           ) : branchesLoading ? (
             <p className="text-xs text-stone-400">Chargement des succursales…</p>
           ) : branchesError ? (
             <div className="space-y-3">
-              <p role="alert" className="text-xs text-red-300">{branchesError}</p>
-              <button type="button" onClick={() => void reloadBranches()} className="text-xs text-[#C9A45C] underline">
+              <p role="alert" className="text-xs text-red-300">
+                {branchesError}
+              </p>
+              <button
+                type="button"
+                onClick={() => void reloadBranches()}
+                className="text-xs text-[#C9A45C] underline"
+              >
                 Réessayer
               </button>
             </div>

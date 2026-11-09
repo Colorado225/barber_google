@@ -15,15 +15,9 @@ export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({
   onClose,
   initialDate,
   initialTime,
-  initialStaffId
+  initialStaffId,
 }) => {
-  const {
-    activeSalon,
-    services,
-    staff,
-    formatPrice,
-    bookAppointment
-  } = useApp();
+  const { activeSalon, services, staff, formatPrice, bookAppointment } = useApp();
 
   const salonServices = services.filter((s) => s.salonId === activeSalon.id);
   const salonStaff = staff.filter((s) => s.salonId === activeSalon.id);
@@ -34,7 +28,7 @@ export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({
   const [selectedStaffId, setSelectedStaffId] = useState(
     initialStaffId && (initialStaffId === 'any' || salonStaff.some((s) => s.id === initialStaffId))
       ? initialStaffId
-      : salonStaff[0]?.id || ''
+      : salonStaff[0]?.id || '',
   );
   const [selectedDate, setSelectedDate] = useState(initialDate || new Date().toISOString().slice(0, 10));
   const [selectedTime, setSelectedTime] = useState(initialTime || '');
@@ -51,31 +45,33 @@ export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({
     setSelectedTime('');
     setAvailabilityError(null);
 
-    void salonApi(activeSalon.id).appointments.availability(selectedDate)
+    void salonApi(activeSalon.id)
+      .appointments.availability(selectedDate, selectedServiceId || undefined)
       .then((byStaff: Record<string, { startsAt: string; available: boolean }[]>) => {
         if (!active) return;
-        const staffSlots = selectedStaffId === 'any'
-          ? Object.values(byStaff).flat()
-          : byStaff[selectedStaffId] ?? [];
-        const available = [...new Set(
-          staffSlots
-            .filter((slot) => slot.available)
-            .map((slot) => slot.startsAt.slice(11, 16))
-            .filter(Boolean)
-        )].sort();
+        const staffSlots =
+          selectedStaffId === 'any' ? Object.values(byStaff).flat() : (byStaff[selectedStaffId] ?? []);
+        const available = [
+          ...new Set(
+            staffSlots
+              .filter((slot) => slot.available)
+              .map((slot) => slot.startsAt.slice(11, 16))
+              .filter(Boolean),
+          ),
+        ].sort();
         setTimeSlots(available);
         setSelectedTime((current) =>
           initialTime && available.includes(initialTime)
             ? initialTime
             : available.includes(current)
               ? current
-              : available[0] ?? ''
+              : (available[0] ?? ''),
         );
       })
       .catch((error: unknown) => {
         if (active) {
           setAvailabilityError(
-            error instanceof ApiError ? error.message : 'Impossible de charger les disponibilités réelles.'
+            error instanceof ApiError ? error.message : 'Impossible de charger les disponibilités réelles.',
           );
         }
       });
@@ -83,7 +79,7 @@ export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({
     return () => {
       active = false;
     };
-  }, [activeSalon.id, selectedDate, selectedStaffId, initialTime]);
+  }, [activeSalon.id, selectedDate, selectedStaffId, selectedServiceId, initialTime]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,7 +101,8 @@ export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({
       date: selectedDate,
       time: selectedTime,
       paymentMethod,
-      notes: notes ? `[Source: ${source}] ${notes}` : `[Source: ${source}] Prise de RDV au salon`
+      source,
+      notes: notes.trim(),
     });
 
     if (res.success) {
@@ -151,7 +148,9 @@ export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({
             </div>
 
             <div>
-              <label className="text-[11px] font-semibold text-stone-300 block mb-1">Téléphone / WhatsApp *</label>
+              <label className="text-[11px] font-semibold text-stone-300 block mb-1">
+                Téléphone / WhatsApp *
+              </label>
               <input
                 type="tel"
                 required
@@ -222,19 +221,27 @@ export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({
                   </option>
                 ))}
               </select>
-              {availabilityError && <p role="alert" className="mt-1 text-[11px] text-red-300">{availabilityError}</p>}
+              {availabilityError && (
+                <p role="alert" className="mt-1 text-[11px] text-red-300">
+                  {availabilityError}
+                </p>
+              )}
               {!availabilityError && timeSlots.length === 0 && (
-                <p className="mt-1 text-[11px] text-stone-500">Aucune disponibilité réelle chargée pour cette date.</p>
+                <p className="mt-1 text-[11px] text-stone-500">
+                  Aucune disponibilité réelle chargée pour cette date.
+                </p>
               )}
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-[11px] font-semibold text-stone-300 block mb-1">Source de réservation</label>
+              <label className="text-[11px] font-semibold text-stone-300 block mb-1">
+                Source de réservation
+              </label>
               <select
                 value={source}
-                onChange={(e) => setSource(e.target.value as any)}
+                onChange={(e) => setSource(e.target.value as typeof source)}
                 className="w-full bg-[#111113] border border-[#29292e] rounded-xl px-3 py-2 text-xs text-stone-200 focus:outline-none focus:border-[#C9A45C]"
               >
                 <option value="phone">Appel Téléphonique</option>
@@ -247,7 +254,7 @@ export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({
               <label className="text-[11px] font-semibold text-stone-300 block mb-1">Mode de règlement</label>
               <select
                 value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value as any)}
+                onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
                 className="w-full bg-[#111113] border border-[#29292e] rounded-xl px-3 py-2 text-xs text-stone-200 focus:outline-none focus:border-[#C9A45C]"
               >
                 <option value="cash">Espèces au salon</option>
@@ -259,7 +266,9 @@ export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({
           </div>
 
           <div>
-            <label className="text-[11px] font-semibold text-stone-300 block mb-1">Notes / Préférences client</label>
+            <label className="text-[11px] font-semibold text-stone-300 block mb-1">
+              Notes / Préférences client
+            </label>
             <input
               type="text"
               value={notes}

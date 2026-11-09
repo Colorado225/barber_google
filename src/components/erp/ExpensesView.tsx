@@ -34,8 +34,8 @@ export const ExpensesView: React.FC = () => {
         {
           header: 'Montant',
           render: (r) => formatPrice(r.amount),
-          className: 'text-[#E5C378] font-semibold'
-        }
+          className: 'text-[#E5C378] font-semibold',
+        },
       ]}
     />
   );

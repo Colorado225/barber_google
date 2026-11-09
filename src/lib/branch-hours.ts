@@ -47,23 +47,32 @@ export function mapBranchHours(rows: readonly BranchHourRecord[]): OpeningHour[]
       dayByWeekday.get(row.weekday),
       {
         isOpen: row.is_open,
-        open: row.opens_at?.slice(0, 5) ?? '',
-        close: row.closes_at?.slice(0, 5) ?? '',
+        open: row.opens_at ? row.opens_at.slice(0, 5) : '09:00',
+        close: row.closes_at ? row.closes_at.slice(0, 5) : '19:00',
       },
     ]),
   );
 
-  return DAYS_OF_WEEK.map((day) => ({
-    day,
-    ...(hoursByDay.get(day) ?? { isOpen: false, open: '', close: '' }),
-  }));
+  return DAYS_OF_WEEK.map((day) => {
+    const existing = hoursByDay.get(day);
+    if (existing) {
+      return {
+        day,
+        isOpen: existing.isOpen,
+        open: existing.open || '09:00',
+        close: existing.close || '19:00',
+      };
+    }
+    return {
+      day,
+      isOpen: day !== 'Dimanche',
+      open: '09:00',
+      close: '19:00',
+    };
+  });
 }
 
-export function toBranchHoursRows(
-  salonId: string,
-  branchId: string,
-  hours: readonly OpeningHour[],
-) {
+export function toBranchHoursRows(salonId: string, branchId: string, hours: readonly OpeningHour[]) {
   return hours.map((hour) => {
     const weekday = weekdayByDay.get(hour.day);
     if (weekday === undefined) throw new Error(`Jour d’ouverture inconnu : ${hour.day}`);

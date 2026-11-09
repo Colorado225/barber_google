@@ -80,15 +80,15 @@ flowchart TD
 
 Responsabilités des couches :
 
-| Couche | Responsabilité |
-| --- | --- |
-| Pages et composants | Présentation, formulaires, navigation et états de chargement/erreur |
-| Contextes/hooks | État UI, session et sélection du workspace ; pas de SQL ni de logique d'autorisation |
-| Repositories frontend | Requêtes Supabase typées et mapping entre lignes SQL et modèles UI |
-| Supabase Auth | Inscription, connexion, confirmation e-mail, récupération et session |
-| PostgREST + RLS | CRUD autorisé selon `auth.uid()` et les memberships actifs |
-| Fonctions RPC | Mutations atomiques, transitions métier, disponibilité et autres invariants transactionnels |
-| Migrations Supabase | Source versionnée unique du schéma, des fonctions, grants, RLS et publications Realtime |
+| Couche                | Responsabilité                                                                              |
+| --------------------- | ------------------------------------------------------------------------------------------- |
+| Pages et composants   | Présentation, formulaires, navigation et états de chargement/erreur                         |
+| Contextes/hooks       | État UI, session et sélection du workspace ; pas de SQL ni de logique d'autorisation        |
+| Repositories frontend | Requêtes Supabase typées et mapping entre lignes SQL et modèles UI                          |
+| Supabase Auth         | Inscription, connexion, confirmation e-mail, récupération et session                        |
+| PostgREST + RLS       | CRUD autorisé selon `auth.uid()` et les memberships actifs                                  |
+| Fonctions RPC         | Mutations atomiques, transitions métier, disponibilité et autres invariants transactionnels |
+| Migrations Supabase   | Source versionnée unique du schéma, des fonctions, grants, RLS et publications Realtime     |
 
 ## Contrats à migrer avant de retirer Express
 

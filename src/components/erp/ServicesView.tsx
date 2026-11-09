@@ -11,7 +11,7 @@ const CATEGORIES: { id: ServiceCategory; label: string }[] = [
   { id: 'soins', label: 'Soins capillaires' },
   { id: 'coloration', label: 'Coloration' },
   { id: 'visage', label: 'Soin visage' },
-  { id: 'combo', label: 'Formule combinée' }
+  { id: 'combo', label: 'Formule combinée' },
 ];
 
 type FormState = {
@@ -31,12 +31,20 @@ const emptyForm: FormState = {
   price: '',
   durationMinutes: '30',
   prepMinutes: '0',
-  popular: false
+  popular: false,
 };
 
 export const ServicesView: React.FC = () => {
-  const { activeSalon, services, formatPrice, addService, updateService, deleteService, setServiceActive, addToast } =
-    useApp();
+  const {
+    activeSalon,
+    services,
+    formatPrice,
+    addService,
+    updateService,
+    deleteService,
+    setServiceActive,
+    addToast,
+  } = useApp();
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editing, setEditing] = useState<Service | null>(null);
@@ -44,7 +52,7 @@ export const ServicesView: React.FC = () => {
 
   const rows = useMemo(
     () => services.filter((s) => s.salonId === activeSalon.id),
-    [services, activeSalon.id]
+    [services, activeSalon.id],
   );
 
   const openCreate = () => {
@@ -62,7 +70,7 @@ export const ServicesView: React.FC = () => {
       price: String(service.price),
       durationMinutes: String(service.durationMinutes),
       prepMinutes: String(service.prepMinutes ?? 0),
-      popular: Boolean(service.popular)
+      popular: Boolean(service.popular),
     });
     setIsFormOpen(true);
   };
@@ -98,7 +106,7 @@ export const ServicesView: React.FC = () => {
       price,
       durationMinutes: duration,
       prepMinutes,
-      popular: form.popular
+      popular: form.popular,
     };
 
     if (editing) {
@@ -212,9 +220,7 @@ export const ServicesView: React.FC = () => {
               <select
                 className={inputClass}
                 value={form.category}
-                onChange={(e) =>
-                  setForm({ ...form, category: e.target.value as ServiceCategory })
-                }
+                onChange={(e) => setForm({ ...form, category: e.target.value as ServiceCategory })}
               >
                 {CATEGORIES.map((c) => (
                   <option key={c.id} value={c.id} className="bg-[#17171a]">

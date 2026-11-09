@@ -23,22 +23,22 @@ Supabase doit être ajoutée comme une nouvelle migration immuable dans
 
 ## Inventaire fonctionnel et parité des contrats
 
-| Domaine | Contrat actuel | État du frontend | Cible / écart à fermer |
-|---|---|---|---|
-| Authentification | Supabase Auth dans `AuthContext`; Express conserve `/api/auth/*` et ses tables `bc_auth_*` | Login, inscription, vérification et récupération passent par Supabase | Garder Supabase Auth; retirer le chemin legacy seulement après vérification de non-usage et stratégie de migration d'identité |
-| Workspace / onboarding | `create_salon` RPC et lecture directe des memberships Supabase; Express expose `/api/me`, `/api/onboarding/*`, `POST /api/salons` | Onboarding utilisateur utilise Supabase; le chargement ERP appelle encore `/api/salons/:id/workspace` | Unifier chargement workspace, onboarding et sélection de succursale sous Supabase/RLS |
-| Membres / rôles | Express expose lecture et changement de rôle/statut avec permissions; `AuthContext` lit les memberships Supabase | Aucun contrat membre correspondant dans `salonApi`; la gestion n'est pas couverte par un parcours Supabase complet | Ajouter les contrats Supabase d'invitation/gestion avec audit et règles de privilège |
-| Clients | `salonApi.clients` → CRUD Express, schéma/validation dans le backend | Appels distants présents; les collections sont aussi restaurées/sauvegardées en `localStorage` | Basculer le repository sur Supabase, RLS tenant, conserver les règles de validation et supprimer le cache métier |
-| Catalogue / services | `salonApi.services` → Express, activation et CRUD | Appels distants présents | RLS et mutations Supabase; aligner les permissions de lecture/écriture |
-| Succursales / horaires | `salonApi.branches` et `branchHours`; règles Express par salon | Appels distants présents, contexte de succursale également stocké localement | Modéliser les horaires dans Supabase et vérifier le périmètre salon + succursale |
-| Personnel / horaires / absences | `salonApi.staff` et méthodes de planning; Express/operations repository | Appels distants présents | Créer les tables et mutations Supabase, avec validation de compétences et disponibilité |
-| Rendez-vous / disponibilité / historique | Contrats Express de liste, réservation, déplacement, transition, annulation, historique et disponibilité | Client API défini; mutations via Express; les données sont aussi dans l'état local | Réservation et workflow atomiques; historique append-only; prévenir les conflits concurrents au niveau PostgreSQL |
-| Caisse / paiements / remboursements / rapports | Routes Express de sessions de caisse, encaissements, confirmation, remboursements et rapports | Aucun wrapper correspondant dans `salonApi`; état de caisse et transactions conservé localement dans `AppContext` | Porter caisse/journaux financiers et rapports vers Supabase avant de déclarer ces écrans synchronisés |
-| Dépenses | Express expose liste et création; `salonApi` seulement liste/création | Appels distants partiels et état local persistant | Compléter contrats/mutations nécessaires; RLS et rattachement à une succursale |
-| Stocks | Express expose CRUD; `salonApi` expose CRUD | Appels distants présents; quantité encore modifiable dans l'état de l'application | Porter les données sur Supabase et décider/implémenter un journal de mouvements avant la bascule |
-| Fidélité | Express expose CRUD de récompenses; `salonApi` expose les récompenses | Récompenses distantes, transactions et réglages fidélité en état local | Définir les écritures/soldes transactionnels Supabase avant de remplacer le cache |
-| Avis / vitrine | Express expose CRUD d'avis; Supabase a `reviews` et `salon_settings` | Appels avis présents; aucun contrat API typé de paramètres de vitrine | Définir la frontière public/privé, les permissions et les règles de modération |
-| Abonnements / facturation SaaS | L'interface contient une vue d'abonnement; aucune route ERP de facturation n'est référencée dans `salonApi` | À auditer fonctionnellement avant toute intégration de paiement | Distinguer affichage d'un plan et abonnement facturé; ne pas inventer de fournisseur ou règle tarifaire |
+| Domaine                                        | Contrat actuel                                                                                                                    | État du frontend                                                                                                   | Cible / écart à fermer                                                                                                        |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| Authentification                               | Supabase Auth dans `AuthContext`; Express conserve `/api/auth/*` et ses tables `bc_auth_*`                                        | Login, inscription, vérification et récupération passent par Supabase                                              | Garder Supabase Auth; retirer le chemin legacy seulement après vérification de non-usage et stratégie de migration d'identité |
+| Workspace / onboarding                         | `create_salon` RPC et lecture directe des memberships Supabase; Express expose `/api/me`, `/api/onboarding/*`, `POST /api/salons` | Onboarding utilisateur utilise Supabase; le chargement ERP appelle encore `/api/salons/:id/workspace`              | Unifier chargement workspace, onboarding et sélection de succursale sous Supabase/RLS                                         |
+| Membres / rôles                                | Express expose lecture et changement de rôle/statut avec permissions; `AuthContext` lit les memberships Supabase                  | Aucun contrat membre correspondant dans `salonApi`; la gestion n'est pas couverte par un parcours Supabase complet | Ajouter les contrats Supabase d'invitation/gestion avec audit et règles de privilège                                          |
+| Clients                                        | `salonApi.clients` → CRUD Express, schéma/validation dans le backend                                                              | Appels distants présents; les collections sont aussi restaurées/sauvegardées en `localStorage`                     | Basculer le repository sur Supabase, RLS tenant, conserver les règles de validation et supprimer le cache métier              |
+| Catalogue / services                           | `salonApi.services` → Express, activation et CRUD                                                                                 | Appels distants présents                                                                                           | RLS et mutations Supabase; aligner les permissions de lecture/écriture                                                        |
+| Succursales / horaires                         | `salonApi.branches` et `branchHours`; règles Express par salon                                                                    | Appels distants présents, contexte de succursale également stocké localement                                       | Modéliser les horaires dans Supabase et vérifier le périmètre salon + succursale                                              |
+| Personnel / horaires / absences                | `salonApi.staff` et méthodes de planning; Express/operations repository                                                           | Appels distants présents                                                                                           | Créer les tables et mutations Supabase, avec validation de compétences et disponibilité                                       |
+| Rendez-vous / disponibilité / historique       | Contrats Express de liste, réservation, déplacement, transition, annulation, historique et disponibilité                          | Client API défini; mutations via Express; les données sont aussi dans l'état local                                 | Réservation et workflow atomiques; historique append-only; prévenir les conflits concurrents au niveau PostgreSQL             |
+| Caisse / paiements / remboursements / rapports | Routes Express de sessions de caisse, encaissements, confirmation, remboursements et rapports                                     | Aucun wrapper correspondant dans `salonApi`; état de caisse et transactions conservé localement dans `AppContext`  | Porter caisse/journaux financiers et rapports vers Supabase avant de déclarer ces écrans synchronisés                         |
+| Dépenses                                       | Express expose liste et création; `salonApi` seulement liste/création                                                             | Appels distants partiels et état local persistant                                                                  | Compléter contrats/mutations nécessaires; RLS et rattachement à une succursale                                                |
+| Stocks                                         | Express expose CRUD; `salonApi` expose CRUD                                                                                       | Appels distants présents; quantité encore modifiable dans l'état de l'application                                  | Porter les données sur Supabase et décider/implémenter un journal de mouvements avant la bascule                              |
+| Fidélité                                       | Express expose CRUD de récompenses; `salonApi` expose les récompenses                                                             | Récompenses distantes, transactions et réglages fidélité en état local                                             | Définir les écritures/soldes transactionnels Supabase avant de remplacer le cache                                             |
+| Avis / vitrine                                 | Express expose CRUD d'avis; Supabase a `reviews` et `salon_settings`                                                              | Appels avis présents; aucun contrat API typé de paramètres de vitrine                                              | Définir la frontière public/privé, les permissions et les règles de modération                                                |
+| Abonnements / facturation SaaS                 | L'interface contient une vue d'abonnement; aucune route ERP de facturation n'est référencée dans `salonApi`                       | À auditer fonctionnellement avant toute intégration de paiement                                                    | Distinguer affichage d'un plan et abonnement facturé; ne pas inventer de fournisseur ou règle tarifaire                       |
 
 ### Contrats backend absents du client API
 
@@ -57,14 +57,14 @@ du rôle; `ErpLayout.tsx` filtre la navigation avec cette liste. Le backend
 applique une matrice distincte dans PostgreSQL. La phase suivante doit produire
 une seule matrice vérifiée à la fois par RLS/RPC et par tests de navigation.
 
-| Permission utilisée par l'interface / le backend | Constat frontend actuel |
-|---|---|
-| `salon.read` (navigation vitrine/QR et plusieurs routes backend) | Absente de la liste de permissions `owner` dans `AuthContext` |
-| `inventory.read` (navigation stocks) | `inventory.manage` existe pour owner/manager, mais `inventory.read` est absent |
-| `loyalty.read` (navigation fidélité) | `loyalty.write` existe; `loyalty.read` est absent |
-| `subscriptions.read` (navigation abonnement) | `subscription.manage` existe pour owner, mais le nom ne correspond pas |
-| `payments.read` (routes backend) | Non attribuée dans la liste frontend relevée |
-| `cash.close`, `branch.update`, `finance.write` (routes backend) | À vérifier/aligner par rôle; les routes ne sont pas représentées dans le client API |
+| Permission utilisée par l'interface / le backend                 | Constat frontend actuel                                                             |
+| ---------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `salon.read` (navigation vitrine/QR et plusieurs routes backend) | Absente de la liste de permissions `owner` dans `AuthContext`                       |
+| `inventory.read` (navigation stocks)                             | `inventory.manage` existe pour owner/manager, mais `inventory.read` est absent      |
+| `loyalty.read` (navigation fidélité)                             | `loyalty.write` existe; `loyalty.read` est absent                                   |
+| `subscriptions.read` (navigation abonnement)                     | `subscription.manage` existe pour owner, mais le nom ne correspond pas              |
+| `payments.read` (routes backend)                                 | Non attribuée dans la liste frontend relevée                                        |
+| `cash.close`, `branch.update`, `finance.write` (routes backend)  | À vérifier/aligner par rôle; les routes ne sont pas représentées dans le client API |
 
 Ce relevé est un inventaire de décalages de noms et de couverture, pas une
 proposition d'accorder automatiquement ces droits. Chaque rôle doit être validé
@@ -72,18 +72,18 @@ avec les règles métier puis testé contre la base.
 
 ### Écarts explicites entre les trois matrices
 
-| Capacité | Interface (`AuthContext`) | Legacy (`database/migrations`, modèle final) | Supabase (`supabase_core`) |
-|---|---|---|---|
-| Lecture salon | Non attribuée au tableau frontend | `salon.read` accordée à tout membre actif | `salon.read` accordée à tout membre actif |
-| Lecture stock | Aucun rôle n'a `inventory.read`; owner/manager ont `inventory.manage` | `inventory.read` : owner, manager, barber, cashier, accountant | `stock.read` : owner, manager, receptionist, barber, cashier; nom différent et accountant manquant |
-| Écriture stock | `stock.write` pour owner/manager | `stock.write` pour owner/manager | `stock.write` pour owner/manager |
-| Lecture fidélité | Aucun rôle n'a `loyalty.read` | `loyalty.read` : owner, manager, receptionist, cashier | `loyalty.read` accordée à tout membre actif |
-| Gestion fidélité | `loyalty.write` pour owner/manager | `loyalty.write` pour owner/manager; `loyalty.manage` apparaît aussi dans une ancienne matrice | `loyalty.write` pour owner/manager |
-| Lecture abonnements | Owner a `subscription.manage`, pas `subscriptions.read` | `subscriptions.read` pour owner | Permission absente de la matrice Supabase |
-| Lecture paiements | `payments.read` absente | Owner, manager, cashier, accountant | Permission absente |
-| Encaissement | Owner/manager/cashier ont `payments.create`; `finance.write` aussi accordée à owner/manager/cashier | `payments.create` et `finance.write` : owner, manager, cashier | Permissions financières absentes |
-| Fermeture caisse | Aucun `cash.close` dans le tableau frontend | Owner, manager, cashier | Permission absente |
-| Rapport / dépenses | `reports.read`/`expenses.read` sur certains rôles | `reports.read` et `expenses.read` : owner, manager, accountant | `reports.read`/`expenses.read` cohérentes sur ces rôles |
+| Capacité            | Interface (`AuthContext`)                                                                           | Legacy (`database/migrations`, modèle final)                                                  | Supabase (`supabase_core`)                                                                         |
+| ------------------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Lecture salon       | Non attribuée au tableau frontend                                                                   | `salon.read` accordée à tout membre actif                                                     | `salon.read` accordée à tout membre actif                                                          |
+| Lecture stock       | Aucun rôle n'a `inventory.read`; owner/manager ont `inventory.manage`                               | `inventory.read` : owner, manager, barber, cashier, accountant                                | `stock.read` : owner, manager, receptionist, barber, cashier; nom différent et accountant manquant |
+| Écriture stock      | `stock.write` pour owner/manager                                                                    | `stock.write` pour owner/manager                                                              | `stock.write` pour owner/manager                                                                   |
+| Lecture fidélité    | Aucun rôle n'a `loyalty.read`                                                                       | `loyalty.read` : owner, manager, receptionist, cashier                                        | `loyalty.read` accordée à tout membre actif                                                        |
+| Gestion fidélité    | `loyalty.write` pour owner/manager                                                                  | `loyalty.write` pour owner/manager; `loyalty.manage` apparaît aussi dans une ancienne matrice | `loyalty.write` pour owner/manager                                                                 |
+| Lecture abonnements | Owner a `subscription.manage`, pas `subscriptions.read`                                             | `subscriptions.read` pour owner                                                               | Permission absente de la matrice Supabase                                                          |
+| Lecture paiements   | `payments.read` absente                                                                             | Owner, manager, cashier, accountant                                                           | Permission absente                                                                                 |
+| Encaissement        | Owner/manager/cashier ont `payments.create`; `finance.write` aussi accordée à owner/manager/cashier | `payments.create` et `finance.write` : owner, manager, cashier                                | Permissions financières absentes                                                                   |
+| Fermeture caisse    | Aucun `cash.close` dans le tableau frontend                                                         | Owner, manager, cashier                                                                       | Permission absente                                                                                 |
+| Rapport / dépenses  | `reports.read`/`expenses.read` sur certains rôles                                                   | `reports.read` et `expenses.read` : owner, manager, accountant                                | `reports.read`/`expenses.read` cohérentes sur ces rôles                                            |
 
 Cette comparaison confirme qu'il ne faut pas simplement corriger l'UI pour
 faire disparaître les menus : les noms, rôles autorisés et capacités financières
@@ -95,21 +95,21 @@ Le schéma historique se trouve dans `database/migrations/`; le schéma cible
 actuellement versionné sous `supabase/migrations/` contient une seule migration
 de socle et 15 tables `public`.
 
-| Ancien modèle `bc_*` | Modèle Supabase actuel | Écart connu |
-|---|---|---|
-| `bc_users`, `bc_auth_accounts` | `auth.users` | Stratégie d'identité à définir; ne pas migrer les sessions ou jetons legacy |
-| `bc_auth_sessions`, `bc_auth_tokens` | — | Sessions/jetons temporaires non transférables |
-| `bc_organizations`, `bc_salons`, `bc_branches` | `organizations`, `salons`, `branches` | Modèle de base présent |
-| `bc_memberships`, `bc_branch_memberships` | `memberships`, `branch_memberships` | Modèle de base présent; gestion des invitations à compléter |
-| `bc_member_invitations`, `bc_admin_audit` | — | À concevoir/porter avec règles d'accès explicites |
-| `bc_clients`, `bc_services`, `bc_staff` | `clients`, `services`, `staff` | Tables présentes; vérifier contrats, contraintes, RLS et parité des colonnes |
-| `bc_staff_schedules`, `bc_staff_absences`, `bc_branch_hours` | — | Pas de tables Supabase dans la migration actuelle |
-| `bc_appointments`, `bc_appointment_events` | `appointments` | Table présente, mais policy actuelle de lecture uniquement; historique et workflow manquants |
-| `bc_payment_entries`, `bc_cash_registers`, `bc_cash_sessions` | — | Domaine financier non porté |
-| `bc_expenses`, `bc_stock_items` | `expenses`, `stock_items` | Tables présentes; journaux, mutations et parité à vérifier |
-| `bc_loyalty_rewards` | `rewards` | Récompenses présentes; transactions/réglages fidélité absents |
-| `bc_reviews` | `reviews` | Table présente; politique d'accès public/gestion à valider |
-| Paramètres de salon | `salon_settings` | Table présente; contrat frontend/backend à inventorier |
+| Ancien modèle `bc_*`                                          | Modèle Supabase actuel                | Écart connu                                                                                  |
+| ------------------------------------------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `bc_users`, `bc_auth_accounts`                                | `auth.users`                          | Stratégie d'identité à définir; ne pas migrer les sessions ou jetons legacy                  |
+| `bc_auth_sessions`, `bc_auth_tokens`                          | —                                     | Sessions/jetons temporaires non transférables                                                |
+| `bc_organizations`, `bc_salons`, `bc_branches`                | `organizations`, `salons`, `branches` | Modèle de base présent                                                                       |
+| `bc_memberships`, `bc_branch_memberships`                     | `memberships`, `branch_memberships`   | Modèle de base présent; gestion des invitations à compléter                                  |
+| `bc_member_invitations`, `bc_admin_audit`                     | —                                     | À concevoir/porter avec règles d'accès explicites                                            |
+| `bc_clients`, `bc_services`, `bc_staff`                       | `clients`, `services`, `staff`        | Tables présentes; vérifier contrats, contraintes, RLS et parité des colonnes                 |
+| `bc_staff_schedules`, `bc_staff_absences`, `bc_branch_hours`  | —                                     | Pas de tables Supabase dans la migration actuelle                                            |
+| `bc_appointments`, `bc_appointment_events`                    | `appointments`                        | Table présente, mais policy actuelle de lecture uniquement; historique et workflow manquants |
+| `bc_payment_entries`, `bc_cash_registers`, `bc_cash_sessions` | —                                     | Domaine financier non porté                                                                  |
+| `bc_expenses`, `bc_stock_items`                               | `expenses`, `stock_items`             | Tables présentes; journaux, mutations et parité à vérifier                                   |
+| `bc_loyalty_rewards`                                          | `rewards`                             | Récompenses présentes; transactions/réglages fidélité absents                                |
+| `bc_reviews`                                                  | `reviews`                             | Table présente; politique d'accès public/gestion à valider                                   |
+| Paramètres de salon                                           | `salon_settings`                      | Table présente; contrat frontend/backend à inventorier                                       |
 
 ### État des données : mesures en attente
 
@@ -197,24 +197,24 @@ jetons d'invitation expirés ne sont pas à migrer.
 - [x] Confirmer Supabase comme cible unique et conserver Express durant la migration.
 - [x] Recenser les domaines, routes backend, usages frontend et lacunes Supabase.
 - [x] Identifier le décalage entre permissions UI et permissions backend sans
-  élargir les droits.
+      élargir les droits.
 - [x] Ajouter un inventaire SQL read-only des relations legacy attendues.
 - [x] Corriger les deux imports inutilisés; lint, typecheck, DB et React ciblés passent.
 - [x] Confirmer que tous les domaines ERP existants sont requis et que toutes les
-  données métier historiques valides sont à reprendre.
+      données métier historiques valides sont à reprendre.
 - [x] Comparer les noms et attributions des permissions frontend, legacy et
-  migration Supabase; laisser les divergences comme décisions explicites.
+      migration Supabase; laisser les divergences comme décisions explicites.
 - [x] Rejouer les migrations legacy dans l'ordre exact du runner sur PGlite;
-  les 10 fichiers s'appliquent.
+      les 10 fichiers s'appliquent.
 - [ ] Identifier si une base legacy distincte existe encore et où elle est
-  hébergée en consultant la configuration du déploiement historique hors dépôt;
-  obtenir son endpoint sans le partager dans le chat.
+      hébergée en consultant la configuration du déploiement historique hors dépôt;
+      obtenir son endpoint sans le partager dans le chat.
 - [ ] Si cette source existe, configurer une URL de connexion dédiée en lecture
-  seule vers cette source et exécuter l'inventaire.
+      seule vers cette source et exécuter l'inventaire.
 - [ ] Valider avec le propriétaire métier les capacités de caisse, finance,
-  membres, fidélité, marketplace et abonnements dans leurs règles détaillées.
+      membres, fidélité, marketplace et abonnements dans leurs règles détaillées.
 - [ ] Établir le mapping précis et les règles de réconciliation à partir des
-  comptages/contraintes de la base réelle.
+      comptages/contraintes de la base réelle.
 - [ ] Approuver la stratégie de migration d'identité avant tout import utilisateur.
 
 La phase 1 ne doit pas commencer par une suppression du backend : les éléments

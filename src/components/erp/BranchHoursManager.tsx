@@ -16,14 +16,10 @@ interface BranchHoursManagerProps {
 
 const daysOfWeek = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
 
-export const BranchHoursManager: React.FC<BranchHoursManagerProps> = ({
-  salonId,
-  branchId,
-  branchName
-}) => {
+export const BranchHoursManager: React.FC<BranchHoursManagerProps> = ({ salonId, branchId, branchName }) => {
   const { addToast } = useApp();
   const [hours, setHours] = useState<OpeningHour[]>(() =>
-    daysOfWeek.map((day) => ({ day, isOpen: false, open: '', close: '' }))
+    daysOfWeek.map((day) => ({ day, isOpen: false, open: '', close: '' })),
   );
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -40,7 +36,8 @@ export const BranchHoursManager: React.FC<BranchHoursManagerProps> = ({
         const loadedHours = await getBranchHours(salonId, branchId);
         if (mounted) setHours(loadedHours);
       } catch (error) {
-        if (mounted) setLoadError(error instanceof Error ? error.message : 'Impossible de charger les horaires.');
+        if (mounted)
+          setLoadError(error instanceof Error ? error.message : 'Impossible de charger les horaires.');
       } finally {
         if (mounted) setLoading(false);
       }
@@ -52,15 +49,11 @@ export const BranchHoursManager: React.FC<BranchHoursManagerProps> = ({
   }, [salonId, branchId, reloadCount]);
 
   const handleHourChange = (day: string, field: 'open' | 'close', value: string) => {
-    setHours((currentHours) =>
-      currentHours.map((h) => (h.day === day ? { ...h, [field]: value } : h))
-    );
+    setHours((currentHours) => currentHours.map((h) => (h.day === day ? { ...h, [field]: value } : h)));
   };
 
   const toggleDay = (day: string) => {
-    setHours((currentHours) =>
-      currentHours.map((h) => (h.day === day ? { ...h, isOpen: !h.isOpen } : h))
-    );
+    setHours((currentHours) => currentHours.map((h) => (h.day === day ? { ...h, isOpen: !h.isOpen } : h)));
   };
 
   const handleSave = async () => {
@@ -93,7 +86,9 @@ export const BranchHoursManager: React.FC<BranchHoursManagerProps> = ({
     return (
       <Card className="bg-[#161619] border-[#27272c]">
         <CardContent className="p-6 space-y-4">
-          <p role="alert" className="text-sm text-red-300">{loadError}</p>
+          <p role="alert" className="text-sm text-red-300">
+            {loadError}
+          </p>
           <Button type="button" onClick={() => setReloadCount((count) => count + 1)}>
             Réessayer
           </Button>
@@ -111,7 +106,11 @@ export const BranchHoursManager: React.FC<BranchHoursManagerProps> = ({
         </CardTitle>
       </CardHeader>
       <CardContent>
-        {saveError && <p role="alert" className="mb-4 text-sm text-red-300">{saveError}</p>}
+        {saveError && (
+          <p role="alert" className="mb-4 text-sm text-red-300">
+            {saveError}
+          </p>
+        )}
         <div className="space-y-4">
           {hours.map((h) => (
             <div key={h.day} className="grid grid-cols-4 items-center gap-3 p-3 bg-[#111113] rounded-lg">
@@ -127,14 +126,18 @@ export const BranchHoursManager: React.FC<BranchHoursManagerProps> = ({
                     <Input
                       type="time"
                       value={h.open}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleHourChange(h.day, 'open', e.target.value)}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                        handleHourChange(h.day, 'open', e.target.value)
+                      }
                       className="bg-[#1c1c20] border-[#29292e] text-xs"
                     />
                     <span>-</span>
                     <Input
                       type="time"
                       value={h.close}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleHourChange(h.day, 'close', e.target.value)}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                        handleHourChange(h.day, 'close', e.target.value)
+                      }
                       className="bg-[#1c1c20] border-[#29292e] text-xs"
                     />
                   </div>
@@ -151,11 +154,7 @@ export const BranchHoursManager: React.FC<BranchHoursManagerProps> = ({
             disabled={saving}
             className="bg-[#C9A45C] hover:bg-[#E5C378] text-black disabled:opacity-50"
           >
-            {saving ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <Save className="w-4 h-4 mr-2" />
-            )}
+            {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
             Enregistrer les modifications
           </Button>
         </div>

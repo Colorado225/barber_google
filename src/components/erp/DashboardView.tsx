@@ -6,7 +6,8 @@ import {
   buildRevenueSeries,
   buildServicePerformance,
   computeAverageBasket,
-  PeriodKey
+  paymentSignedAmount,
+  PeriodKey,
 } from '../../lib/analytics';
 import {
   TrendingUp,
@@ -28,17 +29,20 @@ import {
   ChevronRight,
   Filter,
   Layers,
-  ArrowDownRight
+  ArrowDownRight,
+  UserPlus,
 } from 'lucide-react';
 
 interface DashboardViewProps {
   onOpenNewAppointment: () => void;
+  onOpenWalkIn: () => void;
   onOpenNewPayment: () => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenNewAppointment,
-  onOpenNewPayment
+  onOpenWalkIn,
+  onOpenNewPayment,
 }) => {
   const {
     activeSalon,
@@ -49,7 +53,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     services,
     staff,
     formatPrice,
-    updateAppointmentStatus
+    updateAppointmentStatus,
   } = useApp();
 
   // Filters for interactive charts
@@ -57,7 +61,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [revenueMetric, setRevenueMetric] = useState<'revenue' | 'appointments' | 'margin'>('revenue');
   const [hoveredMonthIndex, setHoveredMonthIndex] = useState<number | null>(null);
 
-  const [busyHoursDayFilter, setBusyHoursDayFilter] = useState<'all' | 'saturday' | 'friday' | 'weekday'>('all');
+  const [busyHoursDayFilter, setBusyHoursDayFilter] = useState<'all' | 'saturday' | 'friday' | 'weekday'>(
+    'all',
+  );
   const [hoveredHour, setHoveredHour] = useState<string | null>(null);
 
   const [serviceMetricSort, setServiceMetricSort] = useState<'revenue' | 'volume'>('revenue');
@@ -65,44 +71,41 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const salonAppointments = useMemo(
     () => appointments.filter((a) => a.salonId === activeSalon.id),
-    [appointments, activeSalon.id]
+    [appointments, activeSalon.id],
   );
 
   const salonTransactions = useMemo(
     () => transactions.filter((t) => t.salonId === activeSalon.id && t.status === 'completed'),
-    [transactions, activeSalon.id]
+    [transactions, activeSalon.id],
   );
 
   const salonExpenses = useMemo(
     () => expenses.filter((e) => e.salonId === activeSalon.id),
-    [expenses, activeSalon.id]
+    [expenses, activeSalon.id],
   );
 
   const salonServices = useMemo(
     () => services.filter((s) => s.salonId === activeSalon.id),
-    [services, activeSalon.id]
+    [services, activeSalon.id],
   );
 
   const salonStaff = useMemo(
     () => staff.filter((s) => s.salonId === activeSalon.id),
-    [staff, activeSalon.id]
+    [staff, activeSalon.id],
   );
 
   const salonStocks = useMemo(
     () => stocks.filter((st) => st.salonId === activeSalon.id),
-    [stocks, activeSalon.id]
+    [stocks, activeSalon.id],
   );
 
   // Financial calculations
   const totalRevenue = useMemo(
-    () => salonTransactions.reduce((acc, t) => acc + t.amount, 0),
-    [salonTransactions]
+    () => salonTransactions.reduce((acc, t) => acc + paymentSignedAmount(t), 0),
+    [salonTransactions],
   );
 
-  const totalExpenses = useMemo(
-    () => salonExpenses.reduce((acc, e) => acc + e.amount, 0),
-    [salonExpenses]
-  );
+  const totalExpenses = useMemo(() => salonExpenses.reduce((acc, e) => acc + e.amount, 0), [salonExpenses]);
 
   const estimatedMargin = totalRevenue - totalExpenses;
 
@@ -125,11 +128,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   // Breakdown by payment method
   const mobileMoneyTotal = salonTransactions
     .filter((t) => ['wave', 'orange_money', 'mtn_momo', 'moov_money'].includes(t.method))
-    .reduce((acc, t) => acc + t.amount, 0);
+    .reduce((acc, t) => acc + paymentSignedAmount(t), 0);
 
   const cashTotal = salonTransactions
     .filter((t) => t.method === 'cash')
-    .reduce((acc, t) => acc + t.amount, 0);
+    .reduce((acc, t) => acc + paymentSignedAmount(t), 0);
 
   const lowStockItems = salonStocks.filter((item) => item.quantity <= item.minThreshold);
 
@@ -137,14 +140,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   // 1. DATA FOR MONTHLY REVENUE CHART (real data)
   // ==========================================
   const monthlyData = useMemo(
-    () =>
-      buildRevenueSeries(
-        revenuePeriod,
-        salonTransactions,
-        salonAppointments,
-        salonExpenses
-      ),
-    [revenuePeriod, salonTransactions, salonAppointments, salonExpenses]
+    () => buildRevenueSeries(revenuePeriod, salonTransactions, salonAppointments, salonExpenses),
+    [revenuePeriod, salonTransactions, salonAppointments, salonExpenses],
   );
 
   // Variation globale sur la période, calculée uniquement à partir des mois réels.
@@ -158,7 +155,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   // Max value for revenue scaling
   const maxRevenueVal = useMemo(() => {
     const vals = monthlyData.map((d) =>
-      revenueMetric === 'revenue' ? d.revenue : revenueMetric === 'appointments' ? d.appointments : d.margin
+      revenueMetric === 'revenue' ? d.revenue : revenueMetric === 'appointments' ? d.appointments : d.margin,
     );
     return Math.max(...vals, 1);
   }, [monthlyData, revenueMetric]);
@@ -168,7 +165,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   // ==========================================
   const hourlyData = useMemo(
     () => buildHourlySeries(salonAppointments, busyHoursDayFilter),
-    [salonAppointments, busyHoursDayFilter]
+    [salonAppointments, busyHoursDayFilter],
   );
 
   const maxHourlyCount = useMemo(() => {
@@ -180,7 +177,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   // ==========================================
   const topServicesData = useMemo(
     () => buildServicePerformance(salonAppointments, salonServices, serviceMetricSort),
-    [salonAppointments, salonServices, serviceMetricSort]
+    [salonAppointments, salonServices, serviceMetricSort],
   );
 
   // Key Peak Hour
@@ -203,7 +200,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="flex items-center gap-3">
             <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
             <div>
-              <span className="font-bold">Alerte Stock Critique :</span> {lowStockItems.length} produit(s) en dessous du seuil minimum ({lowStockItems.map((i) => i.name).join(', ')}).
+              <span className="font-bold">Alerte Stock Critique :</span> {lowStockItems.length} produit(s) en
+              dessous du seuil minimum ({lowStockItems.map((i) => i.name).join(', ')}).
             </div>
           </div>
           <span className="font-semibold text-xs text-amber-300 bg-amber-900/60 px-2.5 py-1 rounded-lg border border-amber-500/30">
@@ -222,12 +220,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <Wallet className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-extrabold text-white">
-            {formatPrice(totalRevenue)}
-          </div>
-          <div className={`flex items-center gap-1.5 text-[11px] font-semibold mt-2 ${
-            revenueGrowth === null ? 'text-stone-500' : revenueGrowth >= 0 ? 'text-emerald-400' : 'text-red-400'
-          }`}>
+          <div className="text-2xl font-extrabold text-white">{formatPrice(totalRevenue)}</div>
+          <div
+            className={`flex items-center gap-1.5 text-[11px] font-semibold mt-2 ${
+              revenueGrowth === null
+                ? 'text-stone-500'
+                : revenueGrowth >= 0
+                  ? 'text-emerald-400'
+                  : 'text-red-400'
+            }`}
+          >
             {revenueGrowth === null ? (
               <span>Pas encore de mois précédent comparable</span>
             ) : (
@@ -254,9 +256,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <Calendar className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-extrabold text-white">
-            {todayAppointments.length} RDV
-          </div>
+          <div className="text-2xl font-extrabold text-white">{todayAppointments.length} RDV</div>
           <div className="flex items-center gap-2 text-[11px] text-stone-400 mt-2">
             <span className="text-emerald-400 font-semibold">{completedToday} terminés</span>
             <span>•</span>
@@ -290,12 +290,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <Sparkles className="w-4 h-4" />
             </div>
           </div>
-          <div className={`text-2xl font-extrabold ${estimatedMargin >= 0 ? 'text-[#E5C378]' : 'text-red-400'}`}>
+          <div
+            className={`text-2xl font-extrabold ${estimatedMargin >= 0 ? 'text-[#E5C378]' : 'text-red-400'}`}
+          >
             {formatPrice(estimatedMargin)}
           </div>
-          <div className="text-[11px] text-stone-400 mt-2">
-            Charges fixes & commissions déduites
-          </div>
+          <div className="text-[11px] text-stone-400 mt-2">Charges fixes & commissions déduites</div>
         </div>
       </div>
 
@@ -307,6 +307,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2.5">
+          <button
+            onClick={onOpenWalkIn}
+            className="bg-[#C9A45C]/15 hover:bg-[#C9A45C]/25 text-[#E5C378] border border-[#C9A45C]/40 font-semibold text-xs px-3.5 py-2 rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm"
+          >
+            <UserPlus className="w-3.5 h-3.5" />
+            <span>+ Client de passage</span>
+          </button>
+
           <button
             onClick={onOpenNewAppointment}
             className="bg-[#242429] hover:bg-[#2c2c33] text-white border border-[#383840] font-semibold text-xs px-3.5 py-2 rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm"
@@ -406,7 +414,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 type="button"
                 onClick={() => setRevenuePeriod('month_weeks')}
                 className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                  revenuePeriod === 'month_weeks' ? 'bg-[#25252b] text-white' : 'text-stone-400 hover:text-white'
+                  revenuePeriod === 'month_weeks'
+                    ? 'bg-[#25252b] text-white'
+                    : 'text-stone-400 hover:text-white'
                 }`}
               >
                 Mois (semaines)
@@ -427,13 +437,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 {revenueMetric === 'revenue'
                   ? formatPrice(monthlyData[hoveredMonthIndex].revenue)
                   : revenueMetric === 'appointments'
-                  ? `${monthlyData[hoveredMonthIndex].appointments} réservations`
-                  : formatPrice(monthlyData[hoveredMonthIndex].margin)}
+                    ? `${monthlyData[hoveredMonthIndex].appointments} réservations`
+                    : formatPrice(monthlyData[hoveredMonthIndex].margin)}
               </div>
               <div className="text-[10px] text-stone-400 mt-1 flex items-center gap-2">
-                <span>RDV : <strong className="text-white">{monthlyData[hoveredMonthIndex].appointments}</strong></span>
+                <span>
+                  RDV : <strong className="text-white">{monthlyData[hoveredMonthIndex].appointments}</strong>
+                </span>
                 <span>•</span>
-                <span className={monthlyData[hoveredMonthIndex].growth !== null && monthlyData[hoveredMonthIndex].growth! >= 0 ? 'text-emerald-400 font-semibold' : 'text-red-400 font-semibold'}>
+                <span
+                  className={
+                    monthlyData[hoveredMonthIndex].growth !== null &&
+                    monthlyData[hoveredMonthIndex].growth! >= 0
+                      ? 'text-emerald-400 font-semibold'
+                      : 'text-red-400 font-semibold'
+                  }
+                >
                   {monthlyData[hoveredMonthIndex].growth === null
                     ? '—'
                     : `${monthlyData[hoveredMonthIndex].growth! >= 0 ? '+' : ''}${monthlyData[hoveredMonthIndex].growth}%`}
@@ -449,8 +468,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 revenueMetric === 'revenue'
                   ? item.revenue
                   : revenueMetric === 'appointments'
-                  ? item.appointments
-                  : item.margin;
+                    ? item.appointments
+                    : item.margin;
 
               const heightPercent = Math.max(8, Math.round((currentVal / maxRevenueVal) * 100));
               const isHovered = hoveredMonthIndex === idx;
@@ -465,14 +484,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   {/* Top value indicator on hover */}
                   <div
                     className={`text-[10px] font-bold mb-1 transition-all ${
-                      isHovered ? 'text-[#C9A45C] scale-110 opacity-100' : 'text-stone-500 opacity-70 group-hover:opacity-100'
+                      isHovered
+                        ? 'text-[#C9A45C] scale-110 opacity-100'
+                        : 'text-stone-500 opacity-70 group-hover:opacity-100'
                     }`}
                   >
                     {revenueMetric === 'revenue'
                       ? `${Math.round(currentVal / 1000)}k`
                       : revenueMetric === 'appointments'
-                      ? currentVal
-                      : `${Math.round(currentVal / 1000)}k`}
+                        ? currentVal
+                        : `${Math.round(currentVal / 1000)}k`}
                   </div>
 
                   {/* Bar Column */}
@@ -483,8 +504,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         isHovered
                           ? 'bg-gradient-to-t from-[#C9A45C] to-[#E5C378] shadow-[0_0_20px_rgba(201,164,92,0.5)]'
                           : idx === monthlyData.length - 1
-                          ? 'bg-gradient-to-t from-[#a88237] to-[#C9A45C]'
-                          : 'bg-gradient-to-t from-[#26241e] to-[#594726] group-hover:from-[#C9A45C]/60 group-hover:to-[#C9A45C]'
+                            ? 'bg-gradient-to-t from-[#a88237] to-[#C9A45C]'
+                            : 'bg-gradient-to-t from-[#26241e] to-[#594726] group-hover:from-[#C9A45C]/60 group-hover:to-[#C9A45C]'
                       }`}
                     />
                   </div>
@@ -507,11 +528,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div className="flex items-center gap-4">
               <span className="flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full bg-[#C9A45C]" />
-                {revenueMetric === 'revenue' ? 'Chiffre d\'Affaires Réalisé' : revenueMetric === 'appointments' ? 'Volumes de RDV' : 'Bénéfice Net'}
+                {revenueMetric === 'revenue'
+                  ? "Chiffre d'Affaires Réalisé"
+                  : revenueMetric === 'appointments'
+                    ? 'Volumes de RDV'
+                    : 'Bénéfice Net'}
               </span>
               <span className="flex items-center gap-1.5 hidden sm:inline-flex">
                 <span className="w-2.5 h-2.5 rounded-full bg-[#353023]" />
-                Moyenne période : {formatPrice(Math.round(monthlyData.reduce((a, b) => a + b.revenue, 0) / monthlyData.length))}
+                Moyenne période :{' '}
+                {formatPrice(Math.round(monthlyData.reduce((a, b) => a + b.revenue, 0) / monthlyData.length))}
               </span>
             </div>
             <span className="text-[#C9A45C] font-semibold">
@@ -537,15 +563,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <Flame className="w-4 h-4 text-amber-400" />
                 <span>Affluence & Heures de Pointe</span>
               </div>
-              <h3 className="text-lg font-bold text-white">
-                Fréquentation par Créneau Horaire
-              </h3>
+              <h3 className="text-lg font-bold text-white">Fréquentation par Créneau Horaire</h3>
             </div>
 
             {/* Day of week filter */}
             <select
               value={busyHoursDayFilter}
-              onChange={(e) => setBusyHoursDayFilter(e.target.value as any)}
+              onChange={(e) => setBusyHoursDayFilter(e.target.value as typeof busyHoursDayFilter)}
               className="bg-[#111113] border border-[#2a2a2f] rounded-xl px-3 py-1.5 text-xs text-stone-200 focus:outline-none focus:border-[#C9A45C]"
             >
               <option value="all">Toute la semaine (Moyenne)</option>
@@ -564,7 +588,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <span className="text-[#E5C378] font-bold">{peakHourItem.hour}</span>
                 <span className="text-stone-400"> ({peakHourItem.count} RDV)</span>
                 <p className="text-stone-400 text-[11px] mt-0.5">
-                  Pic d'occupation à <strong className="text-white">{peakHourItem.occupancyRate}%</strong>. Il est conseillé d'avoir l'équipe au complet au salon.
+                  Pic d'occupation à <strong className="text-white">{peakHourItem.occupancyRate}%</strong>. Il
+                  est conseillé d'avoir l'équipe au complet au salon.
                 </p>
               </div>
             ) : (
@@ -580,9 +605,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           {/* Hourly Visual Distribution Grid */}
           <div className="space-y-2 pt-2">
             <div className="grid grid-cols-12 gap-1.5 text-center text-[10px] text-stone-500 font-bold mb-1">
-              {hourlyData.filter((_, i) => i % 2 === 0).map((h) => (
-                <div key={h.hour} className="col-span-1">{h.hour}</div>
-              ))}
+              {hourlyData
+                .filter((_, i) => i % 2 === 0)
+                .map((h) => (
+                  <div key={h.hour} className="col-span-1">
+                    {h.hour}
+                  </div>
+                ))}
             </div>
 
             <div className="h-44 flex items-end gap-1 sm:gap-1.5 p-2 rounded-2xl bg-[#121214] border border-[#242429]">
@@ -601,7 +630,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     {isHovered && (
                       <div className="absolute -top-14 bg-[#1e1e24] border border-[#C9A45C] rounded-lg p-1.5 shadow-xl text-[10px] whitespace-nowrap z-30 pointer-events-none">
                         <div className="font-bold text-white">{h.hour}</div>
-                        <div className="text-[#E5C378] font-extrabold">{h.count} clients • {h.occupancyRate}%</div>
+                        <div className="text-[#E5C378] font-extrabold">
+                          {h.count} clients • {h.occupancyRate}%
+                        </div>
                       </div>
                     )}
 
@@ -613,12 +644,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             ? 'bg-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.8)]'
                             : 'bg-amber-500'
                           : h.intensity === 'moderate'
-                          ? isHovered
-                            ? 'bg-[#C9A45C]'
-                            : 'bg-[#8f743c]'
-                          : isHovered
-                          ? 'bg-emerald-400'
-                          : 'bg-[#293b33]'
+                            ? isHovered
+                              ? 'bg-[#C9A45C]'
+                              : 'bg-[#8f743c]'
+                            : isHovered
+                              ? 'bg-emerald-400'
+                              : 'bg-[#293b33]'
                       }`}
                     />
                   </div>
@@ -658,9 +689,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <Star className="w-4 h-4 text-[#C9A45C]" />
                   <span>Palmarès des Prestations</span>
                 </div>
-                <h3 className="text-lg font-bold text-white">
-                  Prestations les Plus Demandées
-                </h3>
+                <h3 className="text-lg font-bold text-white">Prestations les Plus Demandées</h3>
               </div>
 
               {/* Sort Switcher */}
@@ -713,18 +742,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             idx === 0
                               ? 'bg-[#C9A45C] text-[#101010]'
                               : idx === 1
-                              ? 'bg-stone-300 text-stone-900'
-                              : idx === 2
-                              ? 'bg-amber-800 text-amber-100'
-                              : 'bg-[#222226] text-stone-400'
+                                ? 'bg-stone-300 text-stone-900'
+                                : idx === 2
+                                  ? 'bg-amber-800 text-amber-100'
+                                  : 'bg-[#222226] text-stone-400'
                           }`}
                         >
                           {idx + 1}
                         </span>
                         <div className="truncate">
-                          <span className="text-xs font-bold text-white truncate block">
-                            {srv.name}
-                          </span>
+                          <span className="text-xs font-bold text-white truncate block">{srv.name}</span>
                           <span className="text-[10px] text-stone-400">
                             {srv.durationMinutes} min • {formatPrice(srv.price)}
                           </span>
@@ -737,9 +764,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             ? formatPrice(srv.totalGeneratedRevenue)
                             : `${srv.volume} réservations`}
                         </div>
-                        <div className="text-[10px] font-semibold text-stone-400">
-                          {percentage}% du total
-                        </div>
+                        <div className="text-[10px] font-semibold text-stone-400">{percentage}% du total</div>
                       </div>
                     </div>
 
@@ -748,11 +773,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       <div
                         style={{ width: `${percentage}%` }}
                         className={`h-full rounded-full transition-all duration-500 ${
-                          idx === 0
-                            ? 'bg-[#C9A45C]'
-                            : idx === 1
-                            ? 'bg-amber-400'
-                            : 'bg-stone-500'
+                          idx === 0 ? 'bg-[#C9A45C]' : idx === 1 ? 'bg-amber-400' : 'bg-stone-500'
                         }`}
                       />
                     </div>
@@ -768,7 +789,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <>
                 <span className="flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5 text-[#C9A45C]" />
-                  <span>Prestation n°1 : <strong className="text-white">{starService.name}</strong></span>
+                  <span>
+                    Prestation n°1 : <strong className="text-white">{starService.name}</strong>
+                  </span>
                 </span>
                 <span className="text-[#E5C378] font-bold">Top Rentabilité</span>
               </>
@@ -819,7 +842,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       </span>
                     </div>
                     <div className="text-xs text-stone-300">
-                      {apt.serviceName} ({apt.durationMinutes} min) • Barbier : <span className="font-semibold text-white">{apt.staffName}</span>
+                      {apt.serviceName} ({apt.durationMinutes} min) • Barbier :{' '}
+                      <span className="font-semibold text-white">{apt.staffName}</span>
                     </div>
                   </div>
 
@@ -836,18 +860,30 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         apt.status === 'completed'
                           ? 'bg-stone-800 text-stone-300 border-stone-700'
                           : apt.status === 'in_progress'
-                          ? 'bg-amber-950 text-amber-400 border-amber-800/40'
-                          : apt.status === 'confirmed'
-                          ? 'bg-emerald-950 text-emerald-400 border-emerald-800/40'
-                          : 'bg-blue-950 text-blue-400 border-blue-800/40'
+                            ? 'bg-amber-950 text-amber-400 border-amber-800/40'
+                            : apt.status === 'confirmed'
+                              ? 'bg-emerald-950 text-emerald-400 border-emerald-800/40'
+                              : 'bg-blue-950 text-blue-400 border-blue-800/40'
                       }`}
                     >
-                      <option value="pending" className="bg-[#18181b] text-white">En attente</option>
-                      <option value="confirmed" className="bg-[#18181b] text-white">Confirmé</option>
-                      <option value="checked_in" className="bg-[#18181b] text-white">Client arrivé</option>
-                      <option value="in_progress" className="bg-[#18181b] text-white">En cours</option>
-                      <option value="completed" className="bg-[#18181b] text-white">Terminé</option>
-                      <option value="cancelled" className="bg-[#18181b] text-white">Annulé</option>
+                      <option value="pending" className="bg-[#18181b] text-white">
+                        En attente
+                      </option>
+                      <option value="confirmed" className="bg-[#18181b] text-white">
+                        Confirmé
+                      </option>
+                      <option value="checked_in" className="bg-[#18181b] text-white">
+                        Client arrivé
+                      </option>
+                      <option value="in_progress" className="bg-[#18181b] text-white">
+                        En cours
+                      </option>
+                      <option value="completed" className="bg-[#18181b] text-white">
+                        Terminé
+                      </option>
+                      <option value="cancelled" className="bg-[#18181b] text-white">
+                        Annulé
+                      </option>
                     </select>
                   </div>
                 </div>
@@ -878,7 +914,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <div
                     className="h-full bg-cyan-400 transition-all duration-500"
                     style={{
-                      width: totalRevenue > 0 ? `${(mobileMoneyTotal / totalRevenue) * 100}%` : '0%'
+                      width: totalRevenue > 0 ? `${(mobileMoneyTotal / totalRevenue) * 100}%` : '0%',
                     }}
                   />
                 </div>
@@ -896,7 +932,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <div
                     className="h-full bg-amber-400 transition-all duration-500"
                     style={{
-                      width: totalRevenue > 0 ? `${(cashTotal / totalRevenue) * 100}%` : '0%'
+                      width: totalRevenue > 0 ? `${(cashTotal / totalRevenue) * 100}%` : '0%',
                     }}
                   />
                 </div>
@@ -933,9 +969,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       </div>
                     </div>
 
-                    <span className="text-xs font-semibold text-[#E5C378]">
-                      {st.commissionRate}% comm.
-                    </span>
+                    <span className="text-xs font-semibold text-[#E5C378]">{st.commissionRate}% comm.</span>
                   </div>
                 );
               })}

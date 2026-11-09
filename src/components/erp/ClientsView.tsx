@@ -10,7 +10,7 @@ const SEGMENTS: { id: ClientSegment; label: string }[] = [
   { id: 'loyal', label: 'Fidèle' },
   { id: 'vip', label: 'VIP' },
   { id: 'inactive', label: 'Inactif' },
-  { id: 'to_reactivate', label: 'À réactiver' }
+  { id: 'to_reactivate', label: 'À réactiver' },
 ];
 
 const SEGMENT_LABELS: Record<ClientSegment, string> = {
@@ -19,7 +19,7 @@ const SEGMENT_LABELS: Record<ClientSegment, string> = {
   loyal: 'Fidèle',
   vip: 'VIP',
   inactive: 'Inactif',
-  to_reactivate: 'À réactiver'
+  to_reactivate: 'À réactiver',
 };
 
 type FormState = {
@@ -37,18 +37,11 @@ const emptyForm: FormState = {
   email: '',
   segment: 'new',
   favoriteService: '',
-  notes: ''
+  notes: '',
 };
 
 export const ClientsView: React.FC = () => {
-  const {
-    activeSalon,
-    clients,
-    addClient,
-    updateClient,
-    deleteClient,
-    addToast
-  } = useApp();
+  const { activeSalon, clients, addClient, updateClient, deleteClient, addToast } = useApp();
 
   const [search, setSearch] = useState('');
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -57,7 +50,7 @@ export const ClientsView: React.FC = () => {
 
   const salonClients = useMemo(
     () => clients.filter((c) => c.salonId === activeSalon.id),
-    [clients, activeSalon.id]
+    [clients, activeSalon.id],
   );
 
   const rows = useMemo(() => {
@@ -67,7 +60,7 @@ export const ClientsView: React.FC = () => {
       (c) =>
         c.name.toLowerCase().includes(q) ||
         c.phone.toLowerCase().includes(q) ||
-        (c.email || '').toLowerCase().includes(q)
+        (c.email || '').toLowerCase().includes(q),
     );
   }, [salonClients, search]);
 
@@ -85,7 +78,7 @@ export const ClientsView: React.FC = () => {
       email: client.email || '',
       segment: client.segment,
       favoriteService: client.favoriteService || '',
-      notes: client.notes || ''
+      notes: client.notes || '',
     });
     setIsFormOpen(true);
   };
@@ -109,7 +102,7 @@ export const ClientsView: React.FC = () => {
         email: form.email.trim() || undefined,
         segment: form.segment,
         favoriteService: form.favoriteService.trim(),
-        notes: form.notes.trim()
+        notes: form.notes.trim(),
       });
     } else {
       addClient({
@@ -119,7 +112,7 @@ export const ClientsView: React.FC = () => {
         email: form.email.trim() || undefined,
         segment: form.segment,
         favoriteService: form.favoriteService.trim(),
-        notes: form.notes.trim()
+        notes: form.notes.trim(),
       });
     }
     setIsFormOpen(false);
@@ -183,10 +176,7 @@ export const ClientsView: React.FC = () => {
             </thead>
             <tbody>
               {rows.map((client) => (
-                <tr
-                  key={client.id}
-                  className="border-b border-[#232326] last:border-0 hover:bg-[#18181b]"
-                >
+                <tr key={client.id} className="border-b border-[#232326] last:border-0 hover:bg-[#18181b]">
                   <td className="px-4 py-3">
                     <span className="font-semibold text-[#f7f6f2]">{client.name}</span>
                     <div className="text-[11px] text-[#a9a9a9]">{client.phone}</div>

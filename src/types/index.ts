@@ -96,13 +96,7 @@ export interface StaffMember {
 }
 
 export type AppointmentStatus =
-  | 'pending'
-  | 'confirmed'
-  | 'checked_in'
-  | 'in_progress'
-  | 'completed'
-  | 'cancelled'
-  | 'no_show';
+  'pending' | 'confirmed' | 'checked_in' | 'in_progress' | 'completed' | 'cancelled' | 'no_show';
 
 export type PaymentStatus = 'unpaid' | 'deposit_paid' | 'paid' | 'refunded';
 
@@ -125,12 +119,16 @@ export interface Appointment {
   status: AppointmentStatus;
   paymentStatus: PaymentStatus;
   paymentMethod?: PaymentMethod;
-  source: 'marketplace' | 'direct' | 'whatsapp' | 'phone';
+  source: 'marketplace' | 'direct' | 'whatsapp' | 'phone' | 'walk_in';
   notes?: string;
   createdAt: string;
   /** Horodatages serveur (source de vérité du calendrier). */
   startsAt?: string;
   endsAt?: string;
+  /** Clients de passage : arrivée, début et fin réels de la prestation. */
+  arrivalAt?: string;
+  serviceStartedAt?: string;
+  serviceCompletedAt?: string;
 }
 
 export type ClientSegment = 'new' | 'active' | 'loyal' | 'vip' | 'inactive' | 'to_reactivate';
@@ -153,56 +151,100 @@ export interface Client {
   loyaltyTier?: 'bronze' | 'silver' | 'gold' | 'vip';
 }
 
+export type PaymentEntryKind = 'payment' | 'refund' | 'payment_reversal' | 'refund_reversal';
+export type PaymentSettlementMode = 'cash_drawer' | 'manual_confirmed' | 'manual_rejected';
+
 export interface PaymentTransaction {
   id: string;
   salonId: string;
+  branchId?: string;
   appointmentId?: string;
+  appointmentAmount?: number;
+  serviceName?: string;
   clientName: string;
   amount: number;
   method: PaymentMethod;
+  kind: PaymentEntryKind;
   type: 'full' | 'deposit' | 'balance';
   reference: string;
+  providerReference?: string;
   status: 'completed' | 'pending' | 'cancelled';
   date: string;
   time: string;
+  createdAt?: string;
   cashSessionId?: string;
+  originalEntryId?: string;
+  reason?: string;
+  settlementMode?: PaymentSettlementMode;
+  settlementNote?: string;
 }
 
 export interface CashSession {
   id: string;
   salonId: string;
+  branchId: string;
+  registerId: string;
+  registerName?: string;
   openedAt: string;
   closedAt?: string;
+  reconciledAt?: string;
   openingBalance: number;
   totalCashIn: number;
+  totalCashOut: number;
   totalMobileMoneyIn: number;
+  totalMobileMoneyOut: number;
   totalOut: number;
   theoreticalBalance: number;
+  expectedBalance?: number;
   actualBalance?: number;
+  countedBalance?: number;
   discrepancy?: number;
-  status: 'open' | 'closed';
+  difference?: number;
+  status: 'open' | 'closed' | 'reconciled';
+  openingNote?: string;
+  closingNote?: string;
+  reconciliationNote?: string;
   notes?: string;
 }
 
+export interface FinancialSummary {
+  revenueBilled: number;
+  revenueCollected: number;
+  outstanding: number;
+  refunds: number;
+  expenses: number;
+  netBalance: number;
+  pendingAmount: number;
+  paymentCount: number;
+  byMethod: Record<string, number>;
+}
+
+export interface AppointmentBalance {
+  appointmentId: string;
+  billed: number;
+  collected: number;
+  outstanding: number;
+  pending: number;
+  refunded: number;
+}
+
 export type ExpenseCategory =
-  | 'rent'
-  | 'electricity'
-  | 'water'
-  | 'salaries'
-  | 'products'
-  | 'maintenance'
-  | 'marketing'
-  | 'other';
+  'rent' | 'electricity' | 'water' | 'salaries' | 'products' | 'maintenance' | 'marketing' | 'other';
 
 export interface Expense {
   id: string;
   salonId: string;
+  branchId?: string | null;
   title: string;
   category: ExpenseCategory;
   amount: number;
   date: string;
+  /** Champ historique d'affichage ; non persisté par le journal Supabase. */
   paymentMethod?: PaymentMethod;
   notes?: string;
+  receiptRef?: string;
+  createdBy?: string;
+  createdAt?: string;
 }
 
 export type StockCategory = 'shampoing' | 'gel_cire' | 'huile_barbe' | 'lames' | 'soin' | 'accessoires';
@@ -270,12 +312,63 @@ export interface LoyaltyTransaction {
   clientName: string;
   clientPhone?: string;
   points: number; // positive for earn, negative for redeem
-  type: 'earned_service' | 'redeemed_reward' | 'welcome_bonus' | 'manual_adjustment';
+  type: 'earned_service' | 'redeemed_reward' | 'welcome_bonus' | 'manual_adjustment' | 'reversal';
   description: string;
   rewardId?: string;
   rewardName?: string;
   appointmentId?: string;
   createdAt: string;
+}
+
+// Solde de fidélité tenu par la base (journal append-only), jamais par le navigateur.
+export interface LoyaltyAccount {
+  salonId: string;
+  clientId: string;
+  pointsBalance: number;
+  totalEarned: number;
+  totalRedeemed: number;
+  tier: 'bronze' | 'silver' | 'gold' | 'vip';
+  updatedAt: string;
+}
+
+export interface LoyaltyLedgerEntry {
+  id: string;
+  salonId: string;
+  clientId: string;
+  appointmentId?: string | null;
+  rewardId?: string | null;
+  kind: 'earned_service' | 'redeemed_reward' | 'welcome_bonus' | 'manual_adjustment' | 'reversal';
+  points: number;
+  balanceAfter: number;
+  reason: string;
+  createdAt: string;
+}
+
+export type NotificationChannel = 'email' | 'whatsapp' | 'sms';
+export type NotificationStatus = 'pending' | 'sending' | 'sent' | 'failed' | 'skipped';
+
+export interface AppointmentNotification {
+  id: string;
+  salonId: string;
+  appointmentId: string;
+  channel: NotificationChannel;
+  kind: 'booking_received' | 'booking_confirmed' | 'booking_cancelled' | 'reminder_24h' | 'review_request';
+  recipient: string;
+  status: NotificationStatus;
+  scheduledAt: string;
+  createdAt: string;
+  sentAt?: string | null;
+  error?: string | null;
+  attempts: number;
+  providerMessageId?: string | null;
+}
+
+export interface NotificationDispatchResult {
+  processed: number;
+  sent: number;
+  failed: number;
+  skipped: number;
+  providerConfigured: boolean;
 }
 
 export interface LoyaltySettings {
@@ -286,4 +379,64 @@ export interface LoyaltySettings {
   goldThreshold: number; // e.g. 250 points
   vipThreshold: number; // e.g. 500 points
   programEnabled: boolean;
+}
+
+export type SalonMarketplaceSectionId =
+  'hero' | 'gallery' | 'featured_services' | 'team' | 'trust' | 'location_hours' | 'reviews';
+
+export type SalonMarketplaceLayout = 'classic' | 'elegant' | 'editorial';
+
+export type SalonCardStyle = 'rounded-3xl' | 'rounded-2xl' | 'rounded-xl';
+
+export interface SalonMarketplaceSection {
+  id: SalonMarketplaceSectionId;
+  enabled: boolean;
+  position: number;
+}
+
+export interface SalonMarketplaceViewConfig {
+  layout: SalonMarketplaceLayout;
+  accentColor: string;
+  cardStyle?: SalonCardStyle;
+  sections: SalonMarketplaceSection[];
+  featuredServiceIds: string[];
+  visibleStaffIds: string[];
+  featuredGalleryImageIds: string[];
+  showAddress: boolean;
+  showPhone: boolean;
+  showWhatsapp: boolean;
+  customTagline?: string;
+  customDescription?: string;
+  themeMode?: 'dark' | 'light' | 'auto';
+  featuredBranchId?: string;
+}
+
+/** Fiche publique complète d'un salon sur la marketplace (données ERP réelles). */
+export interface PublicSalonDetail {
+  salon: Salon;
+  services: Service[];
+  staff: Pick<StaffMember, 'id' | 'name' | 'role' | 'specialties' | 'serviceIds'>[];
+  reviews: Review[];
+  branches: {
+    id: string;
+    name: string;
+    timezone: string;
+    hours: { weekday: number; isOpen: boolean; opensAt: string | null; closesAt: string | null }[];
+  }[];
+  rating: number | null;
+  reviewCount: number;
+  minPrice: number | null;
+  customizer?: SalonMarketplaceViewConfig;
+}
+
+export interface SalonMarketplaceSettingsRecord {
+  salonId: string;
+  layout: SalonMarketplaceLayout;
+  accentColor: string;
+  cardStyle: SalonCardStyle;
+  draftConfig: SalonMarketplaceViewConfig;
+  publishedConfig: SalonMarketplaceViewConfig | null;
+  isPublished: boolean;
+  publishedAt?: string | null;
+  updatedAt: string;
 }

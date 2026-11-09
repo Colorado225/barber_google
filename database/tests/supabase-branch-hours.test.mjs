@@ -36,10 +36,16 @@ test('branch hours migration applies and stores validated weekly schedules', asy
     [ownerA, managerA, ownerB, receptionistA],
   );
   await db.exec(
-    await readFile(new URL('../../supabase/migrations/20261103160000_supabase_core.sql', import.meta.url), 'utf8'),
+    await readFile(
+      new URL('../../supabase/migrations/20261103160000_supabase_core.sql', import.meta.url),
+      'utf8',
+    ),
   );
   await db.exec(
-    await readFile(new URL('../../supabase/migrations/20261103170000_branch_hours.sql', import.meta.url), 'utf8'),
+    await readFile(
+      new URL('../../supabase/migrations/20261103170000_branch_hours.sql', import.meta.url),
+      'utf8',
+    ),
   );
 
   await asUser(ownerA);
@@ -93,10 +99,12 @@ test('branch hours policies isolate tenants and allow only authorized managers t
     ['21:00', salonA, branchA],
   );
   assert.equal(
-    (await db.query(
-      'select closes_at::text from public.branch_hours where salon_id = $1 and branch_id = $2 and weekday = 1',
-      [salonA, branchA],
-    )).rows[0].closes_at,
+    (
+      await db.query(
+        'select closes_at::text from public.branch_hours where salon_id = $1 and branch_id = $2 and weekday = 1',
+        [salonA, branchA],
+      )
+    ).rows[0].closes_at,
     '20:00:00',
   );
 

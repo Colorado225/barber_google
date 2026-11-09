@@ -17,8 +17,8 @@ export const SaaSPlanView: React.FC = () => {
           : "Aucune offre d'abonnement n'est enregistrée pour cet établissement."}
       </p>
       <p className="mt-2 text-xs text-stone-500">
-        La gestion des offres et des paiements sera disponible lorsqu'un service de facturation
-        persistant sera connecté.
+        La gestion des offres et des paiements sera disponible lorsqu'un service de facturation persistant
+        sera connecté.
       </p>
     </section>
   );

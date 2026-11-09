@@ -29,9 +29,7 @@ export const ForgotPasswordPage: React.FC = () => {
       <div className="max-w-md w-full bg-[#151516] rounded-xl border border-[#2a2a2b] p-8 space-y-5">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-[#f7f6f2]">Mot de passe oublié</h1>
-          <p className="text-sm text-[#a9a9a9] mt-2">
-            Recevez un lien pour définir un nouveau mot de passe.
-          </p>
+          <p className="text-sm text-[#a9a9a9] mt-2">Recevez un lien pour définir un nouveau mot de passe.</p>
         </div>
         {error && (
           <p className="text-xs text-red-300 bg-red-950/50 border border-red-800/50 rounded-lg px-3 py-2">
@@ -40,9 +38,7 @@ export const ForgotPasswordPage: React.FC = () => {
         )}
         {sent ? (
           <div className="space-y-3 text-sm text-[#a9a9a9]">
-            <p>
-              Si un compte existe pour cette adresse, un lien de réinitialisation vient d'être envoyé.
-            </p>
+            <p>Si un compte existe pour cette adresse, un lien de réinitialisation vient d'être envoyé.</p>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">

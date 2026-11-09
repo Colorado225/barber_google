@@ -49,9 +49,10 @@ test('les horaires préparés portent le tenant, la succursale et la convention 
 
 test('les horaires ouverts invalides sont rejetés avant l’écriture', () => {
   assert.throws(
-    () => toBranchHoursRows('salon-id', 'branch-id', [
-      { day: 'Lundi', isOpen: true, open: '18:00', close: '09:00' },
-    ]),
+    () =>
+      toBranchHoursRows('salon-id', 'branch-id', [
+        { day: 'Lundi', isOpen: true, open: '18:00', close: '09:00' },
+      ]),
     /horaires du Lundi sont invalides/,
   );
 });

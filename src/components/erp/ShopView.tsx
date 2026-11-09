@@ -1,10 +1,21 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
-import { Store, Globe, Eye, QrCode, Scissors, ImageIcon, ArrowRight } from 'lucide-react';
+import {
+  Store,
+  Globe,
+  Eye,
+  QrCode,
+  Scissors,
+  ImageIcon,
+  ArrowRight,
+  UploadCloud,
+  EyeOff,
+} from 'lucide-react';
 
 export const ShopView: React.FC = () => {
-  const { activeSalon, services, reviews, setSelectedSalonForModal, setMode } = useApp();
+  const { activeSalon, services, reviews, setSelectedSalonForModal, setMode, setSalonPublished } = useApp();
+  const [publishing, setPublishing] = useState(false);
 
   const salonServices = services.filter((s) => s.salonId === activeSalon.id);
   const salonReviews = reviews.filter((r) => r.salonId === activeSalon.id);
@@ -14,23 +25,23 @@ export const ShopView: React.FC = () => {
     {
       label: 'Au moins une prestation réservable',
       ok: salonServices.length > 0,
-      detail: `${salonServices.length} prestation(s)`
+      detail: `${salonServices.length} prestation(s)`,
     },
     {
       label: 'Adresse renseignée',
       ok: Boolean(activeSalon.address?.trim()),
-      detail: activeSalon.address || 'Non renseignée'
+      detail: activeSalon.address || 'Non renseignée',
     },
     {
       label: 'Contact renseigné',
       ok: Boolean(activeSalon.phone?.trim()),
-      detail: activeSalon.phone || 'Non renseigné'
+      detail: activeSalon.phone || 'Non renseigné',
     },
     {
       label: 'Photo de couverture',
       ok: Boolean(activeSalon.coverImage),
-      detail: activeSalon.coverImage ? 'Présente' : 'Absente'
-    }
+      detail: activeSalon.coverImage ? 'Présente' : 'Absente',
+    },
   ];
 
   return (
@@ -45,10 +56,11 @@ export const ShopView: React.FC = () => {
         </div>
 
         <span
-          className={`self-start text-xs font-bold px-3 py-1.5 rounded-full border ${isPublished
-            ? 'bg-emerald-950/80 text-emerald-400 border-emerald-600/40'
-            : 'bg-amber-950/80 text-amber-300 border-amber-600/40'
-            }`}
+          className={`self-start text-xs font-bold px-3 py-1.5 rounded-full border ${
+            isPublished
+              ? 'bg-emerald-950/80 text-emerald-400 border-emerald-600/40'
+              : 'bg-amber-950/80 text-amber-300 border-amber-600/40'
+          }`}
         >
           {isPublished ? 'Publiée' : 'Brouillon'}
         </span>
@@ -56,9 +68,7 @@ export const ShopView: React.FC = () => {
 
       {/* Readiness checklist — real salon data */}
       <div className="bg-[#151516] rounded-xl border border-[#2a2a2b] p-6">
-        <h2 className="text-lg font-semibold text-[#f7f6f2] mb-4">
-          Prérequis de publication
-        </h2>
+        <h2 className="text-lg font-semibold text-[#f7f6f2] mb-4">Prérequis de publication</h2>
         <div className="space-y-2">
           {checks.map((check) => (
             <div
@@ -66,10 +76,7 @@ export const ShopView: React.FC = () => {
               className="flex items-center justify-between p-3 rounded-lg bg-[#18181b] border border-[#2a2a2b] text-sm"
             >
               <span className="text-[#f7f6f2]">{check.label}</span>
-              <span
-                className={`text-xs font-semibold ${check.ok ? 'text-emerald-400' : 'text-amber-400'
-                  }`}
-              >
+              <span className={`text-xs font-semibold ${check.ok ? 'text-emerald-400' : 'text-amber-400'}`}>
                 {check.detail}
               </span>
             </div>
@@ -92,7 +99,7 @@ export const ShopView: React.FC = () => {
             <span>Photos</span>
           </div>
           <p className="text-2xl font-bold text-[#f7f6f2] mt-2">
-            {(activeSalon.galleryItems?.length || activeSalon.gallery?.length || 0)}
+            {activeSalon.galleryItems?.length || activeSalon.gallery?.length || 0}
           </p>
         </div>
         <div className="bg-[#151516] rounded-xl border border-[#2a2a2b] p-5">
@@ -118,6 +125,38 @@ export const ShopView: React.FC = () => {
           <span className="flex items-center gap-2">
             <Eye className="w-4 h-4 text-[#C9A45C]" />
             Voir la fiche publique
+          </span>
+          <ArrowRight className="w-4 h-4 text-[#a9a9a9]" />
+        </button>
+
+        <button
+          onClick={async () => {
+            if (!isPublished && !checks.every((c) => c.ok)) {
+              return;
+            }
+            setPublishing(true);
+            try {
+              await setSalonPublished(activeSalon.id, !isPublished);
+            } catch {
+              // Le toast d'erreur est déjà émis par le contexte.
+            } finally {
+              setPublishing(false);
+            }
+          }}
+          disabled={publishing || (!isPublished && !checks.every((c) => c.ok))}
+          className={`w-full flex items-center justify-between p-3.5 rounded-lg border transition-colors text-sm font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+            isPublished
+              ? 'bg-[#18181b] border-[#2a2a2b] text-[#f7f6f2] hover:border-red-500/50'
+              : 'bg-[#C9A45C]/10 border-[#C9A45C]/40 text-[#E5C378] hover:bg-[#C9A45C]/20'
+          }`}
+        >
+          <span className="flex items-center gap-2">
+            {isPublished ? <EyeOff className="w-4 h-4" /> : <UploadCloud className="w-4 h-4" />}
+            {publishing
+              ? 'Enregistrement…'
+              : isPublished
+                ? 'Retirer de la marketplace'
+                : 'Publier sur la marketplace'}
           </span>
           <ArrowRight className="w-4 h-4 text-[#a9a9a9]" />
         </button>

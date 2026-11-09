@@ -13,7 +13,7 @@ import {
   Sparkles,
   Edit,
   X,
-  CheckCircle2
+  CheckCircle2,
 } from 'lucide-react';
 
 export const CrmClientsView: React.FC = () => {
@@ -21,7 +21,7 @@ export const CrmClientsView: React.FC = () => {
 
   const salonClients = useMemo(
     () => clients.filter((c) => c.salonId === activeSalon.id),
-    [clients, activeSalon.id]
+    [clients, activeSalon.id],
   );
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -58,8 +58,11 @@ export const CrmClientsView: React.FC = () => {
     loyal: { label: 'Fidèle', badge: 'bg-emerald-950 text-emerald-400 border-emerald-800/40' },
     active: { label: 'Actif', badge: 'bg-cyan-950 text-cyan-400 border-cyan-800/40' },
     new: { label: 'Nouveau', badge: 'bg-blue-950 text-blue-400 border-blue-800/40' },
-    to_reactivate: { label: 'À relancer', badge: 'bg-orange-950 text-orange-400 border-orange-800/40 font-bold' },
-    inactive: { label: 'Inactif', badge: 'bg-stone-800 text-stone-400 border-stone-700' }
+    to_reactivate: {
+      label: 'À relancer',
+      badge: 'bg-orange-950 text-orange-400 border-orange-800/40 font-bold',
+    },
+    inactive: { label: 'Inactif', badge: 'bg-stone-800 text-stone-400 border-stone-700' },
   };
 
   const handleAddClientSubmit = (e: React.FormEvent) => {
@@ -76,7 +79,7 @@ export const CrmClientsView: React.FC = () => {
       email: newEmail.trim() || undefined,
       segment: newSegment,
       favoriteService: newFavoriteService,
-      notes: newNotes.trim()
+      notes: newNotes.trim(),
     });
 
     setIsAddClientModalOpen(false);
@@ -122,7 +125,7 @@ export const CrmClientsView: React.FC = () => {
             { id: 'loyal', label: 'Fidèles' },
             { id: 'active', label: 'Actifs' },
             { id: 'new', label: 'Nouveaux' },
-            { id: 'to_reactivate', label: 'À relancer' }
+            { id: 'to_reactivate', label: 'À relancer' },
           ].map((seg) => (
             <button
               key={seg.id}
@@ -152,7 +155,7 @@ export const CrmClientsView: React.FC = () => {
         {filteredClients.map((client) => {
           const badge = segmentBadges[client.segment] || {
             label: client.segment,
-            badge: 'bg-stone-800'
+            badge: 'bg-stone-800',
           };
           return (
             <div
