@@ -61,6 +61,7 @@ import { SalonManagement } from './SalonManagement';
 import { MarketplaceSectionsAdmin } from './MarketplaceSectionsAdmin';
 import { MarketplaceConfigManager } from './MarketplaceConfigManager';
 import { PricingTierEditor } from './PricingTierEditor';
+import { SaasPaymentReviewPanel } from './SaasPaymentReviewPanel';
 import { useOptionalApp } from '../../context/AppContext';
 
 export type AdminDashboardTab =
@@ -583,6 +584,8 @@ export const AdminDashboard: React.FC = () => {
           {/* TAB 2: PRICING PLANS */}
           {activeTab === 'pricing' && (
             <div className="space-y-6">
+              <SaasPaymentReviewPanel formatPrice={formatPrice} />
+
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <h1 className="text-2xl font-black text-white tracking-tight">Tarifs & Forfaits SaaS</h1>

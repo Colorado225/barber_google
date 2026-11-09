@@ -76,7 +76,6 @@ const DEFAULT_PLANS: SaaSPlan[] = [
 ];
 
 const LOCAL_STORAGE_KEY_PLANS = 'barbercuts_saas_plans';
-const LOCAL_STORAGE_KEY_SUBS = 'barbercuts_saas_subscriptions';
 
 function getLocalPlans(): SaaSPlan[] {
   if (typeof window === 'undefined') return DEFAULT_PLANS;
@@ -97,28 +96,6 @@ function setLocalPlans(plans: SaaSPlan[]) {
   try {
     localStorage.setItem(LOCAL_STORAGE_KEY_PLANS, JSON.stringify(plans));
     window.dispatchEvent(new CustomEvent('saas_plans_updated'));
-  } catch {
-    // ignore
-  }
-}
-
-function getLocalSubscriptions(): Record<string, SaaSSubscription> {
-  if (typeof window === 'undefined') return {};
-  try {
-    const raw = localStorage.getItem(LOCAL_STORAGE_KEY_SUBS);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-}
-
-function setLocalSubscription(salonId: string, sub: SaaSSubscription) {
-  if (typeof window === 'undefined') return;
-  try {
-    const current = getLocalSubscriptions();
-    current[salonId] = sub;
-    localStorage.setItem(LOCAL_STORAGE_KEY_SUBS, JSON.stringify(current));
-    window.dispatchEvent(new CustomEvent('saas_subscription_updated', { detail: { salonId } }));
   } catch {
     // ignore
   }
@@ -297,162 +274,227 @@ export async function discardSaasPlanDraft(planId: string): Promise<void> {
   notifyPlansUpdated();
 }
 
+export type SaaSPaymentMethod = 'mobile_money' | 'bank_transfer' | 'cash' | 'other';
+
+export interface PendingSaaSSubscription {
+  id: string;
+  planId: string;
+  planName: string;
+  priceXof: number;
+  billingPeriod: 'monthly' | 'yearly';
+  createdAt: string;
+  payment: {
+    id: string;
+    method: SaaSPaymentMethod;
+    reference: string;
+    status: 'pending' | 'confirmed' | 'rejected';
+    declaredAt: string;
+    decisionReason: string | null;
+  } | null;
+}
+
+export interface SaaSPaymentReviewItem {
+  id: string;
+  salonId: string;
+  salonName: string;
+  planId: string;
+  planName: string;
+  amountXof: number;
+  method: SaaSPaymentMethod;
+  reference: string;
+  declaredAt: string;
+}
+
+function requireSupabase(): void {
+  if (!isSupabaseConfigured()) {
+    throw new Error('Abonnements indisponibles : la base de données n’est pas configurée.');
+  }
+}
+
+function subscriptionFromRpc(data: Record<string, unknown>, plan: SaaSPlan | undefined): SaaSSubscription {
+  return {
+    id: String(data.id),
+    salonId: String(data.salon_id),
+    planId: String(data.plan_id),
+    status: (data.status as SaaSSubscription['status']) || 'pending_payment',
+    priceAtSubscription: Number(data.price_at_subscription),
+    billingPeriod: (data.billing_period as 'monthly' | 'yearly') || 'monthly',
+    featuresSnapshot: Array.isArray(data.features_snapshot) ? (data.features_snapshot as string[]) : [],
+    startedAt: String(data.started_at),
+    currentPeriodEnd: String(data.current_period_end),
+    plan: plan
+      ? {
+          id: plan.id,
+          name: plan.name,
+          slug: plan.slug,
+          currentPriceXof: plan.priceXof,
+          description: plan.description,
+          features: plan.features,
+          badgeText: plan.badgeText,
+          maxStaff: plan.maxStaff,
+          maxBranches: plan.maxBranches,
+        }
+      : undefined,
+  };
+}
+
 /**
- * Souscrit un salon à un forfait ou met à niveau son offre.
- * Enregistre un instantané exact du tarif au moment de la souscription.
+ * Demande la souscription d'un salon à un forfait (propriétaire uniquement).
+ * La demande reste « pending_payment » : rien n'est activé tant qu'un paiement n'a pas été validé
+ * par le super administrateur. Aucun repli local : sans base de données, l'opération échoue.
  */
 export async function subscribeSalonToPlan(salonId: string, planId: string): Promise<SaaSSubscription> {
-  const allPlans = await getAllSaasPlans();
+  requireSupabase();
+  // Forfaits publics actifs : get_all_saas_plans est réservé au super administrateur.
+  const allPlans = await getSaasPlans();
   const targetPlan = allPlans.find((p) => p.id === planId);
   if (!targetPlan) {
     throw new Error("Ce forfait d'abonnement n'existe pas ou est indisponible.");
   }
 
-  if (isSupabaseConfigured()) {
-    try {
-      const client = getSupabaseClient();
-      const { data, error } = await client.rpc('subscribe_salon_to_plan', {
-        p_salon_id: salonId,
-        p_plan_id: planId,
-      });
-
-      if (!error && data) {
-        const sub: SaaSSubscription = {
-          id: String(data.id),
-          salonId: String(data.salon_id),
-          planId: String(data.plan_id),
-          status: 'active',
-          priceAtSubscription: Number(data.price_at_subscription),
-          billingPeriod: data.billing_period as 'monthly' | 'yearly',
-          featuresSnapshot: Array.isArray(data.features_snapshot)
-            ? (data.features_snapshot as string[])
-            : targetPlan.features,
-          startedAt: String(data.started_at),
-          currentPeriodEnd: String(data.current_period_end),
-          plan: {
-            id: targetPlan.id,
-            name: targetPlan.name,
-            slug: targetPlan.slug,
-            currentPriceXof: targetPlan.priceXof,
-            description: targetPlan.description,
-            features: targetPlan.features,
-            badgeText: targetPlan.badgeText,
-            maxStaff: targetPlan.maxStaff,
-            maxBranches: targetPlan.maxBranches,
-          },
-        };
-        setLocalSubscription(salonId, sub);
-        return sub;
-      }
-    } catch {
-      // repli local
-    }
+  const { data, error } = await getSupabaseClient().rpc('subscribe_salon_to_plan', {
+    p_salon_id: salonId,
+    p_plan_id: planId,
+  });
+  if (error) throw new Error(error.message);
+  if (!data || typeof data !== 'object') {
+    throw new Error('Réponse inattendue du serveur lors de la souscription.');
   }
-
-  // Repli local
-  const now = new Date();
-  const nextMonth = new Date(now.getTime() + 30 * 86400000);
-  const localSub: SaaSSubscription = {
-    id: `sub_${Date.now()}`,
-    salonId,
-    planId,
-    status: 'active',
-    priceAtSubscription: targetPlan.priceXof,
-    billingPeriod: targetPlan.billingPeriod,
-    featuresSnapshot: [...targetPlan.features],
-    startedAt: now.toISOString(),
-    currentPeriodEnd: nextMonth.toISOString(),
-    plan: {
-      id: targetPlan.id,
-      name: targetPlan.name,
-      slug: targetPlan.slug,
-      currentPriceXof: targetPlan.priceXof,
-      description: targetPlan.description,
-      features: targetPlan.features,
-      badgeText: targetPlan.badgeText,
-      maxStaff: targetPlan.maxStaff,
-      maxBranches: targetPlan.maxBranches,
-    },
-  };
-  setLocalSubscription(salonId, localSub);
-  return localSub;
+  return subscriptionFromRpc(data as Record<string, unknown>, targetPlan);
 }
 
 /**
- * Récupère l'abonnement actif d'un salon avec son tarif d'origine et son plan actuel.
+ * Abonnement actif d'un salon, ou `null` si aucun abonnement n'est validé.
+ * Aucune valeur par défaut n'est fabriquée : un salon sans abonnement validé renvoie `null`.
  */
 export async function getSalonSubscription(salonId: string): Promise<SaaSSubscription | null> {
-  if (isSupabaseConfigured()) {
-    try {
-      const client = getSupabaseClient();
-      const { data, error } = await client.rpc('get_salon_subscription', {
-        p_salon_id: salonId,
-      });
+  if (!isSupabaseConfigured()) return null;
 
-      if (!error && data && data.id) {
-        const subData = data as Record<string, unknown>;
-        const planData = (subData.plan || {}) as Record<string, unknown>;
-        return {
-          id: String(subData.id),
-          salonId: String(subData.salon_id),
-          planId: String(subData.plan_id),
-          status: (subData.status as SaaSSubscription['status']) || 'active',
-          priceAtSubscription: Number(subData.price_at_subscription),
-          billingPeriod: (subData.billing_period as 'monthly' | 'yearly') || 'monthly',
-          featuresSnapshot: Array.isArray(subData.features_snapshot)
-            ? (subData.features_snapshot as string[])
-            : [],
-          startedAt: String(subData.started_at),
-          currentPeriodEnd: String(subData.current_period_end),
-          cancelledAt: subData.cancelled_at ? String(subData.cancelled_at) : null,
-          plan: {
-            id: String(planData.id || subData.plan_id),
-            name: String(planData.name || 'Plan souscrit'),
-            slug: String(planData.slug || ''),
-            currentPriceXof: Number(planData.current_price_xof || subData.price_at_subscription),
-            description: String(planData.description || ''),
-            features: Array.isArray(planData.features) ? (planData.features as string[]) : [],
-            badgeText: planData.badge_text ? String(planData.badge_text) : null,
-            maxStaff: planData.max_staff ? Number(planData.max_staff) : null,
-            maxBranches: Number(planData.max_branches || 1),
-          },
-        };
-      }
-    } catch {
-      // repli local
-    }
-  }
+  const { data, error } = await getSupabaseClient().rpc('get_salon_subscription', { p_salon_id: salonId });
+  if (error) throw new Error(error.message);
+  if (!data || typeof data !== 'object' || !(data as Record<string, unknown>).id) return null;
 
-  const local = getLocalSubscriptions();
-  if (local[salonId]) return local[salonId];
-
-  // Si aucun abonnement explicite n'est enregistré pour ce salon, on simule le plan 'starter' actif
-  const plans = await getAllSaasPlans();
-  const starter = plans.find((p) => p.id === 'starter') || DEFAULT_PLANS[0];
-  const defaultSub: SaaSSubscription = {
-    id: `sub_default_${salonId}`,
-    salonId,
-    planId: starter.id,
-    status: 'active',
-    priceAtSubscription: starter.priceXof,
-    billingPeriod: 'monthly',
-    featuresSnapshot: starter.features,
-    startedAt: new Date(Date.now() - 7 * 86400000).toISOString(),
-    currentPeriodEnd: new Date(Date.now() + 23 * 86400000).toISOString(),
+  const subData = data as Record<string, unknown>;
+  const planData = (subData.plan || {}) as Record<string, unknown>;
+  return {
+    id: String(subData.id),
+    salonId: String(subData.salon_id),
+    planId: String(subData.plan_id),
+    status: (subData.status as SaaSSubscription['status']) || 'active',
+    priceAtSubscription: Number(subData.price_at_subscription),
+    billingPeriod: (subData.billing_period as 'monthly' | 'yearly') || 'monthly',
+    featuresSnapshot: Array.isArray(subData.features_snapshot) ? (subData.features_snapshot as string[]) : [],
+    startedAt: String(subData.started_at),
+    currentPeriodEnd: String(subData.current_period_end),
+    cancelledAt: subData.cancelled_at ? String(subData.cancelled_at) : null,
     plan: {
-      id: starter.id,
-      name: starter.name,
-      slug: starter.slug,
-      currentPriceXof: starter.priceXof,
-      description: starter.description,
-      features: starter.features,
-      badgeText: starter.badgeText,
-      maxStaff: starter.maxStaff,
-      maxBranches: starter.maxBranches,
+      id: String(planData.id || subData.plan_id),
+      name: String(planData.name || 'Plan souscrit'),
+      slug: String(planData.slug || ''),
+      currentPriceXof: Number(planData.current_price_xof || subData.price_at_subscription),
+      description: String(planData.description || ''),
+      features: Array.isArray(planData.features) ? (planData.features as string[]) : [],
+      badgeText: planData.badge_text ? String(planData.badge_text) : null,
+      maxStaff: planData.max_staff ? Number(planData.max_staff) : null,
+      maxBranches: Number(planData.max_branches || 1),
     },
   };
-  setLocalSubscription(salonId, defaultSub);
-  return defaultSub;
+}
+
+/**
+ * Demande en attente de validation d'un salon (et son dernier paiement déclaré), ou `null`.
+ */
+export async function getPendingSalonSubscription(salonId: string): Promise<PendingSaaSSubscription | null> {
+  if (!isSupabaseConfigured()) return null;
+
+  const { data, error } = await getSupabaseClient().rpc('get_pending_salon_subscription', {
+    p_salon_id: salonId,
+  });
+  if (error) throw new Error(error.message);
+  if (!data || typeof data !== 'object' || !(data as Record<string, unknown>).id) return null;
+
+  const row = data as Record<string, unknown>;
+  const payment = (row.payment || null) as Record<string, unknown> | null;
+  return {
+    id: String(row.id),
+    planId: String(row.plan_id),
+    planName: String(row.plan_name),
+    priceXof: Number(row.price_at_subscription),
+    billingPeriod: (row.billing_period as 'monthly' | 'yearly') || 'monthly',
+    createdAt: String(row.created_at),
+    payment: payment
+      ? {
+          id: String(payment.id),
+          method: payment.method as SaaSPaymentMethod,
+          reference: String(payment.reference),
+          status: payment.status as 'pending' | 'confirmed' | 'rejected',
+          declaredAt: String(payment.declared_at),
+          decisionReason: payment.decision_reason ? String(payment.decision_reason) : null,
+        }
+      : null,
+  };
+}
+
+/**
+ * Déclare un paiement (virement, Mobile Money, espèces…) pour la demande en attente du salon.
+ * Le montant n'est pas envoyé par le client : il est fixé par le serveur.
+ */
+export async function declareSaasPayment(
+  salonId: string,
+  method: SaaSPaymentMethod,
+  reference: string,
+): Promise<{ id: string; amountXof: number; status: string }> {
+  requireSupabase();
+  const { data, error } = await getSupabaseClient().rpc('declare_saas_payment', {
+    p_salon_id: salonId,
+    p_method: method,
+    p_reference: reference,
+  });
+  if (error) throw new Error(error.message);
+  const row = (data || {}) as Record<string, unknown>;
+  return { id: String(row.id), amountXof: Number(row.amount_xof), status: String(row.status) };
+}
+
+/**
+ * File des paiements déclarés en attente de validation (super administrateur uniquement).
+ */
+export async function getSaasPaymentsForReview(): Promise<SaaSPaymentReviewItem[]> {
+  if (!isSupabaseConfigured()) return [];
+
+  const { data, error } = await getSupabaseClient().rpc('list_saas_payments_for_review');
+  if (error) throw new Error(error.message);
+  return (Array.isArray(data) ? data : []).map((row: Record<string, unknown>) => ({
+    id: String(row.id),
+    salonId: String(row.salon_id),
+    salonName: String(row.salon_name),
+    planId: String(row.plan_id),
+    planName: String(row.plan_name),
+    amountXof: Number(row.amount_xof),
+    method: row.method as SaaSPaymentMethod,
+    reference: String(row.reference),
+    declaredAt: String(row.declared_at),
+  }));
+}
+
+/**
+ * Décision SuperAdmin sur un paiement : confirmer (active l'abonnement) ou rejeter (motif obligatoire).
+ * Chaque décision est tracée côté serveur dans platform_audit_logs.
+ */
+export async function reviewSaasPayment(
+  paymentId: string,
+  decision: 'confirm' | 'reject',
+  reason?: string,
+): Promise<void> {
+  requireSupabase();
+  const { error } = await getSupabaseClient().rpc('review_saas_payment', {
+    p_payment_id: paymentId,
+    p_decision: decision,
+    p_reason: reason ?? null,
+  });
+  if (error) throw new Error(error.message);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('saas_subscription_updated', { detail: {} }));
+  }
 }
 
 /**
