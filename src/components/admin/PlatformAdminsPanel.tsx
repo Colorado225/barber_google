@@ -1,34 +1,62 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import type { PlatformAuditEntry } from '../../lib/superadmin';
 import {
   grantPlatformAdmin,
   listPlatformAdmins,
+  listPlatformAuditActions,
   revokePlatformAdmin,
+  searchPlatformAuditLogs,
   type PlatformAdminRow,
 } from '../../lib/platform-admin';
 import { useOptionalApp } from '../../context/AppContext';
 
 interface PlatformAdminsPanelProps {
   currentUserId: string;
-  auditLogs: PlatformAuditEntry[];
   onRefresh: () => void | Promise<void>;
 }
 
+function csvCell(value: string): string {
+  return `"${value.replace(/"/g, '""')}"`;
+}
+
+/** Export CSV des entrées affichées (téléchargement local, aucune donnée n'est conservée dans le navigateur). */
+function downloadAuditCsv(entries: PlatformAuditEntry[]): void {
+  const header = ['Horodatage', 'Action', 'Type de cible', 'Cible', 'Motif', 'Opérateur'];
+  const rows = entries.map((e) => [
+    e.createdAt,
+    e.action,
+    e.targetType,
+    e.targetId,
+    typeof e.details.reason === 'string' ? e.details.reason : '',
+    e.actorEmail ?? 'Système',
+  ]);
+  const csv = [header, ...rows].map((row) => row.map((c) => csvCell(String(c))).join(';')).join('\r\n');
+  const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `journal-audit-${new Date().toISOString().slice(0, 10)}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 /**
- * Gestion des administrateurs de la plateforme et journal d'audit (lecture seule).
+ * Gestion des administrateurs et journal d'audit filtrable (lecture serveur, export CSV).
  * Le rôle super administrateur n'est jamais attribuable ici : il est réservé à l'adresse autorisée côté serveur.
  */
-export const PlatformAdminsPanel: React.FC<PlatformAdminsPanelProps> = ({
-  currentUserId,
-  auditLogs,
-  onRefresh,
-}) => {
+export const PlatformAdminsPanel: React.FC<PlatformAdminsPanelProps> = ({ currentUserId, onRefresh }) => {
   const { addToast } = useOptionalApp();
   const [admins, setAdmins] = useState<PlatformAdminRow[]>([]);
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  const reload = async () => {
+  const [journal, setJournal] = useState<PlatformAuditEntry[]>([]);
+  const [actions, setActions] = useState<string[]>([]);
+  const [actionFilter, setActionFilter] = useState('');
+  const [since, setSince] = useState('');
+  const [text, setText] = useState('');
+  const [journalError, setJournalError] = useState<string | null>(null);
+
+  const reloadAdmins = async () => {
     try {
       setAdmins(await listPlatformAdmins());
       setError(null);
@@ -37,9 +65,49 @@ export const PlatformAdminsPanel: React.FC<PlatformAdminsPanelProps> = ({
     }
   };
 
+  const reloadJournal = async () => {
+    try {
+      setJournal(
+        await searchPlatformAuditLogs({
+          action: actionFilter || null,
+          since: since ? new Date(since).toISOString() : null,
+          limit: 500,
+        }),
+      );
+      setJournalError(null);
+    } catch (err) {
+      setJournalError(err instanceof Error ? err.message : 'Lecture du journal impossible.');
+    }
+  };
+
   useEffect(() => {
-    void reload();
+    void reloadAdmins();
+    listPlatformAuditActions()
+      .then(setActions)
+      .catch(() => setActions([]));
   }, []);
+
+  useEffect(() => {
+    void reloadJournal();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [actionFilter, since]);
+
+  const visibleJournal = useMemo(() => {
+    const q = text.trim().toLowerCase();
+    if (!q) return journal;
+    return journal.filter((e) =>
+      [
+        e.action,
+        e.targetType,
+        e.targetId,
+        e.actorEmail ?? '',
+        typeof e.details.reason === 'string' ? e.details.reason : '',
+      ]
+        .join(' ')
+        .toLowerCase()
+        .includes(q),
+    );
+  }, [journal, text]);
 
   const grant = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,7 +115,7 @@ export const PlatformAdminsPanel: React.FC<PlatformAdminsPanelProps> = ({
       await grantPlatformAdmin(email.trim(), 'support_lead');
       setEmail('');
       addToast('Accès administrateur accordé.', 'success');
-      await reload();
+      await reloadAdmins();
       await onRefresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Attribution impossible.');
@@ -59,7 +127,7 @@ export const PlatformAdminsPanel: React.FC<PlatformAdminsPanelProps> = ({
     try {
       await revokePlatformAdmin(admin.user_id);
       addToast('Accès administrateur retiré.', 'info');
-      await reload();
+      await reloadAdmins();
       await onRefresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Retrait impossible.');
@@ -126,9 +194,60 @@ export const PlatformAdminsPanel: React.FC<PlatformAdminsPanelProps> = ({
       </section>
 
       <section className="space-y-3">
-        <h3 className="text-sm font-bold text-white">Journal d’audit (100 dernières entrées)</h3>
-        {auditLogs.length === 0 ? (
-          <p className="text-sm text-stone-500">Aucune décision enregistrée.</p>
+        <div className="flex flex-col lg:flex-row lg:items-end gap-3">
+          <h3 className="text-sm font-bold text-white flex-1">Journal d’audit</h3>
+          <label className="text-[11px] text-stone-400 space-y-1">
+            <span className="block">Action</span>
+            <select
+              value={actionFilter}
+              onChange={(e) => setActionFilter(e.target.value)}
+              className="bg-[#181820] border border-[#2d2d38] rounded-xl px-3 py-2 text-xs text-white"
+            >
+              <option value="">Toutes</option>
+              {actions.map((a) => (
+                <option key={a} value={a}>
+                  {a}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-[11px] text-stone-400 space-y-1">
+            <span className="block">Depuis le</span>
+            <input
+              type="date"
+              value={since}
+              onChange={(e) => setSince(e.target.value)}
+              className="bg-[#181820] border border-[#2d2d38] rounded-xl px-3 py-2 text-xs text-white"
+            />
+          </label>
+          <label className="text-[11px] text-stone-400 space-y-1">
+            <span className="block">Recherche</span>
+            <input
+              type="search"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="Salon, e-mail, motif…"
+              className="bg-[#181820] border border-[#2d2d38] rounded-xl px-3 py-2 text-xs text-white"
+            />
+          </label>
+          <button
+            type="button"
+            disabled={visibleJournal.length === 0}
+            onClick={() => downloadAuditCsv(visibleJournal)}
+            className="px-3 py-2 rounded-xl bg-[#1a1a22] hover:bg-[#242430] text-stone-200 text-xs font-semibold disabled:opacity-40"
+          >
+            Exporter CSV
+          </button>
+        </div>
+
+        {journalError && (
+          <p role="alert" className="text-xs text-red-300">
+            {journalError}
+          </p>
+        )}
+
+        {visibleJournal.length === 0 ? (
+          <p className="text-sm text-stone-500">Aucune décision ne correspond aux filtres.</p>
         ) : (
           <div className="overflow-x-auto rounded-2xl border border-[#1f1f27]">
             <table className="w-full text-left text-xs">
@@ -142,7 +261,7 @@ export const PlatformAdminsPanel: React.FC<PlatformAdminsPanelProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#15151c] text-stone-300">
-                {auditLogs.map((log) => (
+                {visibleJournal.map((log) => (
                   <tr key={log.id}>
                     <td className="py-2.5 px-4 text-stone-500">
                       {new Date(log.createdAt).toLocaleString('fr-FR')}
@@ -159,6 +278,9 @@ export const PlatformAdminsPanel: React.FC<PlatformAdminsPanelProps> = ({
             </table>
           </div>
         )}
+        <p className="text-[11px] text-stone-500">
+          500 entrées au maximum par consultation. Les filtres d’action et de date sont appliqués par la base.
+        </p>
       </section>
     </div>
   );

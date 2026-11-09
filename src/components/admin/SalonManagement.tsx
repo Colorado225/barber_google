@@ -37,6 +37,7 @@ import {
 } from '../../lib/platform-admin';
 import { useOptionalApp } from '../../context/AppContext';
 import { ReasonDialog } from './ReasonDialog';
+import { SalonDetailDrawer } from './SalonDetailDrawer';
 
 interface SalonManagementProps {
   salons: SalonAdminDetail[];
@@ -60,7 +61,8 @@ export const SalonManagement: React.FC<SalonManagementProps> = ({ salons, plans,
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editFormData, setEditFormData] = useState({ planId: '', reason: '' });
   const [editError, setEditError] = useState<string | null>(null);
-  // Suspension : fenêtre de motif ouverte pour ce salon.
+  // Fiche salon 360 ouverte (identifiant) ; suspension : fenêtre de motif ouverte pour ce salon.
+  const [detailSalonId, setDetailSalonId] = useState<string | null>(null);
   const [suspendTarget, setSuspendTarget] = useState<SalonAdminDetail | null>(null);
 
   // Unique communes list
@@ -459,6 +461,18 @@ export const SalonManagement: React.FC<SalonManagementProps> = ({ salons, plans,
                       {/* Action Controls */}
                       <td className="py-3.5 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
+                          {/* Fiche 360 */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDetailSalonId(salon.id);
+                            }}
+                            title="Ouvrir la fiche salon"
+                            className="px-2 py-1 rounded-lg border border-[#292936] bg-[#181820] text-xs font-semibold text-stone-300 hover:text-white"
+                          >
+                            Fiche
+                          </button>
+
                           {/* Toggle Verified */}
                           <button
                             onClick={(e) => handleToggleVerify(salon, e)}
@@ -520,6 +534,14 @@ export const SalonManagement: React.FC<SalonManagementProps> = ({ salons, plans,
       </div>
 
       {/* DETAIL & EDIT MODAL */}
+      {detailSalonId && (
+        <SalonDetailDrawer
+          salonId={detailSalonId}
+          onClose={() => setDetailSalonId(null)}
+          onChanged={() => onRefresh()}
+        />
+      )}
+
       {suspendTarget && (
         <ReasonDialog
           title={`Suspendre « ${suspendTarget.name} »`}

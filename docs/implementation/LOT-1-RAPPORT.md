@@ -75,6 +75,19 @@ en production, et la décision de déploiement est bloquée (voir `MASTER-PLAN-E
   supprimés. Les champs nom, commune et coordonnées du salon ne sont plus modifiables ici : aucune RPC ne les enregistre.
 - Marketplace : `MarketplaceHome`, `SalonDetailModal`, `SalonPublicPage` lisent la base sans surcharge locale.
 
+### Console SuperAdmin (terminé en code, non déployé)
+
+- Migration `20261111100000_platform_admin_console` : MRR corrigé (abonnement annuel ramené au mois, `price_xof`
+  supposé être le montant par période) ; revenu net sur les seuls paiements confirmés, remboursements déduits.
+- Vue d’ensemble (`PlatformOverview`) : indicateurs lus par `platform_dashboard_overview`. Sans réponse de la base,
+  aucune valeur n’est affichée. Les anciens réglages de `localStorage` (commission, maintenance, auto-approbation)
+  ont été retirés : ils n’avaient aucun effet. Les paramètres sont en lecture seule.
+- Fiche salon 360 (`SalonDetailDrawer`, bouton « Fiche ») : statut, propriétaires, activité 30 jours, ressources,
+  quotas, historique des abonnements, paiements déclarés, journal. Aucun téléphone ni nom de client final.
+- Prolongation (1 à 90 jours) et annulation d’abonnement : motif obligatoire, traces dans le journal. L’annulation
+  rejette les demandes de paiement en attente (jamais supprimées) et retire la formule. Aucune donnée supprimée.
+- Journal (`PlatformAdminsPanel`) : filtres par action, date et recherche texte ; export CSV des lignes affichées.
+
 ## Ce qui reste ouvert dans le lot
 
 | Élément                                               | Statut          | Détail                                                                              |
@@ -90,6 +103,9 @@ en production, et la décision de déploiement est bloquée (voir `MASTER-PLAN-E
 | Déploiement de la migration `20261110090000`          | bloqué          | Décision utilisateur + réparation d'historique + sauvegarde                         |
 | Brouillons de forfaits en production                  | bloqué          | Dépend de `20261109120000`, non appliquée                                           |
 | Test visuel des écrans modifiés                       | non fait        | Pas de vérification navigateur dans cette session                                   |
+| Console : parcours complet sur base réelle            | non fait        | Exige le déploiement autorisé de `20261111100000`                                   |
+| Accès support à l’ERP d’un salon                      | non commencé    | Décision D7 ; non implémenté                                                        |
+| Effet de l’annulation sur l’accès du salon            | non tranché     | Décision D8 : l’annulation retire la formule, ne suspend pas le salon               |
 | Runbook de réparation D6                              | préparé         | `RUNBOOK-D6-HISTORIQUE-MIGRATIONS.md` ; aucune commande exécutée                    |
 | `supabase db reset` / `db lint`                       | non exécuté ici | Lancé par la CI à l'ouverture de la PR                                              |
 
@@ -97,7 +113,10 @@ en production, et la décision de déploiement est bloquée (voir `MASTER-PLAN-E
 
 - Migrations : `supabase/migrations/20261110090000_saas_subscription_verification.sql`,
   `supabase/migrations/20261111090000_platform_admin_operations.sql`
+- Migration console : `supabase/migrations/20261111100000_platform_admin_console.sql` (nouvelle)
 - Client : `src/lib/platform-admin.ts` (nouveau)
+- Console : `src/components/admin/PlatformOverview.tsx`, `src/components/admin/SalonDetailDrawer.tsx` (nouveaux) ;
+  `AdminDashboard.tsx`, `SalonManagement.tsx`, `PlatformAdminsPanel.tsx` modifiés
 - Interface : `src/components/admin/ReasonDialog.tsx`, `ReviewModerationPanel.tsx`, `PlatformAdminsPanel.tsx` (nouveaux)
 - Tests : `database/tests/supabase-saas-subscription-verification.test.mjs` (nouveau),
   `database/tests/supabase-saas-pricing.test.mjs` (adapté : validation avant activation),
@@ -112,7 +131,8 @@ en production, et la décision de déploiement est bloquée (voir `MASTER-PLAN-E
 - `npm run typecheck` : 0 erreur.
 - `npm run lint` : 0 erreur.
 - `npx prettier --check .` : conforme.
-- `npm test` : Node/PGlite 69/69 (dont `supabase-platform-admin-operations`, PGlite), TSX 58/58.
+- `npm test` : Node/PGlite 70/70 (dont `supabase-platform-admin-operations` et `supabase-platform-admin-console`, PGlite), TSX 60/60.
+- Test TSX `platform-overview-no-fabrication` : aucune valeur sans réponse de la base.
 - `npm run build` : OK, aucune chaîne de démonstration ni nom fictif dans `dist/`.
 
 ## Conditions avant déploiement

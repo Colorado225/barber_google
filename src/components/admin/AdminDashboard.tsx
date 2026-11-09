@@ -32,10 +32,9 @@ import {
   Award,
   Filter,
 } from 'lucide-react';
-import type { SaaSPlan, PlatformMetrics, Salon } from '../../types';
+import type { SaaSPlan, Salon } from '../../types';
 import {
   getAllSaasPlans,
-  getPlatformMetrics,
   getSaasPlanDrafts,
   publishSaasPlanDraft,
   discardSaasPlanDraft,
@@ -51,10 +50,12 @@ import {
   type MarketplaceReviewItem,
   type PlatformAuditEntry,
 } from '../../lib/superadmin';
+import type { PlatformOverview as PlatformOverviewData } from '../../lib/platform-admin';
 import {
   listPlatformSalons,
   listPlatformReviews,
   listPlatformAuditLogs,
+  getPlatformOverview,
   setPlatformSalonStatus,
   assignPlatformSalonPlan,
 } from '../../lib/platform-admin';
@@ -62,6 +63,7 @@ import { AdminLoginForm } from './AdminLoginForm';
 import { SalonManagement } from './SalonManagement';
 import { ReasonDialog } from './ReasonDialog';
 import { ReviewModerationPanel } from './ReviewModerationPanel';
+import { PlatformOverview } from './PlatformOverview';
 import { PlatformAdminsPanel } from './PlatformAdminsPanel';
 import { MarketplaceSectionsAdmin } from './MarketplaceSectionsAdmin';
 import { MarketplaceConfigManager } from './MarketplaceConfigManager';
@@ -79,30 +81,6 @@ export type AdminDashboardTab =
   | 'reviews'
   | 'governance'
   | 'settings';
-
-interface PlatformSettings {
-  commissionRate: number;
-  defaultCurrency: string;
-  maintenanceMode: boolean;
-  autoApproveSalons: boolean;
-}
-
-const DEFAULT_PLATFORM_SETTINGS: PlatformSettings = {
-  commissionRate: 3.5,
-  defaultCurrency: 'XOF (FCFA)',
-  maintenanceMode: false,
-  autoApproveSalons: false,
-};
-
-function loadPlatformSettings(): PlatformSettings {
-  if (typeof window === 'undefined') return DEFAULT_PLATFORM_SETTINGS;
-  try {
-    const saved = localStorage.getItem('barbercuts_platform_settings');
-    return saved ? { ...DEFAULT_PLATFORM_SETTINGS, ...JSON.parse(saved) } : DEFAULT_PLATFORM_SETTINGS;
-  } catch {
-    return DEFAULT_PLATFORM_SETTINGS;
-  }
-}
 
 export const AdminDashboard: React.FC = () => {
   const { addToast, formatPrice } = useOptionalApp();
@@ -129,7 +107,7 @@ export const AdminDashboard: React.FC = () => {
 
   // Platform Data
   const [plans, setPlans] = useState<SaaSPlan[]>([]);
-  const [metrics, setMetrics] = useState<PlatformMetrics | null>(null);
+  const [overview, setOverview] = useState<PlatformOverviewData | null>(null);
   const [salons, setSalons] = useState<SalonAdminDetail[]>([]);
   const [reviews, setReviews] = useState<MarketplaceReviewItem[]>([]);
   const [auditLogs, setAuditLogs] = useState<PlatformAuditEntry[]>([]);
@@ -155,24 +133,20 @@ export const AdminDashboard: React.FC = () => {
   // Suspension depuis l'onglet Abonnements : fenêtre de motif.
   const [statusTarget, setStatusTarget] = useState<SalonAdminDetail | null>(null);
 
-  // Platform-wide Settings State (stored in localStorage).
-  // La bannière d'annonce est désormais gérée dans « Config Marketplace » (source unique).
-  const [platformSettings, setPlatformSettings] = useState<PlatformSettings>(() => loadPlatformSettings());
-
   const loadAllData = async () => {
     setLoading(true);
     try {
-      const [fetchedPlans, fetchedMetrics, fetchedDrafts, fetchedSalons, fetchedReviews, fetchedAudit] =
+      const [fetchedPlans, fetchedOverview, fetchedDrafts, fetchedSalons, fetchedReviews, fetchedAudit] =
         await Promise.all([
           getAllSaasPlans(),
-          getPlatformMetrics(),
+          getPlatformOverview(),
           getSaasPlanDrafts(),
           listPlatformSalons(),
           listPlatformReviews(),
           listPlatformAuditLogs(100),
         ]);
       setPlans(fetchedPlans);
-      setMetrics(fetchedMetrics);
+      setOverview(fetchedOverview);
       setPlanDrafts(fetchedDrafts);
       setSalons(fetchedSalons);
       setReviews(fetchedReviews);
@@ -324,17 +298,6 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  // Save Platform-wide settings
-  const handleSavePlatformSettings = (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      localStorage.setItem('barbercuts_platform_settings', JSON.stringify(platformSettings));
-      addToast('Paramètres globaux de la plateforme enregistrés.', 'success');
-    } catch {
-      addToast('Erreur lors de la sauvegarde des paramètres', 'error');
-    }
-  };
-
   const filteredSalons = salons.filter((s) => {
     const matchesSearch =
       s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -471,142 +434,26 @@ export const AdminDashboard: React.FC = () => {
               <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
             </div>
             <div className="text-lg font-black text-white">
-              {metrics ? formatPrice(metrics.estimatedMrrXof) : '—'}
+              {overview ? formatPrice(overview.subscriptions.mrr_xof) : '—'}
             </div>
             <div className="text-[10px] text-stone-500">
-              {salons.filter((s) => s.status === 'active').length} établissements souscripteurs
+              {overview ? `${overview.subscriptions.active} abonnements actifs` : 'Indisponible'}
             </div>
           </div>
         </aside>
 
         {/* Dynamic Content Panel */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto space-y-6">
-          {/* TAB 1: OVERVIEW */}
+          {/* TAB 1: OVERVIEW (indicateurs calculés par la base) */}
           {activeTab === 'overview' && (
-            <div className="space-y-6">
-              <div>
-                <h1 className="text-2xl font-black text-white tracking-tight">Tableau de Bord Exécutif</h1>
-                <p className="text-xs text-stone-400 mt-1">
-                  Surveillance en direct de l'activité, des transactions et de la performance globale.
-                </p>
-              </div>
-
-              {/* KPI Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="p-5 rounded-2xl bg-[#0d0d10] border border-[#1d1d24] space-y-1">
-                  <div className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">
-                    Revenu Récurrent Mensuel (MRR)
-                  </div>
-                  <div className="text-2xl sm:text-3xl font-black text-white">
-                    {metrics ? formatPrice(metrics.estimatedMrrXof) : '—'}
-                  </div>
-                  <div className="text-[10px] text-emerald-400 font-semibold">
-                    Abonnements salons régularisés
-                  </div>
-                </div>
-
-                <div className="p-5 rounded-2xl bg-[#0d0d10] border border-[#1d1d24] space-y-1">
-                  <div className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">
-                    Vitrines Marketplace
-                  </div>
-                  <div className="text-2xl sm:text-3xl font-black text-white">
-                    {salons.filter(isSalonLiveOnMarketplace).length} / {salons.length}
-                  </div>
-                  <div className="text-[10px] text-stone-400">Salons visibles publiquement</div>
-                </div>
-
-                <div className="p-5 rounded-2xl bg-[#0d0d10] border border-[#1d1d24] space-y-1">
-                  <div className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">
-                    Volume d'Affaires Global
-                  </div>
-                  <div className="text-2xl sm:text-3xl font-black text-white">
-                    {metrics ? formatPrice(metrics.totalRevenueXof) : '—'}
-                  </div>
-                  <div className="text-[10px] text-stone-400">Total encaissements déclarés</div>
-                </div>
-
-                <div className="p-5 rounded-2xl bg-[#0d0d10] border border-[#1d1d24] space-y-1">
-                  <div className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">
-                    Rendez-vous Réalisés
-                  </div>
-                  <div className="text-2xl sm:text-3xl font-black text-white">
-                    {metrics ? metrics.totalAppointments : '—'}
-                  </div>
-                  <div className="text-[10px] text-stone-400">Réservations traitées avec succès</div>
-                </div>
-              </div>
-
-              {/* Quick Actions Shortcuts */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <button
-                  onClick={() => setActiveTab('pricing')}
-                  className="p-5 rounded-2xl bg-[#0f0f13] hover:bg-[#141419] border border-[#202028] text-left transition-all"
-                >
-                  <DollarSign className="w-5 h-5 text-[#C9A45C] mb-2" />
-                  <div className="text-sm font-bold text-white">Gérer les Tarifs & Plans</div>
-                  <p className="text-xs text-stone-400 mt-1">
-                    Modifier les prix en FCFA et les avantages, puis publier immédiatement ou garder en
-                    brouillon.
-                  </p>
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('marketplace-sections')}
-                  className="p-5 rounded-2xl bg-[#0f0f13] hover:bg-[#141419] border border-[#202028] text-left transition-all"
-                >
-                  <Globe className="w-5 h-5 text-blue-400 mb-2" />
-                  <div className="text-sm font-bold text-white">Contrôler les Vitrines Salons</div>
-                  <p className="text-xs text-stone-400 mt-1">
-                    Publier, masquer ou certifier les fiches des salons visibles par les clients.
-                  </p>
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('subscriptions')}
-                  className="p-5 rounded-2xl bg-[#0f0f13] hover:bg-[#141419] border border-[#202028] text-left transition-all"
-                >
-                  <CreditCard className="w-5 h-5 text-emerald-400 mb-2" />
-                  <div className="text-sm font-bold text-white">Statuts & Contrats SaaS</div>
-                  <p className="text-xs text-stone-400 mt-1">
-                    Surveiller les échéances, tarifs souscrits garantis et suspensions d'accès.
-                  </p>
-                </button>
-              </div>
-
-              {/* Recent Audit Activity */}
-              <div className="space-y-3">
-                <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-                  Dernières Opérations Enregistrées
-                </h3>
-                <div className="rounded-2xl bg-[#0c0c10] border border-[#1a1a22] overflow-hidden">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-[#101014] border-b border-[#1a1a22] text-stone-400 text-[10px] uppercase">
-                      <tr>
-                        <th className="py-2.5 px-4">Horodatage</th>
-                        <th className="py-2.5 px-4">Action</th>
-                        <th className="py-2.5 px-4">Cible</th>
-                        <th className="py-2.5 px-4">Opérateur</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#15151c] text-stone-300 font-mono text-[11px]">
-                      {auditLogs.slice(0, 4).map((log) => (
-                        <tr key={log.id}>
-                          <td className="py-2.5 px-4 text-stone-500">
-                            {new Date(log.createdAt).toLocaleTimeString('fr-FR')}
-                          </td>
-                          <td className="py-2.5 px-4 text-white font-sans">{log.action}</td>
-                          <td className="py-2.5 px-4 text-[#E5C378]">{log.targetType}</td>
-                          <td className="py-2.5 px-4 text-stone-400">{log.actorEmail ?? 'Système'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
+            <PlatformOverview
+              overview={overview}
+              loading={loading}
+              recentDecisions={auditLogs.slice(0, 4)}
+              onNavigate={(tab) => setActiveTab(tab as AdminDashboardTab)}
+            />
           )}
 
-          {/* TAB 2: PRICING PLANS */}
           {activeTab === 'pricing' && (
             <div className="space-y-6">
               <SaasPaymentReviewPanel formatPrice={formatPrice} />
@@ -759,11 +606,7 @@ export const AdminDashboard: React.FC = () => {
           {activeTab === 'reviews' && <ReviewModerationPanel reviews={reviews} onRefresh={loadAllData} />}
 
           {activeTab === 'governance' && (
-            <PlatformAdminsPanel
-              currentUserId={adminSession.id}
-              auditLogs={auditLogs}
-              onRefresh={loadAllData}
-            />
+            <PlatformAdminsPanel currentUserId={adminSession.id} onRefresh={loadAllData} />
           )}
 
           {activeTab === 'salons' && (
@@ -877,108 +720,31 @@ export const AdminDashboard: React.FC = () => {
             </div>
           )}
 
-          {/* TAB 5: PLATFORM-WIDE SETTINGS */}
+          {/* TAB 5: PARAMÈTRES (lecture seule : aucune valeur n'est sauvegardée hors base) */}
           {activeTab === 'settings' && (
             <div className="space-y-6 max-w-3xl">
               <div>
-                <h1 className="text-2xl font-black text-white tracking-tight">
-                  Paramètres Globaux de la Plateforme
-                </h1>
+                <h1 className="text-2xl font-black text-white tracking-tight">Paramètres de la plateforme</h1>
                 <p className="text-xs text-stone-400 mt-1">
-                  Configurez les règles financières, bannières d'annonce et alertes pour l'ensemble du SaaS.
+                  Les réglages qui pilotent l’ERP sont portés par la base : formules et quotas (Tarifs & Plans
+                  SaaS), statut des salons (Gestion des Salons), avis (Modération des Avis), décisions
+                  (Administrateurs & Journal).
                 </p>
               </div>
-
-              <form
-                onSubmit={handleSavePlatformSettings}
-                className="space-y-5 bg-[#0c0c10] border border-[#1a1a22] rounded-3xl p-6 sm:p-8"
-              >
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-stone-300 mb-1.5">
-                      Devise Officielle de la Plateforme
-                    </label>
-                    <input
-                      type="text"
-                      disabled
-                      value={platformSettings.defaultCurrency}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#08080a] border border-[#202028] text-xs text-stone-400 disabled:opacity-60"
-                    />
-                    <span className="text-[10px] text-stone-500">
-                      Standardisé en Franc CFA (XOF) sans arrondis flottants.
-                    </span>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-stone-300 mb-1.5">
-                      Frais de Service / Commission Marketplace (%)
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="number"
-                        step={0.5}
-                        min={0}
-                        max={20}
-                        value={platformSettings.commissionRate}
-                        onChange={(e) =>
-                          setPlatformSettings({ ...platformSettings, commissionRate: Number(e.target.value) })
-                        }
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-[#08080a] border border-[#202028] text-xs text-white focus:outline-none focus:border-[#C9A45C]"
-                      />
-                      <span className="absolute right-3.5 top-2.5 text-xs text-stone-500 font-bold">%</span>
-                    </div>
-                  </div>
-
-                  <div className="rounded-xl border border-[#2a2a36] bg-[#08080a] p-3.5 text-xs text-stone-400">
-                    La bannière d'annonce globale, les sections à la une et les métadonnées du site se gèrent
-                    désormais dans{' '}
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab('marketplace-config')}
-                      className="text-[#C9A45C] font-bold hover:underline cursor-pointer"
-                    >
-                      Bannières & Métadonnées
-                    </button>
-                    .
-                  </div>
-
-                  <div className="pt-2 space-y-3">
-                    <label className="flex items-center gap-2.5 text-xs font-semibold text-stone-300 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={platformSettings.autoApproveSalons}
-                        onChange={(e) =>
-                          setPlatformSettings({ ...platformSettings, autoApproveSalons: e.target.checked })
-                        }
-                        className="w-4 h-4 rounded text-[#C9A45C] bg-[#08080a] border-[#2e2e38] focus:ring-0"
-                      />
-                      <span>Publication automatique des salons après inscription</span>
-                    </label>
-
-                    <label className="flex items-center gap-2.5 text-xs font-semibold text-red-300 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={platformSettings.maintenanceMode}
-                        onChange={(e) =>
-                          setPlatformSettings({ ...platformSettings, maintenanceMode: e.target.checked })
-                        }
-                        className="w-4 h-4 rounded text-red-500 bg-[#08080a] border-[#2e2e38] focus:ring-0"
-                      />
-                      <span>Mode Maintenance Global (Verrouiller les nouvelles inscriptions)</span>
-                    </label>
-                  </div>
-                </div>
-
-                <div className="pt-4 border-t border-[#1a1a22] flex justify-end">
-                  <button
-                    type="submit"
-                    className="px-5 py-2.5 rounded-xl bg-[#C9A45C] hover:bg-[#d8b56d] text-[#101010] font-bold text-xs flex items-center gap-2 transition-all shadow-md cursor-pointer"
-                  >
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>Enregistrer les Paramètres</span>
-                  </button>
-                </div>
-              </form>
+              <div className="space-y-3 bg-[#0c0c10] border border-[#1a1a22] rounded-3xl p-6 sm:p-8 text-sm text-stone-300">
+                <p>
+                  Devise de référence :{' '}
+                  <strong className="text-white">XOF (franc CFA), montants entiers.</strong>
+                </p>
+                <p>
+                  Les anciens réglages « taux de commission », « mode maintenance » et « approbation
+                  automatique » étaient enregistrés dans ce navigateur seulement et n’avaient aucun effet sur
+                  l’application. Ils ont été retirés pour ne pas donner une fausse impression de contrôle.
+                </p>
+                <p className="text-xs text-stone-500">
+                  Un réglage de commission ou de maintenance sera ajouté lorsqu’il sera branché côté serveur.
+                </p>
+              </div>
             </div>
           )}
         </main>

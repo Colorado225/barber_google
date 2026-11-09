@@ -216,3 +216,156 @@ export async function grantPlatformAdmin(email: string, role: 'support_lead'): P
 export async function revokePlatformAdmin(userId: string): Promise<void> {
   await callRpc('platform_revoke_admin', { p_user_id: userId });
 }
+
+// ----------------------------------------------------------------------------------------------
+// Console SuperAdmin : vue d'ensemble, fiche salon 360, actions d'abonnement, journal filtrable
+// (migration 20261111100000). Toutes les valeurs viennent de la base.
+// ----------------------------------------------------------------------------------------------
+
+export interface PlatformOverview {
+  salons: { total: number; published: number; verified: number; suspended: number };
+  subscriptions: {
+    active: number;
+    past_due: number;
+    pending_payment: number;
+    cancelled: number;
+    mrr_xof: number;
+    expiring_7d: number;
+  };
+  payments: { awaiting_review: number };
+  reviews: { total: number; hidden: number };
+  activity_30d: {
+    appointments: number;
+    appointments_completed: number;
+    appointments_upcoming_7d: number;
+    net_revenue_xof: number;
+  };
+  quota_overages: number;
+  audit_24h: number;
+}
+
+export interface PlatformSalon360 {
+  salon: {
+    id: string;
+    name: string;
+    slug: string | null;
+    city: string | null;
+    commune: string | null;
+    is_published: boolean;
+    is_verified: boolean;
+    platform_status: 'active' | 'suspended';
+    platform_status_reason: string | null;
+    publication_date: string | null;
+    organization_name: string | null;
+  };
+  owners: Array<{ email: string | null; role: string; status: string; since: string }>;
+  counts: {
+    branches: number;
+    staff_active: number;
+    staff_total: number;
+    clients: number;
+    services_active: number;
+    stock_low: number;
+  };
+  activity_30d: {
+    appointments: number;
+    appointments_by_status: Record<string, number>;
+    net_revenue_xof: number;
+    reviews: number;
+    average_rating: number | null;
+    hidden_reviews: number;
+  };
+  subscription: null | {
+    id: string;
+    plan_id: string;
+    plan_name: string;
+    status: string;
+    billing_period: string;
+    price_at_subscription: number;
+    started_at: string;
+    current_period_end: string;
+    max_staff: number | null;
+    max_branches: number | null;
+    staff_active: number;
+    branches: number;
+  };
+  subscription_history: Array<{
+    id: string;
+    plan_id: string;
+    plan_name: string;
+    status: string;
+    billing_period: string;
+    price_at_subscription: number;
+    started_at: string;
+    current_period_end: string;
+    cancelled_at: string | null;
+  }>;
+  payment_declarations: Array<{
+    id: string;
+    amount_xof: number;
+    method: string;
+    reference: string;
+    status: string;
+    declared_at: string;
+    decided_at: string | null;
+    decision_reason: string | null;
+  }>;
+  audit: Array<{
+    id: string;
+    action: string;
+    target_type: string;
+    target_id: string;
+    details: Record<string, unknown>;
+    created_at: string;
+    actor_email: string | null;
+  }>;
+}
+
+export async function getPlatformOverview(): Promise<PlatformOverview> {
+  return callRpc<PlatformOverview>('platform_dashboard_overview');
+}
+
+export async function getPlatformSalon360(salonId: string): Promise<PlatformSalon360> {
+  return callRpc<PlatformSalon360>('platform_get_salon_360', { p_salon_id: salonId });
+}
+
+/** Annule l'abonnement en cours (motif obligatoire). Les données du salon sont conservées. */
+export async function cancelPlatformSalonSubscription(salonId: string, reason: string): Promise<void> {
+  await callRpc('platform_cancel_salon_subscription', { p_salon_id: salonId, p_reason: reason });
+}
+
+/** Prolonge la période en cours de 1 à 90 jours (motif obligatoire). */
+export async function extendPlatformSalonSubscription(
+  salonId: string,
+  days: number,
+  reason: string,
+): Promise<void> {
+  await callRpc('platform_extend_salon_subscription', {
+    p_salon_id: salonId,
+    p_days: days,
+    p_reason: reason,
+  });
+}
+
+export interface PlatformAuditFilters {
+  action?: string | null;
+  salonId?: string | null;
+  since?: string | null;
+  limit?: number;
+}
+
+export async function searchPlatformAuditLogs(
+  filters: PlatformAuditFilters = {},
+): Promise<PlatformAuditEntry[]> {
+  const rows = await callRpc<AuditRow[]>('platform_search_audit_logs', {
+    p_action: filters.action ?? null,
+    p_salon_id: filters.salonId ?? null,
+    p_since: filters.since ?? null,
+    p_limit: filters.limit ?? 100,
+  });
+  return (rows ?? []).map(mapPlatformAudit);
+}
+
+export async function listPlatformAuditActions(): Promise<string[]> {
+  return (await callRpc<string[]>('platform_audit_actions')) ?? [];
+}
