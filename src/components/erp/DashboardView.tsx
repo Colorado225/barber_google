@@ -295,7 +295,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           >
             {formatPrice(estimatedMargin)}
           </div>
-          <div className="text-[11px] text-stone-400 mt-2">Charges fixes & commissions déduites</div>
+          <div className="text-[11px] text-stone-400 mt-2">
+            Encaissements − dépenses enregistrées (commissions staff non déduites)
+          </div>
         </div>
       </div>
 

@@ -225,28 +225,7 @@ export function getAuditLogs(): AuditLogEntry[] {
   if (typeof window === 'undefined') return [];
   try {
     const raw = localStorage.getItem(AUDIT_LOG_KEY);
-    if (!raw) {
-      const initialLogs: AuditLogEntry[] = [
-        {
-          id: 'log_init_1',
-          timestamp: new Date(Date.now() - 3600000).toISOString(),
-          action: 'Initialisation des modules de gestion multi-ERP',
-          target: 'Plateforme Globale',
-          performedBy: 'Système',
-          severity: 'info',
-        },
-        {
-          id: 'log_init_2',
-          timestamp: new Date(Date.now() - 7200000).toISOString(),
-          action: 'Application de la politique tarifaire SaaS 2026',
-          target: 'Catalogue Forfaits',
-          performedBy: SUPERADMIN_EMAIL,
-          severity: 'info',
-        },
-      ];
-      localStorage.setItem(AUDIT_LOG_KEY, JSON.stringify(initialLogs));
-      return initialLogs;
-    }
+    if (!raw) return [];
     return JSON.parse(raw);
   } catch {
     return [];
@@ -434,42 +413,7 @@ export function getMarketplaceReviews(): MarketplaceReviewItem[] {
   if (typeof window === 'undefined') return [];
   try {
     const raw = localStorage.getItem(REVIEWS_MODERATION_KEY);
-    if (!raw) {
-      const initial: MarketplaceReviewItem[] = [
-        {
-          id: 'rev_1',
-          salonId: 'salon_1',
-          salonName: 'Le Roi du Dégradé',
-          author: 'Marc K.',
-          rating: 5,
-          comment: 'Dégradé américain parfait, salon propre et équipe à l’heure. Très satisfait.',
-          createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
-          isVerified: true,
-        },
-        {
-          id: 'rev_2',
-          salonId: 'salon_2',
-          salonName: 'Gentlemen Barbershop Abidjan',
-          author: 'Ibrahim D.',
-          rating: 5,
-          comment: 'Soin de barbe impeccable avec serviette chaude. Prise en charge rapide sans attente.',
-          createdAt: new Date(Date.now() - 5 * 86400000).toISOString(),
-          isVerified: true,
-        },
-        {
-          id: 'rev_3',
-          salonId: 'salon_1',
-          salonName: 'Le Roi du Dégradé',
-          author: 'Anonyme',
-          rating: 4,
-          comment: 'Bonne ambiance, un peu de monde le samedi mais travail très pro.',
-          createdAt: new Date(Date.now() - 8 * 86400000).toISOString(),
-          isVerified: false,
-        },
-      ];
-      localStorage.setItem(REVIEWS_MODERATION_KEY, JSON.stringify(initial));
-      return initial;
-    }
+    if (!raw) return [];
     return JSON.parse(raw);
   } catch {
     return [];
