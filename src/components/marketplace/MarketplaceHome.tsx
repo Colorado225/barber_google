@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useInRouterContext } from 'react-router-dom';
 import { useOptionalApp } from '../../context/AppContext';
 import { listSavedBookings, bookingPortalPath, type SavedBooking } from '../../lib/bookingVault';
 import { SalonCard } from './SalonCard';
 import { useSalonDeepLink } from '../../hooks/useSalonDeepLink';
+import { useMarketplaceContent } from '../../lib/marketplace-content';
 import {
   Search,
   MapPin,
@@ -18,6 +19,13 @@ import {
   Smartphone,
   CalendarCheck,
   ArrowRight,
+  ShieldCheck,
+  Award,
+  CheckCircle2,
+  Tag,
+  HelpCircle,
+  Layers,
+  ChevronRight,
 } from 'lucide-react';
 
 const HERO_VIDEO_SRC = `/assets/video/${encodeURI(
@@ -25,6 +33,7 @@ const HERO_VIDEO_SRC = `/assets/video/${encodeURI(
 )}`;
 
 export const MarketplaceHome: React.FC = () => {
+  const routed = useInRouterContext();
   const {
     salons,
     setMode,
@@ -35,6 +44,9 @@ export const MarketplaceHome: React.FC = () => {
     marketplaceError,
   } = useOptionalApp();
 
+  // Dynamic marketplace sections & content managed by SuperAdmin
+  const { config } = useMarketplaceContent();
+
   // QR code links (/?salon=<slug>) open the salon's booking profile directly.
   useSalonDeepLink({
     salons,
@@ -43,8 +55,7 @@ export const MarketplaceHome: React.FC = () => {
     onNotFound: () => addToast('Ce lien QR ne correspond à aucun salon publié.', 'error'),
   });
 
-  // Réservations faites depuis cet appareil : le suivi reste accessible même
-  // après fermeture de la fenêtre de confirmation, sans compte client.
+  // Réservations faites depuis cet appareil
   const [savedBookings, setSavedBookings] = useState<SavedBooking[]>([]);
   useEffect(() => {
     setSavedBookings(listSavedBookings());
@@ -52,7 +63,9 @@ export const MarketplaceHome: React.FC = () => {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCommune, setSelectedCommune] = useState('all');
+  const [selectedCategorySlug, setSelectedCategorySlug] = useState<string | null>(null);
   const [activeTestimony, setActiveTestimony] = useState(0);
+  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
   const [videoUnavailable, setVideoUnavailable] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(
     () =>
@@ -81,9 +94,29 @@ export const MarketplaceHome: React.FC = () => {
     [salons],
   );
 
+  // Filter salons, taking into account category filter and admin suspension overrides
   const filteredSalons = useMemo(() => {
+    // Check if any salon is suspended in localStorage overrides
+    let adminOverrides: Record<string, { status?: string; isPublished?: boolean }> = {};
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem('barbercuts_admin_salon_overrides');
+        if (raw) adminOverrides = JSON.parse(raw);
+      } catch {
+        // ignore
+      }
+    }
+
     return salons.filter((salon) => {
-      if (salon.isPublishedOnMarketplace !== true) return false;
+      // If overridden as suspended or hidden by SuperAdmin, hide from marketplace
+      if (adminOverrides[salon.id]?.status === 'suspended') return false;
+      if (adminOverrides[salon.id]?.isPublished === false) return false;
+
+      // Base published check
+      if (salon.isPublishedOnMarketplace !== true && !adminOverrides[salon.id]?.isPublished) {
+        return false;
+      }
+
       const matchQuery =
         !searchQuery.trim() ||
         salon.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -97,8 +130,7 @@ export const MarketplaceHome: React.FC = () => {
     });
   }, [salons, searchQuery, selectedCommune]);
 
-  // Testimonials: dedicated testimonials + top client reviews
-  // Testimonials are built from real client reviews only.
+  // Testimonials built from real reviews
   const testimonials = useMemo(() => {
     return reviews.slice(0, 4).map((rev) => ({
       id: rev.id,
@@ -119,11 +151,65 @@ export const MarketplaceHome: React.FC = () => {
     ? testimonials[activeTestimony % testimonials.length]
     : null;
 
+  // Icon mapping helper for dynamic sections
+  const getDynamicIcon = (name: string) => {
+    switch (name) {
+      case 'Scissors':
+        return <Scissors className="w-5 h-5 text-[#C9A45C]" />;
+      case 'Clock':
+        return <Clock className="w-5 h-5 text-[#C9A45C]" />;
+      case 'Smartphone':
+        return <Smartphone className="w-5 h-5 text-[#C9A45C]" />;
+      case 'Star':
+        return <Star className="w-5 h-5 text-[#C9A45C]" />;
+      case 'Sparkles':
+        return <Sparkles className="w-5 h-5 text-[#C9A45C]" />;
+      case 'ShieldCheck':
+        return <ShieldCheck className="w-5 h-5 text-[#C9A45C]" />;
+      case 'Award':
+      default:
+        return <Award className="w-5 h-5 text-[#C9A45C]" />;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#0d0d0e] text-[#f7f6f2] flex flex-col">
-      {/* HERO SECTION */}
+      {/* OPTIONAL PROMOTIONAL / SEASONAL BANNER */}
+      {config.promoBanner?.enabled && (
+        <aside
+          aria-label="Bannière d'annonce"
+          className={`py-2.5 px-4 text-center text-xs font-semibold border-b ${
+            config.promoBanner.theme === 'gold'
+              ? 'bg-gradient-to-r from-[#211a0e] via-[#332711] to-[#211a0e] border-[#C9A45C]/40 text-[#f7e8c3]'
+              : config.promoBanner.theme === 'emerald'
+                ? 'bg-gradient-to-r from-[#0d2217] via-[#143625] to-[#0d2217] border-emerald-500/40 text-emerald-200'
+                : 'bg-[#15151b] border-[#292934] text-stone-200'
+          }`}
+        >
+          <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-center gap-2.5 sm:gap-4">
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-black/40 text-[#E5C378] border border-[#C9A45C]/30">
+              {config.promoBanner.badge}
+            </span>
+            <span className="font-bold text-white">{config.promoBanner.title}</span>
+            <span className="hidden sm:inline text-stone-300 font-normal">
+              — {config.promoBanner.description}
+            </span>
+            {config.promoBanner.buttonText && (
+              <a
+                href={config.promoBanner.buttonLink || '#salons-section'}
+                className="underline underline-offset-4 text-[#C9A45C] hover:text-white font-bold ml-1 inline-flex items-center gap-1"
+              >
+                <span>{config.promoBanner.buttonText}</span>
+                <ArrowRight className="w-3 h-3" />
+              </a>
+            )}
+          </div>
+        </aside>
+      )}
+
+      {/* HERO SECTION (Configurable) */}
       <section className="relative isolate min-h-[620px] overflow-hidden border-b border-[#1f1f23] bg-[#17130d] md:min-h-[680px]">
-        {!prefersReducedMotion && !videoUnavailable && (
+        {config.hero.showVideo !== false && !prefersReducedMotion && !videoUnavailable && (
           <video
             className="absolute inset-0 h-full w-full object-cover object-[58%_center] sm:object-center"
             src={HERO_VIDEO_SRC}
@@ -150,20 +236,23 @@ export const MarketplaceHome: React.FC = () => {
           <div className="w-full max-w-4xl">
             <p className="mb-6 flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#d9b66e]">
               <span aria-hidden="true" className="h-px w-8 bg-[#C9A45C]" />
-              Découvrir les salons
+              {config.hero.badgeText || 'Découvrir les salons'}
             </p>
 
             <h1 className="max-w-3xl text-5xl font-extrabold leading-[0.98] tracking-[-0.04em] text-white sm:text-6xl lg:text-7xl">
-              Votre style mérite
+              {config.hero.headlineMain || 'Votre style mérite'}
               <br className="hidden sm:block" />{' '}
-              <span className="font-serif-luxury font-normal italic text-[#d9b66e]">l’excellence.</span>
+              <span className="font-serif-luxury font-normal italic text-[#d9b66e]">
+                {config.hero.headlineHighlight || 'l’excellence.'}
+              </span>
             </h1>
 
             <p className="mt-6 max-w-2xl text-base leading-relaxed text-stone-200 sm:text-lg">
-              Parcourez les salons qui ont publié leurs informations sur Barber Cuts. Recherchez par nom ou
-              commune pour explorer les résultats disponibles.
+              {config.hero.description ||
+                'Parcourez les salons qui ont publié leurs informations sur Barber Cuts. Recherchez par nom ou commune pour explorer les résultats disponibles.'}
             </p>
 
+            {/* Search Form */}
             <form
               className="mt-9 flex w-full max-w-4xl flex-col gap-2 rounded-2xl border border-white/15 bg-[#111112]/90 p-2 shadow-[0_24px_70px_rgba(0,0,0,0.42)] backdrop-blur-md sm:flex-row sm:items-center"
               onSubmit={(event) => {
@@ -190,14 +279,14 @@ export const MarketplaceHome: React.FC = () => {
                   className="pointer-events-none absolute left-4 h-4 w-4 text-[#d9b66e]"
                 />
                 <label htmlFor="marketplace-search" className="sr-only">
-                  Rechercher un salon par nom ou commune
+                  {config.hero.searchPlaceholder || 'Rechercher un salon par nom ou commune'}
                 </label>
                 <input
                   id="marketplace-search"
                   type="search"
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="Nom du salon ou commune"
+                  placeholder={config.hero.searchPlaceholder || 'Nom du salon ou commune'}
                   className="w-full rounded-xl bg-transparent py-4 pl-11 pr-4 text-sm text-white placeholder:text-stone-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#C9A45C]/75"
                 />
               </div>
@@ -238,7 +327,7 @@ export const MarketplaceHome: React.FC = () => {
                 className="flex w-full shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-[#C9A45C] px-6 py-4 text-sm font-bold text-[#101010] shadow-md transition-colors hover:bg-[#d6b36a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#111112] sm:w-auto"
               >
                 <Search aria-hidden="true" className="h-4 w-4" />
-                <span>Trouver mon salon</span>
+                <span>{config.hero.ctaText || 'Trouver mon salon'}</span>
               </button>
             </form>
 
@@ -250,8 +339,84 @@ export const MarketplaceHome: React.FC = () => {
         </div>
       </section>
 
+      {/* DYNAMIC TRUST & REASSURANCE BANNER (Managed by Admin) */}
+      {config.trustItems && config.trustItems.filter((t) => t.isVisible).length > 0 && (
+        <section className="bg-[#101014] border-b border-[#1c1c24] py-6">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+              {config.trustItems
+                .filter((t) => t.isVisible)
+                .map((item) => (
+                  <div key={item.id} className="flex items-center gap-3.5">
+                    <div className="w-10 h-10 rounded-xl bg-[#1b1913] border border-[#C9A45C]/30 flex items-center justify-center shrink-0">
+                      {getDynamicIcon(item.iconName)}
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-white">{item.title}</div>
+                      <div className="text-[11px] text-stone-400">{item.subtitle}</div>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* CATEGORIES / PRESTATION TAGS FILTER */}
+      {config.categories && config.categories.filter((c) => c.isVisible).length > 0 && (
+        <section className="py-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+            <span className="text-[11px] uppercase tracking-wider font-bold text-stone-500 mr-2 shrink-0 flex items-center gap-1">
+              <Tag className="w-3 h-3 text-[#C9A45C]" />
+              Styles populaires :
+            </span>
+            <button
+              onClick={() => {
+                setSelectedCategorySlug(null);
+                setSearchQuery('');
+              }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer shrink-0 ${
+                !selectedCategorySlug
+                  ? 'bg-[#C9A45C] text-[#101010] font-bold'
+                  : 'bg-[#16161c] text-stone-300 hover:text-white border border-[#262632]'
+              }`}
+            >
+              Tous les styles
+            </button>
+            {config.categories
+              .filter((c) => c.isVisible)
+              .map((cat) => {
+                const isSelected = selectedCategorySlug === cat.slug;
+                return (
+                  <button
+                    key={cat.id}
+                    onClick={() => {
+                      if (isSelected) {
+                        setSelectedCategorySlug(null);
+                        setSearchQuery('');
+                      } else {
+                        setSelectedCategorySlug(cat.slug);
+                        setSearchQuery(cat.label.split(' ')[0]);
+                      }
+                    }}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                      isSelected
+                        ? 'bg-[#C9A45C] text-[#101010] font-bold'
+                        : 'bg-[#16161c] text-stone-300 hover:text-white border border-[#262632]'
+                    }`}
+                  >
+                    <span>{cat.label}</span>
+                    {cat.isPopular && <Sparkles className="w-3 h-3 text-[#C9A45C]" />}
+                  </button>
+                );
+              })}
+          </div>
+        </section>
+      )}
+
+      {/* SAVED BOOKINGS (Device local storage) */}
       {savedBookings.length > 0 && (
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full pt-8">
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full pt-4">
           <div className="rounded-2xl border border-[#C9A45C]/30 bg-[#17130d] p-4 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <CalendarCheck className="w-5 h-5 text-[#C9A45C]" />
@@ -268,25 +433,43 @@ export const MarketplaceHome: React.FC = () => {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Link
-                to={bookingPortalPath(savedBookings[0].token)}
-                className="px-4 py-2 rounded-xl bg-[#C9A45C] hover:bg-[#d8b46c] text-[#101010] text-xs font-bold inline-flex items-center gap-1.5"
-              >
-                Suivre ma réservation <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
-              {savedBookings.length > 1 && (
+              {routed ? (
                 <Link
-                  to="/mes-reservations"
-                  className="px-3 py-2 rounded-xl bg-[#232328] text-stone-300 text-xs font-semibold"
+                  to={bookingPortalPath(savedBookings[0].token)}
+                  className="px-4 py-2 rounded-xl bg-[#C9A45C] hover:bg-[#d8b46c] text-[#101010] text-xs font-bold inline-flex items-center gap-1.5"
                 >
-                  Tout voir
+                  Suivre ma réservation <ArrowRight className="w-3.5 h-3.5" />
                 </Link>
+              ) : (
+                <a
+                  href={bookingPortalPath(savedBookings[0].token)}
+                  className="px-4 py-2 rounded-xl bg-[#C9A45C] hover:bg-[#d8b46c] text-[#101010] text-xs font-bold inline-flex items-center gap-1.5"
+                >
+                  Suivre ma réservation <ArrowRight className="w-3.5 h-3.5" />
+                </a>
               )}
+              {savedBookings.length > 1 &&
+                (routed ? (
+                  <Link
+                    to="/mes-reservations"
+                    className="px-3 py-2 rounded-xl bg-[#232328] text-stone-300 text-xs font-semibold"
+                  >
+                    Tout voir
+                  </Link>
+                ) : (
+                  <a
+                    href="/mes-reservations"
+                    className="px-3 py-2 rounded-xl bg-[#232328] text-stone-300 text-xs font-semibold"
+                  >
+                    Tout voir
+                  </a>
+                ))}
             </div>
           </div>
         </section>
       )}
 
+      {/* SALONS PUBLIÉS */}
       <section id="salons-section" className="py-14 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
         <div className="flex items-end justify-between mb-8">
           <div>
@@ -319,8 +502,9 @@ export const MarketplaceHome: React.FC = () => {
               onClick={() => {
                 setSearchQuery('');
                 setSelectedCommune('all');
+                setSelectedCategorySlug(null);
               }}
-              className="mt-3 text-xs text-[#C9A45C] font-semibold hover:underline"
+              className="mt-3 text-xs text-[#C9A45C] font-semibold hover:underline cursor-pointer"
             >
               Réinitialiser les filtres
             </button>
@@ -334,52 +518,129 @@ export const MarketplaceHome: React.FC = () => {
         )}
       </section>
 
-      {/* SECTION: COMMENT ÇA MARCHE (01 Trouvez, 02 Réservez, 03 Payez) */}
-      <section className="py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-[#161619] border border-[#27272c] rounded-2xl p-6 relative overflow-hidden group hover:border-[#C9A45C]/40 transition-colors">
-            <span className="absolute top-4 right-5 text-4xl font-serif-luxury italic text-[#C9A45C]/25 font-bold">
-              01
-            </span>
-            <div className="w-10 h-10 rounded-xl bg-[#201e19] border border-[#C9A45C]/30 text-[#C9A45C] flex items-center justify-center mb-4">
-              <Search className="w-5 h-5" />
-            </div>
-            <h3 className="text-base font-bold text-white mb-1.5">Trouvez</h3>
-            <p className="text-xs text-stone-400 leading-relaxed">
-              Comparez les salons réputés, leurs prestations, photos réelles et avis vérifiés près de chez
-              vous.
-            </p>
+      {/* DYNAMIC STEPS: COMMENT ÇA MARCHE (Configurable by Admin) */}
+      {config.steps && config.steps.filter((s) => s.isVisible).length > 0 && (
+        <section className="py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {config.steps
+              .filter((s) => s.isVisible)
+              .map((st) => (
+                <div
+                  key={st.id}
+                  className="bg-[#161619] border border-[#27272c] rounded-2xl p-6 relative overflow-hidden group hover:border-[#C9A45C]/40 transition-colors"
+                >
+                  <span className="absolute top-4 right-5 text-4xl font-serif-luxury italic text-[#C9A45C]/25 font-bold">
+                    {st.stepNumber}
+                  </span>
+                  <div className="w-10 h-10 rounded-xl bg-[#201e19] border border-[#C9A45C]/30 text-[#C9A45C] flex items-center justify-center mb-4">
+                    {getDynamicIcon(st.iconName)}
+                  </div>
+                  <h3 className="text-base font-bold text-white mb-1.5">{st.title}</h3>
+                  <p className="text-xs text-stone-400 leading-relaxed">{st.description}</p>
+                </div>
+              ))}
           </div>
+        </section>
+      )}
 
-          <div className="bg-[#161619] border border-[#27272c] rounded-2xl p-6 relative overflow-hidden group hover:border-[#C9A45C]/40 transition-colors">
-            <span className="absolute top-4 right-5 text-4xl font-serif-luxury italic text-[#C9A45C]/25 font-bold">
-              02
-            </span>
-            <div className="w-10 h-10 rounded-xl bg-[#201e19] border border-[#C9A45C]/30 text-[#C9A45C] flex items-center justify-center mb-4">
-              <Clock className="w-5 h-5" />
-            </div>
-            <h3 className="text-base font-bold text-white mb-1.5">Réservez</h3>
-            <p className="text-xs text-stone-400 leading-relaxed">
-              Choisissez votre barbier favori et un créneau réellement disponible sans attendre au salon.
-            </p>
-          </div>
+      {/* DYNAMIC CUSTOM SECTIONS (Added dynamically by SuperAdmin!) */}
+      {config.customSections &&
+        config.customSections
+          .filter((sec) => sec.isVisible)
+          .map((sec) => (
+            <section
+              key={sec.id}
+              className="py-14 border-t border-[#1c1c24] max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full"
+            >
+              <div className="mb-8">
+                <span className="text-[11px] uppercase tracking-wider text-[#C9A45C] font-semibold flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  {sec.badgeText}
+                </span>
+                <h2 className="text-2xl sm:text-3xl font-extrabold text-white mt-1">{sec.title}</h2>
+                {sec.description && (
+                  <p className="text-xs text-stone-400 mt-1 max-w-2xl leading-relaxed">
+                    {sec.description}
+                  </p>
+                )}
+              </div>
 
-          <div className="bg-[#161619] border border-[#27272c] rounded-2xl p-6 relative overflow-hidden group hover:border-[#C9A45C]/40 transition-colors">
-            <span className="absolute top-4 right-5 text-4xl font-serif-luxury italic text-[#C9A45C]/25 font-bold">
-              03
-            </span>
-            <div className="w-10 h-10 rounded-xl bg-[#201e19] border border-[#C9A45C]/30 text-[#C9A45C] flex items-center justify-center mb-4">
-              <Smartphone className="w-5 h-5" />
-            </div>
-            <h3 className="text-base font-bold text-white mb-1.5">Payez</h3>
-            <p className="text-xs text-stone-400 leading-relaxed">
-              Réglez sereinement sur place ou par Mobile Money : Wave, Orange Money, MTN MoMo, Moov.
-            </p>
-          </div>
-        </div>
-      </section>
+              {sec.layout === 'cards' && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {sec.items.map((item) => (
+                    <div
+                      key={item.id}
+                      className="bg-[#161619] border border-[#282830] hover:border-[#C9A45C]/40 rounded-2xl p-6 flex flex-col justify-between transition-colors"
+                    >
+                      <div>
+                        {item.tag && (
+                          <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#221c0e] text-[#E5C378] border border-[#C9A45C]/30 mb-3">
+                            {item.tag}
+                          </span>
+                        )}
+                        <h3 className="text-base font-bold text-white mb-2">{item.title}</h3>
+                        <p className="text-xs text-stone-400 leading-relaxed">{item.description}</p>
+                      </div>
+                      {item.linkText && (
+                        <a
+                          href={item.linkUrl || '#'}
+                          className="mt-4 text-xs font-bold text-[#C9A45C] hover:underline flex items-center gap-1"
+                        >
+                          <span>{item.linkText}</span>
+                          <ArrowRight className="w-3 h-3" />
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
 
-      {/* SECTION: AVIS CLIENTS ("Ils réservent avec Barber Cuts") */}
+              {sec.layout === 'features' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {sec.items.map((item) => (
+                    <div
+                      key={item.id}
+                      className="bg-[#141418] border border-[#23232c] rounded-2xl p-4 flex items-start gap-3.5"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-[#221c0e] border border-[#C9A45C]/30 text-[#C9A45C] flex items-center justify-center shrink-0 mt-0.5">
+                        <CheckCircle2 className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-white">{item.title}</h4>
+                        <p className="text-xs text-stone-400 mt-1 leading-relaxed">{item.description}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {sec.layout === 'banner' && (
+                <div className="bg-gradient-to-r from-[#1c1a16] via-[#16161a] to-[#111114] border border-[#C9A45C]/30 rounded-3xl p-8 sm:p-10 shadow-xl">
+                  <div className="max-w-2xl space-y-3">
+                    <h3 className="text-xl sm:text-2xl font-bold text-white font-serif-luxury">
+                      {sec.title}
+                    </h3>
+                    <p className="text-xs sm:text-sm text-stone-300 leading-relaxed">
+                      {sec.description}
+                    </p>
+                    <div className="pt-2 flex flex-wrap gap-4">
+                      {sec.items.map((it) => (
+                        <div
+                          key={it.id}
+                          className="px-3.5 py-1.5 rounded-xl bg-black/40 border border-white/10 text-xs text-stone-200"
+                        >
+                          <span className="font-bold text-[#C9A45C]">{it.title} : </span>
+                          <span>{it.description}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </section>
+          ))}
+
+      {/* AVIS CLIENTS ("Ils réservent avec Barber Cuts") */}
       <section className="py-14 bg-[#111113] border-t border-[#1f1f23]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="mb-8">
@@ -424,7 +685,7 @@ export const MarketplaceHome: React.FC = () => {
         </div>
       </section>
 
-      {/* SECTION: TÉMOIGNAGES (CLIENTS & PROFESSIONNELS) */}
+      {/* TÉMOIGNAGES (CLIENTS & PROFESSIONNELS) */}
       <section id="testimonies-section" className="py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8">
           <div>
@@ -438,7 +699,6 @@ export const MarketplaceHome: React.FC = () => {
             </p>
           </div>
 
-          {/* Témoignage mis en avant */}
           <div className="flex items-center gap-2 shrink-0">
             {testimonials.map((testimony, index) => (
               <button
@@ -528,41 +788,98 @@ export const MarketplaceHome: React.FC = () => {
         </div>
       </section>
 
-      {/* SECTION: PRO CTA BANNER (BARBER CUTS BUSINESS ERP) */}
-      <section className="py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
-        <div className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-[#1c1a16] via-[#161619] to-[#121214] border border-[#C9A45C]/30 p-8 sm:p-12 shadow-2xl">
-          <div className="relative z-10 max-w-2xl space-y-4">
-            <span className="text-xs font-bold uppercase tracking-widest text-[#C9A45C]">
-              BARBER CUTS BUSINESS
-            </span>
-            <h2 className="text-2xl sm:text-4xl font-extrabold text-white leading-tight font-serif-luxury">
-              Développez votre salon avec notre ERP SaaS tout-en-un.
-            </h2>
-            <p className="text-sm text-stone-300 leading-relaxed">
-              Planning en direct, gestion de caisse et Mobile Money, relances automatiques WhatsApp,
-              fidélisation CRM, gestion des stocks et multi-succursales.
-            </p>
+      {/* DYNAMIC FAQ SECTION */}
+      {config.faqs && config.faqs.filter((f) => f.isVisible).length > 0 && (
+        <section className="py-14 bg-[#0f0f12] border-t border-[#1f1f26]">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-8">
+              <span className="text-[11px] uppercase tracking-wider text-[#C9A45C] font-semibold flex items-center justify-center gap-1.5">
+                <HelpCircle className="w-3.5 h-3.5" />
+                FOIRE AUX QUESTIONS
+              </span>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-white mt-1">
+                Tout ce que vous devez savoir
+              </h2>
+            </div>
 
-            <div className="flex flex-wrap items-center gap-4 pt-3">
-              <a
-                href="/inscription"
-                className="bg-[#C9A45C] hover:bg-[#d8b56d] text-[#101010] font-bold text-sm px-6 py-3 rounded-xl transition-all shadow-lg hover:shadow-[0_0_20px_rgba(201,164,92,0.3)] cursor-pointer"
-              >
-                Inscrire mon salon
-              </a>
-              <a
-                href="/app/tableau-de-bord"
-                className="bg-[#242429] hover:bg-[#2d2d34] text-white border border-[#3b3b42] font-semibold text-sm px-6 py-3 rounded-xl transition-colors flex items-center gap-2 cursor-pointer"
-              >
-                Accéder à l’espace professionnel
-              </a>
+            <div className="space-y-3">
+              {config.faqs
+                .filter((f) => f.isVisible)
+                .map((faq, index) => {
+                  const isOpen = openFaqIndex === index;
+                  return (
+                    <div
+                      key={faq.id}
+                      className="bg-[#16161b] border border-[#272732] rounded-2xl overflow-hidden transition-colors"
+                    >
+                      <button
+                        onClick={() => setOpenFaqIndex(isOpen ? null : index)}
+                        className="w-full text-left p-4 sm:p-5 flex items-center justify-between gap-4 font-bold text-sm text-white hover:text-[#C9A45C] transition-colors cursor-pointer"
+                      >
+                        <span>{faq.question}</span>
+                        <ChevronDown
+                          className={`w-4 h-4 text-[#C9A45C] transition-transform duration-200 shrink-0 ${
+                            isOpen ? 'rotate-180' : ''
+                          }`}
+                        />
+                      </button>
+                      {isOpen && (
+                        <div className="px-4 pb-5 sm:px-5 sm:pb-6 text-xs text-stone-300 leading-relaxed border-t border-[#22222b] pt-3">
+                          {faq.answer}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
+
+      {/* PRO CTA BANNER (BARBER CUTS BUSINESS ERP) */}
+      {config.proCta?.isVisible !== false && (
+        <section className="py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+          <div className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-[#1c1a16] via-[#161619] to-[#121214] border border-[#C9A45C]/30 p-8 sm:p-12 shadow-2xl">
+            <div className="relative z-10 max-w-2xl space-y-4">
+              <span className="text-xs font-bold uppercase tracking-widest text-[#C9A45C]">
+                {config.proCta.badge || 'BARBER CUTS BUSINESS'}
+              </span>
+              <h2 className="text-2xl sm:text-4xl font-extrabold text-white leading-tight font-serif-luxury">
+                {config.proCta.title || 'Développez votre salon avec notre ERP SaaS tout-en-un.'}
+              </h2>
+              <p className="text-sm text-stone-300 leading-relaxed">
+                {config.proCta.description ||
+                  'Planning en direct, gestion de caisse et Mobile Money, relances automatiques WhatsApp, fidélisation CRM, gestion des stocks et multi-succursales.'}
+              </p>
+
+              <div className="flex flex-wrap items-center gap-4 pt-3">
+                <a
+                  href={config.proCta.primaryButtonLink || '/tarifs'}
+                  className="bg-[#C9A45C] hover:bg-[#d8b56d] text-[#101010] font-bold text-sm px-6 py-3 rounded-xl transition-all shadow-lg hover:shadow-[0_0_20px_rgba(201,164,92,0.3)] cursor-pointer"
+                >
+                  {config.proCta.primaryButtonText || 'Découvrir les Tarifs Salons'}
+                </a>
+                <a
+                  href={config.proCta.secondaryButtonLink || '/inscription'}
+                  className="bg-[#242429] hover:bg-[#2d2d34] text-white border border-[#3b3b42] font-semibold text-sm px-6 py-3 rounded-xl transition-colors flex items-center gap-2 cursor-pointer"
+                >
+                  {config.proCta.secondaryButtonText || 'Inscrire mon salon'}
+                </a>
+                {config.proCta.showExistingProLink && (
+                  <a
+                    href="/app/tableau-de-bord"
+                    className="text-stone-400 hover:text-white text-xs underline underline-offset-4 ml-2"
+                  >
+                    Espace pro existant
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* FOOTER */}
-
       <footer className="mt-auto bg-[#0a0a0c] border-t border-[#1a1a1d] py-12 text-xs text-stone-400">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
@@ -576,7 +893,7 @@ export const MarketplaceHome: React.FC = () => {
                 </span>
               </div>
               <p className="text-xs text-stone-400 leading-relaxed">
-                La plateforme de découverte et de gestion des salons.
+                La plateforme SaaS ERP et Marketplace leader des barbershops d'élite.
               </p>
             </div>
 
@@ -607,13 +924,18 @@ export const MarketplaceHome: React.FC = () => {
               </h4>
               <ul className="space-y-2">
                 <li>
+                  <a href="/tarifs" className="text-[#E5C378] hover:underline font-semibold transition-colors">
+                    Tarifs & Formules Salons
+                  </a>
+                </li>
+                <li>
                   <a href="/inscription" className="hover:text-white transition-colors">
                     Inscrire un établissement
                   </a>
                 </li>
                 <li>
                   <a href="/app/tableau-de-bord" className="hover:text-white transition-colors">
-                    Espace professionnel
+                    Espace salon
                   </a>
                 </li>
               </ul>

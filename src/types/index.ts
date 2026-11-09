@@ -440,3 +440,60 @@ export interface SalonMarketplaceSettingsRecord {
   publishedAt?: string | null;
   updatedAt: string;
 }
+
+/** Forfait d'abonnement SaaS de la plateforme. */
+export interface SaaSPlan {
+  id: string;
+  name: string;
+  slug: string;
+  priceXof: number;
+  billingPeriod: 'monthly' | 'yearly';
+  description: string;
+  features: string[];
+  maxStaff: number | null;
+  maxBranches: number;
+  isPopular: boolean;
+  isActive: boolean;
+  badgeText?: string | null;
+  displayOrder: number;
+  subscribersCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/** Abonnement effectif d'un salon avec instantané tarifaire garanti (grandfathered). */
+export interface SaaSSubscription {
+  id: string;
+  salonId: string;
+  planId: string;
+  status: 'trialing' | 'active' | 'past_due' | 'cancelled';
+  priceAtSubscription: number;
+  billingPeriod: 'monthly' | 'yearly';
+  featuresSnapshot: string[];
+  startedAt: string;
+  currentPeriodEnd: string;
+  cancelledAt?: string | null;
+  plan?: {
+    id: string;
+    name: string;
+    slug: string;
+    currentPriceXof: number;
+    description: string;
+    features: string[];
+    badgeText?: string | null;
+    maxStaff: number | null;
+    maxBranches: number;
+  };
+}
+
+/** Métriques globales d'exploitation pour la console Super Admin. */
+export interface PlatformMetrics {
+  totalSalons: number;
+  publishedSalons: number;
+  activeSubscriptions: number;
+  estimatedMrrXof: number;
+  plansCount: number;
+  totalAppointments: number;
+  totalRevenueXof: number;
+}
+

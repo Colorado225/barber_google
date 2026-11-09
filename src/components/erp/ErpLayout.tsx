@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useOptionalApp } from '../../context/AppContext';
 import { useOptionalAuth } from '../../context/AuthContext';
 import { Appointment } from '../../types';
@@ -49,6 +50,7 @@ import {
   UserPlus,
   Inbox,
   Send,
+  ShieldCheck,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 

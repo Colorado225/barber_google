@@ -19,6 +19,8 @@ import { ReportsView } from './components/erp/ReportsView';
 import { LoyaltyView } from './components/erp/LoyaltyView';
 import { ShopView } from './components/erp/ShopView';
 import { SalonQrCodeView } from './components/erp/SalonQrCodeView';
+import { PricingView } from './components/marketplace/PricingView';
+import { AdminDashboard } from './components/admin/AdminDashboard';
 import { LoginPage } from './components/auth/LoginPage';
 import { SignupPage } from './components/auth/SignupPage';
 import { VerifyEmailPage } from './components/auth/VerifyEmailPage';
@@ -96,6 +98,30 @@ const router = createBrowserRouter([
       {
         path: 'vitrine',
         element: <ShopView />,
+      },
+      {
+        path: 'tarifs',
+        element: <PricingView />,
+      },
+      {
+        path: 'pricing',
+        element: <PricingView />,
+      },
+      {
+        path: 'admin',
+        element: <AdminDashboard />,
+      },
+      {
+        path: 'admin/console',
+        element: <AdminDashboard />,
+      },
+      {
+        path: 'admin/dashboard',
+        element: <AdminDashboard />,
+      },
+      {
+        path: 'admin/login',
+        element: <AdminDashboard />,
       },
     ],
   },

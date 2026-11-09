@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { Link, useInRouterContext } from 'react-router-dom';
-import { Building2, Menu, Scissors, Store, X } from 'lucide-react';
+import { Building2, Menu, Scissors, Store, X, ShieldCheck, Sparkles } from 'lucide-react';
 import { useOptionalApp } from '../../context/AppContext';
+import { useMarketplaceContent } from '../../lib/marketplace-content';
 
 export const Navbar: React.FC = () => {
   const routed = useInRouterContext();
   const { mode, setMode, activeSalon } = useOptionalApp();
+  const { config } = useMarketplaceContent();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const homeLink = routed ? (
@@ -38,6 +40,28 @@ export const Navbar: React.FC = () => {
 
   const authLinks = routed ? (
     <>
+      <Link
+        to="/tarifs"
+        className="text-sm font-medium text-stone-300 hover:text-white flex items-center gap-1.5"
+      >
+        <Sparkles className="w-3.5 h-3.5 text-[#C9A45C]" />
+        <span>Tarifs Salons</span>
+      </Link>
+      {config.navTabs
+        ?.filter(
+          (t) =>
+            t.isVisible &&
+            !['/', '/tarifs', '/connexion', '/inscription', '/app/tableau-de-bord'].includes(t.path),
+        )
+        .map((customTab) => (
+          <a
+            key={customTab.id}
+            href={customTab.path}
+            className="text-sm font-medium text-stone-300 hover:text-white"
+          >
+            {customTab.label}
+          </a>
+        ))}
       <Link to="/connexion" className="text-sm font-medium text-stone-300 hover:text-white">
         Connexion
       </Link>
@@ -52,7 +76,7 @@ export const Navbar: React.FC = () => {
         className="text-sm font-medium text-stone-300 hover:text-[#C9A45C] flex items-center gap-2"
       >
         <Store className="w-4 h-4" />
-        Espace professionnel
+        Espace salon
       </Link>
     </>
   ) : (
@@ -121,11 +145,19 @@ export const Navbar: React.FC = () => {
                 Inscrire un salon
               </Link>
               <Link
+                to="/tarifs"
+                onClick={() => setMobileMenuOpen(false)}
+                className="py-2 text-sm text-[#E5C378] flex items-center gap-2"
+              >
+                <Sparkles className="w-4 h-4 text-[#C9A45C]" />
+                Tarifs & Formules Salons
+              </Link>
+              <Link
                 to="/app/tableau-de-bord"
                 onClick={() => setMobileMenuOpen(false)}
-                className="py-2 text-sm text-[#C9A45C]"
+                className="py-2 text-sm text-stone-200"
               >
-                Espace professionnel
+                Espace salon
               </Link>
             </>
           ) : (
