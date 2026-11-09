@@ -21,6 +21,25 @@ async function asAnon() {
   await db.exec('set role anon');
 }
 
+// Le propriétaire déclare le virement ; le super administrateur (ownerA dans ce scénario) le valide.
+async function declareAndConfirm(ownerId, salonId, reference) {
+  await asUser(ownerId);
+  const payment = (
+    await db.query("select public.declare_saas_payment($1, 'mobile_money', $2) as res", [salonId, reference])
+  ).rows[0].res;
+  await asUser(ownerA);
+  const queue = (await db.query('select public.list_saas_payments_for_review() as res')).rows[0].res;
+  assert.ok(
+    queue.some((p) => p.id === payment.id),
+    'Le paiement doit apparaître dans la file de validation',
+  );
+  const decision = (
+    await db.query("select public.review_saas_payment($1, 'confirm', null) as res", [payment.id])
+  ).rows[0].res;
+  assert.equal(decision.decision, 'confirmed');
+  return payment;
+}
+
 test('SaaS Pricing & Subscriptions : migration, modification des prix/avantages, et prise en compte pour souscripteurs ultérieurs', async () => {
   // 1. Initialisation Auth standard
   await db.exec(`
@@ -86,9 +105,15 @@ test('SaaS Pricing & Subscriptions : migration, modification des prix/avantages,
 
   assert.equal(subA.plan_id, 'starter');
   assert.equal(Number(subA.price_at_subscription), 15000);
-  assert.equal(subA.status, 'active');
+  // Tant que le paiement n'est pas validé, rien n'est activé
+  assert.equal(subA.status, 'pending_payment');
+  const beforeValidation = (await db.query('select public.get_salon_subscription($1) as res', [salonA]))
+    .rows[0].res;
+  assert.equal(beforeValidation, null);
 
-  // Vérification de la lecture de l'abonnement du salon A
+  await declareAndConfirm(ownerA, salonA, 'VIR-A-0001');
+
+  // Vérification de la lecture de l'abonnement actif du salon A
   const salonASub = (await db.query('select public.get_salon_subscription($1) as res', [salonA])).rows[0].res;
   assert.equal(salonASub.plan_id, 'starter');
   assert.equal(Number(salonASub.price_at_subscription), 15000);
@@ -154,6 +179,8 @@ test('SaaS Pricing & Subscriptions : migration, modification des prix/avantages,
   assert.equal(subB.plan_id, 'starter');
   assert.equal(Number(subB.price_at_subscription), 18500);
   assert.equal(subB.features_snapshot.length, 7);
+  assert.equal(subB.status, 'pending_payment');
+  await declareAndConfirm(ownerB, salonB, 'VIR-B-0002');
 
   // 10. Métriques Super Admin (lues par le compte super administrateur)
   await asUser(ownerA);

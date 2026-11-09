@@ -468,7 +468,7 @@ export interface SaaSSubscription {
   id: string;
   salonId: string;
   planId: string;
-  status: 'trialing' | 'active' | 'past_due' | 'cancelled';
+  status: 'pending_payment' | 'trialing' | 'active' | 'past_due' | 'cancelled';
   priceAtSubscription: number;
   billingPeriod: 'monthly' | 'yearly';
   featuresSnapshot: string[];

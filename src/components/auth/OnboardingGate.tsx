@@ -135,7 +135,7 @@ export const OnboardingGate: React.FC<{ children: React.ReactNode }> = ({ childr
           {(
             [
               ['organizationName', 'Organisation', 'Mon groupe'],
-              ['salonName', 'Nom du salon', 'Le Roi du Dégradé'],
+              ['salonName', 'Nom du salon', 'Nom de votre établissement'],
               ['branchName', 'Succursale', 'Principal'],
             ] as const
           ).map(([key, label, placeholder]) => (

@@ -14,7 +14,6 @@ import { ServicesView } from './components/erp/ServicesView';
 import { StaffView } from './components/erp/StaffView';
 import { CashRegisterView } from './components/erp/CashRegisterView';
 import { InventoryView } from './components/erp/InventoryView';
-import { ExpensesView } from './components/erp/ExpensesView';
 import { ReportsView } from './components/erp/ReportsView';
 import { LoyaltyView } from './components/erp/LoyaltyView';
 import { ShopView } from './components/erp/ShopView';

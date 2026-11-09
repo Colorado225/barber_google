@@ -6,7 +6,6 @@ import { Appointment } from '../../types';
 import { DashboardView } from './DashboardView';
 import { AppointmentsCalendarView } from './AppointmentsCalendarView';
 import { CashRegisterView } from './CashRegisterView';
-import { CrmClientsView } from './CrmClientsView';
 import { ServicesView } from './ServicesView';
 import { StaffView } from './StaffView';
 import { FinanceExpensesView } from './FinanceExpensesView';
