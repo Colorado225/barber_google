@@ -9,9 +9,7 @@ import {
   CreditCard,
   Edit3,
   Plus,
-  Trash2,
   Check,
-  X,
   ArrowLeft,
   DollarSign,
   AlertCircle,
@@ -35,7 +33,15 @@ import {
   Filter,
 } from 'lucide-react';
 import type { SaaSPlan, PlatformMetrics, Salon } from '../../types';
-import { getAllSaasPlans, saveSaasPlan, getPlatformMetrics } from '../../lib/saas';
+import {
+  getAllSaasPlans,
+  getPlatformMetrics,
+  getSaasPlanDrafts,
+  publishSaasPlanDraft,
+  discardSaasPlanDraft,
+  type SaaSPlanDraft,
+  type SaaSPlanInput,
+} from '../../lib/saas';
 import {
   verifySuperAdminAccess,
   logoutSuperAdmin,
@@ -54,6 +60,7 @@ import { AdminLoginForm } from './AdminLoginForm';
 import { SalonManagement } from './SalonManagement';
 import { MarketplaceSectionsAdmin } from './MarketplaceSectionsAdmin';
 import { MarketplaceConfigManager } from './MarketplaceConfigManager';
+import { PricingTierEditor } from './PricingTierEditor';
 import { useOptionalApp } from '../../context/AppContext';
 
 export type AdminDashboardTab =
@@ -124,27 +131,13 @@ export const AdminDashboard: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'hidden' | 'suspended'>('all');
 
-  // Plan Edit Modal
-  const [editingPlan, setEditingPlan] = useState<SaaSPlan | null>(null);
-  const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
-  const [savingPlan, setSavingPlan] = useState(false);
-
-  // Plan Form State
-  const [planForm, setPlanForm] = useState({
-    name: '',
-    slug: '',
-    priceXof: 0,
-    billingPeriod: 'monthly' as 'monthly' | 'yearly',
-    description: '',
-    features: [] as string[],
-    maxStaff: '5',
-    maxBranches: 1,
-    isPopular: false,
-    isActive: true,
-    badgeText: '',
-    displayOrder: 1,
-  });
-  const [newFeatureText, setNewFeatureText] = useState('');
+  // Éditeur de forfait : null = fermé ; plan null = nouveau forfait.
+  const [editorTarget, setEditorTarget] = useState<{
+    plan: SaaSPlan | null;
+    draft: SaaSPlanInput | null;
+  } | null>(null);
+  // Brouillons en attente (non visibles sur la page Tarifs).
+  const [planDrafts, setPlanDrafts] = useState<SaaSPlanDraft[]>([]);
 
   // Subscription Edit Modal for a Salon
   const [selectedSalonForSub, setSelectedSalonForSub] = useState<SalonAdminDetail | null>(null);
@@ -157,9 +150,14 @@ export const AdminDashboard: React.FC = () => {
   const loadAllData = async () => {
     setLoading(true);
     try {
-      const [fetchedPlans, fetchedMetrics] = await Promise.all([getAllSaasPlans(), getPlatformMetrics()]);
+      const [fetchedPlans, fetchedMetrics, fetchedDrafts] = await Promise.all([
+        getAllSaasPlans(),
+        getPlatformMetrics(),
+        getSaasPlanDrafts(),
+      ]);
       setPlans(fetchedPlans);
       setMetrics(fetchedMetrics);
+      setPlanDrafts(fetchedDrafts);
       setSalons(getAdminSalonsList(appSalons));
       setReviews(getMarketplaceReviews());
       setAuditLogs(getAuditLogs());
@@ -220,91 +218,43 @@ export const AdminDashboard: React.FC = () => {
   };
 
   // Plan Management handlers
-  const openPlanModal = (plan?: SaaSPlan) => {
-    if (plan) {
-      setEditingPlan(plan);
-      setPlanForm({
-        name: plan.name,
-        slug: plan.slug,
-        priceXof: plan.priceXof,
-        billingPeriod: plan.billingPeriod,
-        description: plan.description,
-        features: [...plan.features],
-        maxStaff: plan.maxStaff === null ? '' : String(plan.maxStaff),
-        maxBranches: plan.maxBranches,
-        isPopular: plan.isPopular,
-        isActive: plan.isActive,
-        badgeText: plan.badgeText || '',
-        displayOrder: plan.displayOrder,
-      });
-    } else {
-      setEditingPlan(null);
-      setPlanForm({
-        name: 'Nouveau Forfait',
-        slug: `plan-${Date.now()}`,
-        priceXof: 25000,
-        billingPeriod: 'monthly',
-        description: 'Formule adaptée aux barbershops en développement.',
-        features: [
-          'Planning et réservations illimités',
-          'Gestion de caisse & Mobile Money',
-          'Fichier clients CRM & historique',
-        ],
-        maxStaff: '3',
-        maxBranches: 1,
-        isPopular: false,
-        isActive: true,
-        badgeText: '',
-        displayOrder: plans.length + 1,
-      });
-    }
-    setNewFeatureText('');
-    setIsPlanModalOpen(true);
+  const openPlanEditor = (plan: SaaSPlan | null, draft: SaaSPlanInput | null = null) => {
+    setEditorTarget({ plan, draft });
   };
 
-  const handleAddFeature = () => {
-    if (!newFeatureText.trim()) return;
-    setPlanForm((prev) => ({ ...prev, features: [...prev.features, newFeatureText.trim()] }));
-    setNewFeatureText('');
-  };
-
-  const handleRemoveFeature = (index: number) => {
-    setPlanForm((prev) => ({ ...prev, features: prev.features.filter((_, i) => i !== index) }));
-  };
-
-  const handleSavePlan = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (planForm.priceXof < 0) {
-      addToast('Le prix ne peut être négatif', 'error');
-      return;
-    }
-    setSavingPlan(true);
+  const handlePublishDraft = async (planId: string) => {
     try {
-      const planToSave: SaaSPlan = {
-        id: editingPlan ? editingPlan.id : planForm.slug.toLowerCase().replace(/[^a-z0-9]/g, '-'),
-        name: planForm.name.trim(),
-        slug: planForm.slug.trim(),
-        priceXof: Number(planForm.priceXof),
-        billingPeriod: planForm.billingPeriod,
-        description: planForm.description.trim(),
-        features: planForm.features.filter((f) => f.trim().length > 0),
-        maxStaff: planForm.maxStaff.trim() === '' ? null : Number(planForm.maxStaff),
-        maxBranches: Number(planForm.maxBranches) || 1,
-        isPopular: planForm.isPopular,
-        isActive: planForm.isActive,
-        badgeText: planForm.badgeText.trim() || null,
-        displayOrder: Number(planForm.displayOrder),
-      };
-      await saveSaasPlan(planToSave);
-      addToast(`Le forfait "${planToSave.name}" a été enregistré. Nouveaux tarifs en ligne !`, 'success');
-      setIsPlanModalOpen(false);
+      await publishSaasPlanDraft(planId);
+      addToast('Brouillon publié : visible sur la page Tarifs.', 'success');
       await loadAllData();
     } catch (err) {
-      addToast(err instanceof Error ? err.message : 'Échec de sauvegarde', 'error');
-    } finally {
-      setSavingPlan(false);
+      addToast(err instanceof Error ? err.message : 'Échec de la publication', 'error');
     }
   };
+
+  const handleDiscardDraft = async (planId: string) => {
+    if (!window.confirm('Abandonner ce brouillon ? La version publiée reste inchangée.')) return;
+    try {
+      await discardSaasPlanDraft(planId);
+      addToast('Brouillon abandonné.', 'info');
+      await loadAllData();
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Échec de l’abandon du brouillon', 'error');
+    }
+  };
+
+  // Cartes de l'onglet Tarifs : forfaits publiés + nouveaux forfaits existant seulement en brouillon.
+  type PlanCardView = SaaSPlanInput & { subscribersCount?: number };
+  const pricingCards: Array<{ view: PlanCardView; draft: SaaSPlanDraft | undefined; draftOnly: boolean }> = [
+    ...plans.map((plan) => ({
+      view: plan as PlanCardView,
+      draft: planDrafts.find((d) => d.planId === plan.id),
+      draftOnly: false,
+    })),
+    ...planDrafts
+      .filter((d) => !plans.some((p) => p.id === d.planId))
+      .map((d) => ({ view: { ...d.plan, subscribersCount: 0 } as PlanCardView, draft: d, draftOnly: true })),
+  ];
 
   // Salon Listing Handlers
   const handleToggleListingPublish = (salon: SalonAdminDetail) => {
@@ -569,8 +519,8 @@ export const AdminDashboard: React.FC = () => {
                   <DollarSign className="w-5 h-5 text-[#C9A45C] mb-2" />
                   <div className="text-sm font-bold text-white">Gérer les Tarifs & Plans</div>
                   <p className="text-xs text-stone-400 mt-1">
-                    Modifier les prix en FCFA et les avantages qui s'appliquent immédiatement sur la
-                    marketplace.
+                    Modifier les prix en FCFA et les avantages, puis publier immédiatement ou garder en
+                    brouillon.
                   </p>
                 </button>
 
@@ -637,13 +587,14 @@ export const AdminDashboard: React.FC = () => {
                 <div>
                   <h1 className="text-2xl font-black text-white tracking-tight">Tarifs & Forfaits SaaS</h1>
                   <p className="text-xs text-stone-400 mt-1">
-                    Gérez les prix en FCFA, les quotas et les avantages. Les nouveaux tarifs s'appliquent
-                    immédiatement sur la Marketplace et pour tous les souscripteurs ultérieurs.
+                    Chaque modification peut être publiée immédiatement sur la page Tarifs, ou enregistrée en
+                    brouillon pour être publiée plus tard. Les salons déjà abonnés conservent leur tarif
+                    d’origine.
                   </p>
                 </div>
 
                 <button
-                  onClick={() => openPlanModal()}
+                  onClick={() => openPlanEditor(null)}
                   className="px-4 py-2.5 rounded-xl bg-[#C9A45C] hover:bg-[#d8b56d] text-[#101010] font-bold text-xs flex items-center gap-1.5 transition-all shadow-md cursor-pointer self-start sm:self-auto"
                 >
                   <Plus className="w-4 h-4" />
@@ -653,7 +604,7 @@ export const AdminDashboard: React.FC = () => {
 
               {/* Plans Grid */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {plans.map((plan) => (
+                {pricingCards.map(({ view: plan, draft, draftOnly }) => (
                   <div
                     key={plan.id}
                     className={`rounded-3xl bg-[#0c0c10] border transition-all flex flex-col justify-between relative overflow-hidden ${
@@ -670,11 +621,16 @@ export const AdminDashboard: React.FC = () => {
 
                     <div className="p-6 space-y-5">
                       <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="text-lg font-bold text-white">{plan.name}</h3>
                           {!plan.isActive && (
                             <span className="px-2 py-0.5 rounded text-[10px] bg-red-950/60 text-red-400 border border-red-800/50">
                               Inactif
+                            </span>
+                          )}
+                          {draftOnly && (
+                            <span className="px-2 py-0.5 rounded text-[10px] bg-amber-950/60 text-amber-300 border border-amber-500/40">
+                              Brouillon · non publié
                             </span>
                           )}
                         </div>
@@ -722,13 +678,43 @@ export const AdminDashboard: React.FC = () => {
                       </div>
                     </div>
 
+                    {draft && (
+                      <div className="mx-6 mb-4 rounded-xl border border-amber-500/30 bg-amber-950/20 p-3 text-xs text-amber-200 space-y-2">
+                        <div className="font-semibold">Brouillon en attente · non publié</div>
+                        <div>
+                          {draft.plan.name} — {formatPrice(draft.plan.priceXof)} / mois
+                        </div>
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => handlePublishDraft(draft.planId)}
+                            className="px-3 py-1.5 rounded-lg bg-[#C9A45C] text-[#101010] font-bold"
+                          >
+                            Publier le brouillon
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDiscardDraft(draft.planId)}
+                            className="px-3 py-1.5 rounded-lg bg-[#181820] text-stone-300"
+                          >
+                            Abandonner
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="p-4 bg-[#101014] border-t border-[#1a1a22] flex items-center justify-between">
                       <div className="text-xs text-stone-400">
                         <span className="font-semibold text-stone-300">{plan.subscribersCount ?? 0}</span>{' '}
                         salon(s) abonné(s)
                       </div>
                       <button
-                        onClick={() => openPlanModal(plan)}
+                        onClick={() =>
+                          openPlanEditor(
+                            draftOnly ? null : (plans.find((p) => p.id === plan.id) ?? null),
+                            draft?.plan ?? null,
+                          )
+                        }
                         className="px-3 py-1.5 rounded-lg bg-[#1a1a22] hover:bg-[#22222c] text-stone-200 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
                       >
                         <Edit3 className="w-3.5 h-3.5 text-[#C9A45C]" />
@@ -952,194 +938,17 @@ export const AdminDashboard: React.FC = () => {
       </div>
 
       {/* PLAN EDIT MODAL */}
-      {isPlanModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-[#0f0f13] border border-[#262632] rounded-3xl max-w-2xl w-full p-6 sm:p-8 space-y-6 shadow-2xl my-8">
-            <div className="flex items-center justify-between border-b border-[#1c1c24] pb-4">
-              <div>
-                <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                  <Sliders className="w-5 h-5 text-[#C9A45C]" />
-                  <span>
-                    {editingPlan ? `Modifier le forfait « ${editingPlan.name} »` : 'Nouveau Forfait'}
-                  </span>
-                </h3>
-                <p className="text-xs text-stone-400">
-                  Ajustez les prix, quotas et avantages visibles par les salons.
-                </p>
-              </div>
-              <button
-                onClick={() => setIsPlanModalOpen(false)}
-                className="p-1.5 rounded-lg text-stone-400 hover:text-white hover:bg-[#1a1a22]"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSavePlan} className="space-y-5">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-stone-300 mb-1.5">
-                    Nom du forfait *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={planForm.name}
-                    onChange={(e) => setPlanForm({ ...planForm, name: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#08080a] border border-[#202028] text-xs text-white focus:outline-none focus:border-[#C9A45C]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-stone-300 mb-1.5">
-                    Identifiant / Slug *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    disabled={Boolean(editingPlan)}
-                    value={planForm.slug}
-                    onChange={(e) => setPlanForm({ ...planForm, slug: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#08080a] border border-[#202028] text-xs text-white focus:outline-none focus:border-[#C9A45C] disabled:opacity-50"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-[#E5C378] mb-1.5">
-                    Prix Mensuel (FCFA) *
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    min={0}
-                    step={500}
-                    value={planForm.priceXof}
-                    onChange={(e) => setPlanForm({ ...planForm, priceXof: Number(e.target.value) })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#08080a] border border-[#C9A45C]/50 text-xs font-bold text-white focus:outline-none focus:border-[#C9A45C]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-stone-300 mb-1.5">
-                    Étiquette Promotionnelle (Badge)
-                  </label>
-                  <input
-                    type="text"
-                    value={planForm.badgeText}
-                    onChange={(e) => setPlanForm({ ...planForm, badgeText: e.target.value })}
-                    placeholder="ex: Plus Populaire"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#08080a] border border-[#202028] text-xs text-white focus:outline-none focus:border-[#C9A45C]"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-stone-300 mb-1.5">Description</label>
-                <textarea
-                  rows={2}
-                  value={planForm.description}
-                  onChange={(e) => setPlanForm({ ...planForm, description: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#08080a] border border-[#202028] text-xs text-white focus:outline-none focus:border-[#C9A45C]"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-stone-300 mb-1.5">
-                    Nombre max de coiffeurs
-                  </label>
-                  <input
-                    type="text"
-                    value={planForm.maxStaff}
-                    onChange={(e) => setPlanForm({ ...planForm, maxStaff: e.target.value })}
-                    placeholder="Vide pour Illimité"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#08080a] border border-[#202028] text-xs text-white focus:outline-none focus:border-[#C9A45C]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-stone-300 mb-1.5">Succursales max</label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={planForm.maxBranches}
-                    onChange={(e) => setPlanForm({ ...planForm, maxBranches: Number(e.target.value) })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#08080a] border border-[#202028] text-xs text-white focus:outline-none focus:border-[#C9A45C]"
-                  />
-                </div>
-              </div>
-
-              {/* Features Editor */}
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-white uppercase tracking-wider block">
-                  Avantages ({planForm.features.length})
-                </label>
-                <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                  {planForm.features.map((feat, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
-                      <Check className="w-3.5 h-3.5 text-[#C9A45C] shrink-0" />
-                      <input
-                        type="text"
-                        value={feat}
-                        onChange={(e) => {
-                          const updated = [...planForm.features];
-                          updated[idx] = e.target.value;
-                          setPlanForm({ ...planForm, features: updated });
-                        }}
-                        className="flex-1 px-3 py-1.5 rounded-lg bg-[#08080a] border border-[#202028] text-xs text-white focus:outline-none focus:border-[#C9A45C]"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveFeature(idx)}
-                        className="p-1 rounded text-stone-500 hover:text-red-400"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex items-center gap-2 pt-1">
-                  <input
-                    type="text"
-                    value={newFeatureText}
-                    onChange={(e) => setNewFeatureText(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleAddFeature();
-                      }
-                    }}
-                    placeholder="+ Ajouter un avantage..."
-                    className="flex-1 px-3 py-2 rounded-xl bg-[#08080a] border border-[#202028] text-xs text-white focus:outline-none focus:border-[#C9A45C]"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAddFeature}
-                    className="px-3 py-2 rounded-xl bg-[#1c1c24] text-xs font-semibold text-stone-200"
-                  >
-                    Ajouter
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#1c1c24]">
-                <button
-                  type="button"
-                  onClick={() => setIsPlanModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-[#181820] text-stone-400 text-xs font-semibold"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  disabled={savingPlan}
-                  className="px-5 py-2 rounded-xl bg-[#C9A45C] text-[#101010] font-bold text-xs"
-                >
-                  {savingPlan ? 'Sauvegarde…' : 'Enregistrer'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+      {editorTarget && (
+        <PricingTierEditor
+          plan={editorTarget.plan}
+          pendingDraft={editorTarget.draft}
+          nextDisplayOrder={plans.length + 1}
+          onClose={() => setEditorTarget(null)}
+          onSaved={() => {
+            setEditorTarget(null);
+            loadAllData();
+          }}
+        />
       )}
 
       {/* SUBSCRIPTION OVERRIDE MODAL FOR SALON */}
