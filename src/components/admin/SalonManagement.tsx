@@ -27,7 +27,7 @@ import {
   UserCheck,
 } from 'lucide-react';
 import type { SalonAdminDetail } from '../../lib/superadmin';
-import { updateSalonByAdmin } from '../../lib/superadmin';
+import { isSalonLiveOnMarketplace, updateSalonByAdmin } from '../../lib/superadmin';
 import { useOptionalApp } from '../../context/AppContext';
 
 interface SalonManagementProps {
@@ -38,11 +38,7 @@ interface SalonManagementProps {
 
 type FilterStatus = 'all' | 'verified' | 'unverified' | 'published' | 'hidden' | 'active' | 'suspended';
 
-export const SalonManagement: React.FC<SalonManagementProps> = ({
-  salons,
-  onRefresh,
-  adminEmail,
-}) => {
+export const SalonManagement: React.FC<SalonManagementProps> = ({ salons, onRefresh, adminEmail }) => {
   const { addToast, formatPrice } = useOptionalApp();
 
   // Search & Filtering State
@@ -88,8 +84,8 @@ export const SalonManagement: React.FC<SalonManagementProps> = ({
       let matchStatus = true;
       if (statusFilter === 'verified') matchStatus = salon.isVerified;
       else if (statusFilter === 'unverified') matchStatus = !salon.isVerified;
-      else if (statusFilter === 'published') matchStatus = salon.isPublished;
-      else if (statusFilter === 'hidden') matchStatus = !salon.isPublished;
+      else if (statusFilter === 'published') matchStatus = isSalonLiveOnMarketplace(salon);
+      else if (statusFilter === 'hidden') matchStatus = !isSalonLiveOnMarketplace(salon);
       else if (statusFilter === 'active') matchStatus = salon.status === 'active';
       else if (statusFilter === 'suspended') matchStatus = salon.status === 'suspended';
 
@@ -100,7 +96,8 @@ export const SalonManagement: React.FC<SalonManagementProps> = ({
   // KPI counters
   const totalCount = salons.length;
   const verifiedCount = salons.filter((s) => s.isVerified).length;
-  const publishedCount = salons.filter((s) => s.isPublished).length;
+  // « En ligne » = publié ET accès non suspendu (un salon suspendu n'est jamais visible)
+  const publishedCount = salons.filter(isSalonLiveOnMarketplace).length;
   const suspendedCount = salons.filter((s) => s.status === 'suspended').length;
 
   // Actions
@@ -110,7 +107,7 @@ export const SalonManagement: React.FC<SalonManagementProps> = ({
     updateSalonByAdmin(salon.id, { isVerified: newVerified }, adminEmail);
     addToast(
       `Badge de certification ${newVerified ? 'accordé à' : 'retiré de'} "${salon.name}".`,
-      newVerified ? 'success' : 'info'
+      newVerified ? 'success' : 'info',
     );
     onRefresh();
   };
@@ -121,7 +118,7 @@ export const SalonManagement: React.FC<SalonManagementProps> = ({
     updateSalonByAdmin(salon.id, { isPublished: newPublished }, adminEmail);
     addToast(
       `Salon "${salon.name}" ${newPublished ? 'visible sur la Marketplace' : 'masqué de la Marketplace'}.`,
-      'info'
+      'info',
     );
     onRefresh();
   };
@@ -136,8 +133,10 @@ export const SalonManagement: React.FC<SalonManagementProps> = ({
     };
     updateSalonByAdmin(salon.id, updates, adminEmail);
     addToast(
-      `Accès locataire pour "${salon.name}" ${newStatus === 'suspended' ? 'SUSPENDU et retiré de la marketplace' : 'RÉACTIVÉ'}.`,
-      newStatus === 'suspended' ? 'error' : 'success'
+      newStatus === 'suspended'
+        ? `Accès de "${salon.name}" SUSPENDU et retiré de la marketplace.`
+        : `Accès de "${salon.name}" RÉACTIVÉ. Le salon reste masqué : republiez-le pour le remettre en ligne.`,
+      newStatus === 'suspended' ? 'error' : 'success',
     );
     onRefresh();
   };
@@ -176,7 +175,7 @@ export const SalonManagement: React.FC<SalonManagementProps> = ({
         planId: editFormData.planId,
         planName: editFormData.planName,
       },
-      adminEmail
+      adminEmail,
     );
 
     addToast(`Informations du salon "${editFormData.name}" mises à jour avec succès.`, 'success');
@@ -199,6 +198,11 @@ export const SalonManagement: React.FC<SalonManagementProps> = ({
           </h2>
           <p className="text-xs text-stone-400 mt-1">
             Inspectez, certifiez, publiez ou suspendez les accès et vitrines des établissements partenaires.
+          </p>
+          <p className="mt-2 text-[11px] text-amber-300/90 max-w-2xl">
+            Stockage local : certifications, publications et suspensions sont enregistrées dans ce navigateur
+            uniquement. Les visiteurs ne voient pas encore ces changements, la persistance serveur reste à
+            brancher.
           </p>
         </div>
 
@@ -380,7 +384,9 @@ export const SalonManagement: React.FC<SalonManagementProps> = ({
                                 </span>
                               )}
                             </div>
-                            <div className="text-[11px] text-stone-400 truncate">{salon.organizationName}</div>
+                            <div className="text-[11px] text-stone-400 truncate">
+                              {salon.organizationName}
+                            </div>
                           </div>
                         </div>
                       </td>
@@ -400,13 +406,17 @@ export const SalonManagement: React.FC<SalonManagementProps> = ({
                       {/* SaaS Plan & Stats */}
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-1.5 font-bold text-[#E5C378]">
-                          <span>{salon.planName}</span>
-                          <span className="text-[10px] text-stone-400">
-                            ({formatPrice(salon.priceAtSubscription)}/m)
-                          </span>
+                          <span>{salon.planName || 'Formule non disponible'}</span>
+                          {salon.planName && (
+                            <span className="text-[10px] text-stone-400">
+                              ({formatPrice(salon.priceAtSubscription)}/m)
+                            </span>
+                          )}
                         </div>
                         <div className="text-[11px] text-stone-400 mt-0.5">
-                          {salon.appointmentsCount} rdv · CA : {formatPrice(salon.totalRevenueXof)}
+                          {salon.appointmentsCount !== undefined && salon.totalRevenueXof !== undefined
+                            ? `${salon.appointmentsCount} rdv · CA : ${formatPrice(salon.totalRevenueXof)}`
+                            : 'Indicateurs non disponibles'}
                         </div>
                       </td>
 
@@ -426,8 +436,8 @@ export const SalonManagement: React.FC<SalonManagementProps> = ({
                             </span>
                           )}
 
-                          {/* Marketplace publication */}
-                          {salon.isPublished ? (
+                          {/* Marketplace publication (visibilité réelle : publié et non suspendu) */}
+                          {isSalonLiveOnMarketplace(salon) ? (
                             <span className="inline-flex items-center gap-1 text-[10px] text-blue-300">
                               <Eye className="w-3 h-3 text-blue-400" />
                               En ligne sur Marketplace
@@ -460,7 +470,9 @@ export const SalonManagement: React.FC<SalonManagementProps> = ({
                           {/* Toggle Publish */}
                           <button
                             onClick={(e) => handleTogglePublish(salon, e)}
-                            title={salon.isPublished ? 'Masquer de la Marketplace' : 'Publier sur la Marketplace'}
+                            title={
+                              salon.isPublished ? 'Masquer de la Marketplace' : 'Publier sur la Marketplace'
+                            }
                             className={`p-1.5 rounded-lg border text-xs transition-colors cursor-pointer ${
                               salon.isPublished
                                 ? 'bg-blue-950/40 border-blue-800/50 text-blue-300 hover:bg-blue-900/50'
@@ -601,7 +613,9 @@ export const SalonManagement: React.FC<SalonManagementProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-stone-300 mb-1">Téléphone de contact</label>
+                  <label className="block text-xs font-semibold text-stone-300 mb-1">
+                    Téléphone de contact
+                  </label>
                   <input
                     type="text"
                     required
@@ -612,7 +626,9 @@ export const SalonManagement: React.FC<SalonManagementProps> = ({
                 </div>
 
                 <div className="sm:col-span-2">
-                  <label className="block text-xs font-semibold text-stone-300 mb-1">Email professionnel</label>
+                  <label className="block text-xs font-semibold text-stone-300 mb-1">
+                    Email professionnel
+                  </label>
                   <input
                     type="email"
                     value={editFormData.email}

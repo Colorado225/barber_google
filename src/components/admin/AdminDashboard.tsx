@@ -35,19 +35,16 @@ import {
   Filter,
 } from 'lucide-react';
 import type { SaaSPlan, PlatformMetrics, Salon } from '../../types';
+import { getAllSaasPlans, saveSaasPlan, getPlatformMetrics } from '../../lib/saas';
 import {
-  getAllSaasPlans,
-  saveSaasPlan,
-  getPlatformMetrics,
-} from '../../lib/saas';
-import {
-  getSuperAdminSession,
+  verifySuperAdminAccess,
   logoutSuperAdmin,
   getAdminSalonsList,
   updateSalonByAdmin,
   getMarketplaceReviews,
   deleteReviewByAdmin,
   getAuditLogs,
+  isSalonLiveOnMarketplace,
   type AdminUser,
   type SalonAdminDetail,
   type MarketplaceReviewItem,
@@ -56,21 +53,61 @@ import {
 import { AdminLoginForm } from './AdminLoginForm';
 import { SalonManagement } from './SalonManagement';
 import { MarketplaceSectionsAdmin } from './MarketplaceSectionsAdmin';
+import { MarketplaceConfigManager } from './MarketplaceConfigManager';
 import { useOptionalApp } from '../../context/AppContext';
 
 export type AdminDashboardTab =
   | 'overview'
   | 'salons'
   | 'marketplace-sections'
+  | 'marketplace-config'
   | 'pricing'
   | 'subscriptions'
   | 'settings';
+
+interface PlatformSettings {
+  commissionRate: number;
+  defaultCurrency: string;
+  maintenanceMode: boolean;
+  autoApproveSalons: boolean;
+}
+
+const DEFAULT_PLATFORM_SETTINGS: PlatformSettings = {
+  commissionRate: 3.5,
+  defaultCurrency: 'XOF (FCFA)',
+  maintenanceMode: false,
+  autoApproveSalons: false,
+};
+
+function loadPlatformSettings(): PlatformSettings {
+  if (typeof window === 'undefined') return DEFAULT_PLATFORM_SETTINGS;
+  try {
+    const saved = localStorage.getItem('barbercuts_platform_settings');
+    return saved ? { ...DEFAULT_PLATFORM_SETTINGS, ...JSON.parse(saved) } : DEFAULT_PLATFORM_SETTINGS;
+  } catch {
+    return DEFAULT_PLATFORM_SETTINGS;
+  }
+}
 
 export const AdminDashboard: React.FC = () => {
   const { addToast, formatPrice, salons: appSalons } = useOptionalApp();
 
   // Authentication gate state
-  const [adminSession, setAdminSession] = useState<AdminUser | null>(() => getSuperAdminSession());
+  // Aucune session n'est acceptée avant vérification serveur (voir verifySuperAdminAccess).
+  const [adminSession, setAdminSession] = useState<AdminUser | null>(null);
+  const [accessChecked, setAccessChecked] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    verifySuperAdminAccess().then((admin) => {
+      if (cancelled) return;
+      setAdminSession(admin);
+      setAccessChecked(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Navigation tab
   const [activeTab, setActiveTab] = useState<AdminDashboardTab>('overview');
@@ -113,49 +150,14 @@ export const AdminDashboard: React.FC = () => {
   const [selectedSalonForSub, setSelectedSalonForSub] = useState<SalonAdminDetail | null>(null);
   const [newSubPlanId, setNewSubPlanId] = useState('');
 
-  // Platform-wide Settings State (stored in localStorage)
-  const [platformSettings, setPlatformSettings] = useState(() => {
-    if (typeof window === 'undefined') {
-      return {
-        commissionRate: 3.5,
-        defaultCurrency: 'XOF (FCFA)',
-        announcementBanner: 'Bienvenue sur BarberCuts : Découvrez les meilleurs barbershops d’Abidjan et réservez en ligne.',
-        announcementActive: true,
-        maintenanceMode: false,
-        autoApproveSalons: false,
-      };
-    }
-    try {
-      const saved = localStorage.getItem('barbercuts_platform_settings');
-      return saved
-        ? JSON.parse(saved)
-        : {
-            commissionRate: 3.5,
-            defaultCurrency: 'XOF (FCFA)',
-            announcementBanner: 'Bienvenue sur BarberCuts : Découvrez les meilleurs barbershops d’Abidjan et réservez en ligne.',
-            announcementActive: true,
-            maintenanceMode: false,
-            autoApproveSalons: false,
-          };
-    } catch {
-      return {
-        commissionRate: 3.5,
-        defaultCurrency: 'XOF (FCFA)',
-        announcementBanner: 'Bienvenue sur BarberCuts : Découvrez les meilleurs barbershops d’Abidjan et réservez en ligne.',
-        announcementActive: true,
-        maintenanceMode: false,
-        autoApproveSalons: false,
-      };
-    }
-  });
+  // Platform-wide Settings State (stored in localStorage).
+  // La bannière d'annonce est désormais gérée dans « Config Marketplace » (source unique).
+  const [platformSettings, setPlatformSettings] = useState<PlatformSettings>(() => loadPlatformSettings());
 
   const loadAllData = async () => {
     setLoading(true);
     try {
-      const [fetchedPlans, fetchedMetrics] = await Promise.all([
-        getAllSaasPlans(),
-        getPlatformMetrics(),
-      ]);
+      const [fetchedPlans, fetchedMetrics] = await Promise.all([getAllSaasPlans(), getPlatformMetrics()]);
       setPlans(fetchedPlans);
       setMetrics(fetchedMetrics);
       setSalons(getAdminSalonsList(appSalons));
@@ -172,7 +174,7 @@ export const AdminDashboard: React.FC = () => {
     if (adminSession) {
       loadAllData();
     }
-    const handleSessionChange = () => setAdminSession(getSuperAdminSession());
+    const handleSessionChange = () => setAdminSession(null);
     const handleSalonsUpdate = () => {
       setSalons(getAdminSalonsList(appSalons));
       setAuditLogs(getAuditLogs());
@@ -189,6 +191,15 @@ export const AdminDashboard: React.FC = () => {
       window.removeEventListener('saas_plans_updated', handlePlansUpdate);
     };
   }, [adminSession, appSalons]);
+
+  // VÉRIFICATION D'ACCÈS EN COURS : rien de sensible n'est affiché avant la réponse du serveur
+  if (!accessChecked) {
+    return (
+      <div className="min-h-screen bg-[#070709] flex items-center justify-center text-stone-400 text-sm">
+        Vérification de l’accès…
+      </div>
+    );
+  }
 
   // LOGIN GATE
   if (!adminSession) {
@@ -436,8 +447,14 @@ export const AdminDashboard: React.FC = () => {
                 { id: 'overview', label: 'Vue d’Ensemble', icon: Activity },
                 { id: 'salons', label: 'Gestion des Salons', icon: Store, count: salons.length },
                 { id: 'marketplace-sections', label: 'Sections Marketplace', icon: Globe },
+                { id: 'marketplace-config', label: 'Bannières & Métadonnées', icon: Sliders },
                 { id: 'pricing', label: 'Tarifs & Plans SaaS', icon: DollarSign, count: plans.length },
-                { id: 'subscriptions', label: 'Statuts d’Abonnement', icon: CreditCard, count: salons.length },
+                {
+                  id: 'subscriptions',
+                  label: 'Statuts d’Abonnement',
+                  icon: CreditCard,
+                  count: salons.length,
+                },
                 { id: 'settings', label: 'Paramètres Globaux', icon: Settings },
               ].map((item) => {
                 const Icon = item.icon;
@@ -517,7 +534,7 @@ export const AdminDashboard: React.FC = () => {
                     Vitrines Marketplace
                   </div>
                   <div className="text-2xl sm:text-3xl font-black text-white">
-                    {salons.filter((s) => s.isPublished).length} / {salons.length}
+                    {salons.filter(isSalonLiveOnMarketplace).length} / {salons.length}
                   </div>
                   <div className="text-[10px] text-stone-400">Salons visibles publiquement</div>
                 </div>
@@ -527,7 +544,7 @@ export const AdminDashboard: React.FC = () => {
                     Volume d'Affaires Global
                   </div>
                   <div className="text-2xl sm:text-3xl font-black text-white">
-                    {metrics ? formatPrice(metrics.totalRevenueXof) : '1 120 000 FCFA'}
+                    {metrics ? formatPrice(metrics.totalRevenueXof) : '—'}
                   </div>
                   <div className="text-[10px] text-stone-400">Total encaissements déclarés</div>
                 </div>
@@ -537,7 +554,7 @@ export const AdminDashboard: React.FC = () => {
                     Rendez-vous Réalisés
                   </div>
                   <div className="text-2xl sm:text-3xl font-black text-white">
-                    {metrics ? metrics.totalAppointments : 142}
+                    {metrics ? metrics.totalAppointments : '—'}
                   </div>
                   <div className="text-[10px] text-stone-400">Réservations traitées avec succès</div>
                 </div>
@@ -552,12 +569,13 @@ export const AdminDashboard: React.FC = () => {
                   <DollarSign className="w-5 h-5 text-[#C9A45C] mb-2" />
                   <div className="text-sm font-bold text-white">Gérer les Tarifs & Plans</div>
                   <p className="text-xs text-stone-400 mt-1">
-                    Modifier les prix en FCFA et les avantages qui s'appliquent immédiatement sur la marketplace.
+                    Modifier les prix en FCFA et les avantages qui s'appliquent immédiatement sur la
+                    marketplace.
                   </p>
                 </button>
 
                 <button
-                  onClick={() => setActiveTab('marketplace')}
+                  onClick={() => setActiveTab('marketplace-sections')}
                   className="p-5 rounded-2xl bg-[#0f0f13] hover:bg-[#141419] border border-[#202028] text-left transition-all"
                 >
                   <Globe className="w-5 h-5 text-blue-400 mb-2" />
@@ -619,8 +637,8 @@ export const AdminDashboard: React.FC = () => {
                 <div>
                   <h1 className="text-2xl font-black text-white tracking-tight">Tarifs & Forfaits SaaS</h1>
                   <p className="text-xs text-stone-400 mt-1">
-                    Gérez les prix en FCFA, les quotas et les avantages. Les nouveaux tarifs s'appliquent immédiatement
-                    sur la Marketplace et pour tous les souscripteurs ultérieurs.
+                    Gérez les prix en FCFA, les quotas et les avantages. Les nouveaux tarifs s'appliquent
+                    immédiatement sur la Marketplace et pour tous les souscripteurs ultérieurs.
                   </p>
                 </div>
 
@@ -706,8 +724,8 @@ export const AdminDashboard: React.FC = () => {
 
                     <div className="p-4 bg-[#101014] border-t border-[#1a1a22] flex items-center justify-between">
                       <div className="text-xs text-stone-400">
-                        <span className="font-semibold text-stone-300">{plan.subscribersCount ?? 0}</span> salon(s)
-                        abonné(s)
+                        <span className="font-semibold text-stone-300">{plan.subscribersCount ?? 0}</span>{' '}
+                        salon(s) abonné(s)
                       </div>
                       <button
                         onClick={() => openPlanModal(plan)}
@@ -725,17 +743,16 @@ export const AdminDashboard: React.FC = () => {
 
           {/* TAB 2: SALON MANAGEMENT (VIEW, VERIFY, DEACTIVATE/SUSPEND) */}
           {activeTab === 'salons' && (
-            <SalonManagement
-              salons={salons}
-              onRefresh={loadAllData}
-              adminEmail={adminSession.email}
-            />
+            <SalonManagement salons={salons} onRefresh={loadAllData} adminEmail={adminSession.email} />
           )}
 
           {/* TAB 3: MARKETPLACE SECTIONS & TABS CMS */}
           {activeTab === 'marketplace-sections' && (
             <MarketplaceSectionsAdmin adminEmail={adminSession.email} />
           )}
+
+          {/* TAB 3 bis: BANNIÈRES, SECTIONS À LA UNE & MÉTADONNÉES DU SITE */}
+          {activeTab === 'marketplace-config' && <MarketplaceConfigManager adminEmail={adminSession.email} />}
 
           {/* TAB 4: SUBSCRIPTION STATUS */}
           {activeTab === 'subscriptions' && (
@@ -746,7 +763,8 @@ export const AdminDashboard: React.FC = () => {
                     Statuts d'Abonnement des Salons
                   </h1>
                   <p className="text-xs text-stone-400 mt-1">
-                    Gérez les abonnements des établissements partenaires, tarifs garantis et suspensions d'accès ERP.
+                    Gérez les abonnements des établissements partenaires, tarifs garantis et suspensions
+                    d'accès ERP.
                   </p>
                 </div>
               </div>
@@ -775,10 +793,12 @@ export const AdminDashboard: React.FC = () => {
                             </div>
                           </td>
                           <td className="py-3.5 px-4">
-                            <span className="font-semibold text-[#E5C378]">{salon.planName}</span>
+                            <span className="font-semibold text-[#E5C378]">
+                              {salon.planName || 'Formule non disponible'}
+                            </span>
                           </td>
                           <td className="py-3.5 px-4 font-bold text-white">
-                            {formatPrice(salon.priceAtSubscription)} / mois
+                            {salon.planName ? `${formatPrice(salon.priceAtSubscription)} / mois` : '—'}
                           </td>
                           <td className="py-3.5 px-4">
                             <span
@@ -836,7 +856,10 @@ export const AdminDashboard: React.FC = () => {
                 </p>
               </div>
 
-              <form onSubmit={handleSavePlatformSettings} className="space-y-5 bg-[#0c0c10] border border-[#1a1a22] rounded-3xl p-6 sm:p-8">
+              <form
+                onSubmit={handleSavePlatformSettings}
+                className="space-y-5 bg-[#0c0c10] border border-[#1a1a22] rounded-3xl p-6 sm:p-8"
+              >
                 <div className="space-y-4">
                   <div>
                     <label className="block text-xs font-semibold text-stone-300 mb-1.5">
@@ -873,33 +896,20 @@ export const AdminDashboard: React.FC = () => {
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-stone-300 mb-1.5">
-                      Bannière d'Annonce Globale (Haut de page Marketplace)
-                    </label>
-                    <textarea
-                      rows={2}
-                      value={platformSettings.announcementBanner}
-                      onChange={(e) =>
-                        setPlatformSettings({ ...platformSettings, announcementBanner: e.target.value })
-                      }
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#08080a] border border-[#202028] text-xs text-white focus:outline-none focus:border-[#C9A45C]"
-                    />
+                  <div className="rounded-xl border border-[#2a2a36] bg-[#08080a] p-3.5 text-xs text-stone-400">
+                    La bannière d'annonce globale, les sections à la une et les métadonnées du site se gèrent
+                    désormais dans{' '}
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('marketplace-config')}
+                      className="text-[#C9A45C] font-bold hover:underline cursor-pointer"
+                    >
+                      Bannières & Métadonnées
+                    </button>
+                    .
                   </div>
 
                   <div className="pt-2 space-y-3">
-                    <label className="flex items-center gap-2.5 text-xs font-semibold text-stone-300 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={platformSettings.announcementActive}
-                        onChange={(e) =>
-                          setPlatformSettings({ ...platformSettings, announcementActive: e.target.checked })
-                        }
-                        className="w-4 h-4 rounded text-[#C9A45C] bg-[#08080a] border-[#2e2e38] focus:ring-0"
-                      />
-                      <span>Afficher la bannière d'annonce aux visiteurs</span>
-                    </label>
-
                     <label className="flex items-center gap-2.5 text-xs font-semibold text-stone-300 cursor-pointer">
                       <input
                         type="checkbox"
@@ -949,7 +959,9 @@ export const AdminDashboard: React.FC = () => {
               <div>
                 <h3 className="text-lg font-bold text-white flex items-center gap-2">
                   <Sliders className="w-5 h-5 text-[#C9A45C]" />
-                  <span>{editingPlan ? `Modifier le forfait « ${editingPlan.name} »` : 'Nouveau Forfait'}</span>
+                  <span>
+                    {editingPlan ? `Modifier le forfait « ${editingPlan.name} »` : 'Nouveau Forfait'}
+                  </span>
                 </h3>
                 <p className="text-xs text-stone-400">
                   Ajustez les prix, quotas et avantages visibles par les salons.
@@ -1022,9 +1034,7 @@ export const AdminDashboard: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-stone-300 mb-1.5">
-                  Description
-                </label>
+                <label className="block text-xs font-semibold text-stone-300 mb-1.5">Description</label>
                 <textarea
                   rows={2}
                   value={planForm.description}
@@ -1047,9 +1057,7 @@ export const AdminDashboard: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-stone-300 mb-1.5">
-                    Succursales max
-                  </label>
+                  <label className="block text-xs font-semibold text-stone-300 mb-1.5">Succursales max</label>
                   <input
                     type="number"
                     min={1}

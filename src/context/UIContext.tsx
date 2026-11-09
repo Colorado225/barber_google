@@ -46,16 +46,19 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     return new Intl.NumberFormat('fr-FR').format(amount) + ' FCFA';
   }, []);
 
-  const value = useMemo<UIContextValue>(() => ({
-    mode,
-    setMode,
-    toasts,
-    addToast,
-    removeToast,
-    formatPrice,
-    selectedSalonForModal,
-    setSelectedSalonForModal,
-  }), [mode, toasts, selectedSalonForModal, addToast, removeToast, formatPrice]);
+  const value = useMemo<UIContextValue>(
+    () => ({
+      mode,
+      setMode,
+      toasts,
+      addToast,
+      removeToast,
+      formatPrice,
+      selectedSalonForModal,
+      setSelectedSalonForModal,
+    }),
+    [mode, toasts, selectedSalonForModal, addToast, removeToast, formatPrice],
+  );
 
   return <UIContext.Provider value={value}>{children}</UIContext.Provider>;
 };

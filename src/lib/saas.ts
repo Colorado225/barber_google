@@ -31,7 +31,8 @@ const DEFAULT_PLANS: SaaSPlan[] = [
     slug: 'pro',
     priceXof: 35000,
     billingPeriod: 'monthly',
-    description: 'Le choix de référence pour les salons en pleine croissance cherchant à maximiser leur rentabilité.',
+    description:
+      'Le choix de référence pour les salons en pleine croissance cherchant à maximiser leur rentabilité.',
     features: [
       "Jusqu'à 5 barbiers",
       "Calcul automatique des commissions d'équipe",
@@ -250,10 +251,7 @@ export async function saveSaasPlan(plan: SaaSPlan): Promise<SaaSPlan> {
  * Souscrit un salon à un forfait ou met à niveau son offre.
  * Enregistre un instantané exact du tarif au moment de la souscription.
  */
-export async function subscribeSalonToPlan(
-  salonId: string,
-  planId: string,
-): Promise<SaaSSubscription> {
+export async function subscribeSalonToPlan(salonId: string, planId: string): Promise<SaaSSubscription> {
   const allPlans = await getAllSaasPlans();
   const targetPlan = allPlans.find((p) => p.id === planId);
   if (!targetPlan) {
@@ -333,9 +331,7 @@ export async function subscribeSalonToPlan(
 /**
  * Récupère l'abonnement actif d'un salon avec son tarif d'origine et son plan actuel.
  */
-export async function getSalonSubscription(
-  salonId: string,
-): Promise<SaaSSubscription | null> {
+export async function getSalonSubscription(salonId: string): Promise<SaaSSubscription | null> {
   if (isSupabaseConfigured()) {
     try {
       const client = getSupabaseClient();
@@ -410,9 +406,12 @@ export async function getSalonSubscription(
 }
 
 /**
- * Récupère les métriques de la plateforme pour la console Super Admin
+ * Récupère les métriques de la plateforme pour la console Super Admin.
+ *
+ * Renvoie `null` si la RPC échoue ou si Supabase n'est pas configuré : aucune valeur
+ * de repli n'est inventée. L'interface affiche alors « — ».
  */
-export async function getPlatformMetrics(): Promise<PlatformMetrics> {
+export async function getPlatformMetrics(): Promise<PlatformMetrics | null> {
   if (isSupabaseConfigured()) {
     try {
       const client = getSupabaseClient();
@@ -434,18 +433,5 @@ export async function getPlatformMetrics(): Promise<PlatformMetrics> {
     }
   }
 
-  // Calcul basé sur les données locales
-  const plans = getLocalPlans();
-  const subs = Object.values(getLocalSubscriptions());
-  const mrr = subs.reduce((acc, curr) => acc + (curr.priceAtSubscription || 0), 0);
-
-  return {
-    totalSalons: Math.max(subs.length, 3),
-    publishedSalons: 2,
-    activeSubscriptions: Math.max(subs.length, 3),
-    estimatedMrrXof: mrr > 0 ? mrr : 85000,
-    plansCount: plans.length,
-    totalAppointments: 142,
-    totalRevenueXof: 1120000,
-  };
+  return null;
 }

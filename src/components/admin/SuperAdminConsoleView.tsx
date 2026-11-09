@@ -31,11 +31,7 @@ import {
   CheckSquare,
 } from 'lucide-react';
 import type { SaaSPlan, PlatformMetrics, Salon } from '../../types';
-import {
-  getAllSaasPlans,
-  saveSaasPlan,
-  getPlatformMetrics,
-} from '../../lib/saas';
+import { getAllSaasPlans, saveSaasPlan, getPlatformMetrics } from '../../lib/saas';
 import {
   getSuperAdminSession,
   logoutSuperAdmin,
@@ -59,7 +55,9 @@ export const SuperAdminConsoleView: React.FC = () => {
   const [adminSession, setAdminSession] = useState<AdminUser | null>(() => getSuperAdminSession());
 
   // Active Tab: 'overview' | 'pricing' | 'salons' | 'marketplace' | 'audit'
-  const [activeTab, setActiveTab] = useState<'overview' | 'pricing' | 'salons' | 'marketplace' | 'audit'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'pricing' | 'salons' | 'marketplace' | 'audit'>(
+    'overview',
+  );
 
   // SaaS Plans & Metrics State
   const [plans, setPlans] = useState<SaaSPlan[]>([]);
@@ -95,10 +93,7 @@ export const SuperAdminConsoleView: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [fetchedPlans, fetchedMetrics] = await Promise.all([
-        getAllSaasPlans(),
-        getPlatformMetrics(),
-      ]);
+      const [fetchedPlans, fetchedMetrics] = await Promise.all([getAllSaasPlans(), getPlatformMetrics()]);
       setPlans(fetchedPlans);
       setMetrics(fetchedMetrics);
       setAdminSalons(getAdminSalonsList(appSalons));
@@ -363,11 +358,9 @@ export const SuperAdminConsoleView: React.FC = () => {
               </div>
             </div>
             <div className="text-2xl sm:text-3xl font-black text-white">
-              {metrics ? metrics.activeSubscriptions : adminSalons.filter((s) => s.status === 'active').length}
+              {metrics ? metrics.activeSubscriptions : '—'}
             </div>
-            <div className="text-[11px] text-stone-400">
-              Salons souscripteurs en règle
-            </div>
+            <div className="text-[11px] text-stone-400">Salons souscripteurs en règle</div>
           </div>
 
           <div className="p-5 rounded-2xl bg-[#0e0e12] border border-[#202028] space-y-2">
@@ -379,9 +372,7 @@ export const SuperAdminConsoleView: React.FC = () => {
                 <Store className="w-4 h-4" />
               </div>
             </div>
-            <div className="text-2xl sm:text-3xl font-black text-white">
-              {adminSalons.length}
-            </div>
+            <div className="text-2xl sm:text-3xl font-black text-white">{adminSalons.length}</div>
             <div className="text-[11px] text-stone-400">
               {adminSalons.filter((s) => s.isPublished).length} publiés sur la Marketplace
             </div>
@@ -397,11 +388,9 @@ export const SuperAdminConsoleView: React.FC = () => {
               </div>
             </div>
             <div className="text-2xl sm:text-3xl font-black text-white">
-              {metrics ? formatPrice(metrics.totalRevenueXof) : '1 120 000 FCFA'}
+              {metrics ? formatPrice(metrics.totalRevenueXof) : '—'}
             </div>
-            <div className="text-[11px] text-stone-400">
-              Transactions confirmées tous ERPs confondus
-            </div>
+            <div className="text-[11px] text-stone-400">Transactions confirmées tous ERPs confondus</div>
           </div>
         </div>
 
@@ -411,7 +400,12 @@ export const SuperAdminConsoleView: React.FC = () => {
             { id: 'overview', label: 'Vue d’Ensemble', icon: Activity },
             { id: 'pricing', label: 'Tarifs & Forfaits SaaS', icon: DollarSign },
             { id: 'salons', label: 'Salons & ERPs Partenaires', icon: Store, count: adminSalons.length },
-            { id: 'marketplace', label: 'Modération Marketplace', icon: MessageSquare, count: reviews.length },
+            {
+              id: 'marketplace',
+              label: 'Modération Marketplace',
+              icon: MessageSquare,
+              count: reviews.length,
+            },
             { id: 'audit', label: 'Journal d’Audit & Sécurité', icon: ShieldAlert },
           ].map((tab) => {
             const Icon = tab.icon;
@@ -451,9 +445,9 @@ export const SuperAdminConsoleView: React.FC = () => {
                 <span>État Global de la Plateforme BarberCuts</span>
               </h2>
               <p className="text-xs text-stone-300 leading-relaxed max-w-3xl">
-                Cette console centrale vous permet d'administrer l'ensemble du parc de salons,
-                de modifier les tarifs et avantages SaaS en direct avec répercussion instantanée,
-                de modérer les avis de la Marketplace et de surveiller l'intégrité financière.
+                Cette console centrale vous permet d'administrer l'ensemble du parc de salons, de modifier les
+                tarifs et avantages SaaS en direct avec répercussion instantanée, de modérer les avis de la
+                Marketplace et de surveiller l'intégrité financière.
               </p>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
@@ -518,7 +512,9 @@ export const SuperAdminConsoleView: React.FC = () => {
                         </td>
                         <td className="py-3 px-4 text-stone-400">{salon.commune}</td>
                         <td className="py-3 px-4 font-semibold text-[#E5C378]">{salon.planName}</td>
-                        <td className="py-3 px-4 font-bold text-white">{formatPrice(salon.priceAtSubscription)}</td>
+                        <td className="py-3 px-4 font-bold text-white">
+                          {formatPrice(salon.priceAtSubscription)}
+                        </td>
                         <td className="py-3 px-4">
                           <span
                             className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
@@ -566,9 +562,9 @@ export const SuperAdminConsoleView: React.FC = () => {
                   <Link to="/tarifs" target="_blank" className="text-[#C9A45C] underline">
                     /tarifs
                   </Link>{' '}
-                  et la Marketplace s'actualisent <strong>automatiquement</strong>. Tous les salons qui souscriront
-                  ultérieurement payeront le nouveau tarif. Les salons déjà abonnés conservent leur prix contractuel
-                  initial garanti.
+                  et la Marketplace s'actualisent <strong>automatiquement</strong>. Tous les salons qui
+                  souscriront ultérieurement payeront le nouveau tarif. Les salons déjà abonnés conservent
+                  leur prix contractuel initial garanti.
                 </p>
               </div>
             </div>
@@ -662,8 +658,8 @@ export const SuperAdminConsoleView: React.FC = () => {
 
                   <div className="p-4 bg-[#121216] border-t border-[#1d1d24] flex items-center justify-between">
                     <div className="text-xs text-stone-400">
-                      <span className="font-semibold text-stone-300">{plan.subscribersCount ?? 0}</span> salon(s)
-                      abonné(s)
+                      <span className="font-semibold text-stone-300">{plan.subscribersCount ?? 0}</span>{' '}
+                      salon(s) abonné(s)
                     </div>
                     <button
                       onClick={() => openEditModal(plan)}
@@ -684,9 +680,12 @@ export const SuperAdminConsoleView: React.FC = () => {
           <div className="space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h2 className="text-lg font-bold text-white">Gestion de Tous les Établissements (Multi-Tenants)</h2>
+                <h2 className="text-lg font-bold text-white">
+                  Gestion de Tous les Établissements (Multi-Tenants)
+                </h2>
                 <p className="text-xs text-stone-400">
-                  Surveillez l'activité des salons, validez leur publication ou suspendez l'accès en cas d'impayé.
+                  Surveillez l'activité des salons, validez leur publication ou suspendez l'accès en cas
+                  d'impayé.
                 </p>
               </div>
 
@@ -788,7 +787,8 @@ export const SuperAdminConsoleView: React.FC = () => {
             <div>
               <h2 className="text-lg font-bold text-white">Modération des Avis & Commentaires Publics</h2>
               <p className="text-xs text-stone-400">
-                Surveillez les avis déposés par les clients et supprimez les contenus inappropriés ou frauduleux.
+                Surveillez les avis déposés par les clients et supprimez les contenus inappropriés ou
+                frauduleux.
               </p>
             </div>
 

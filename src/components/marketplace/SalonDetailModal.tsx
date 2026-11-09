@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useOptionalApp } from '../../context/AppContext';
 import { bookingPortalPath, bookingPortalUrl, saveBookingLink } from '../../lib/bookingVault';
 import { Salon } from '../../types';
+import { applySalonAdminOverrides, useSalonAdminOverrides } from '../../lib/superadmin';
 import {
   getMarketplaceSalonDetail,
   getMarketplaceAvailability,
@@ -43,6 +44,8 @@ function abidjanDate(offsetDays: number): string {
 }
 
 export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({ salon, onClose }) => {
+  // Fiche de démonstration (opt-in) : contenu fictif local, sans aucun appel RPC ni réservation.
+  const demoFiche = import.meta.env?.VITE_MARKETPLACE_DEMO === 'true' && salon.isDemo === true;
   const { formatPrice, bookPublicAppointment, cancelPublicBooking, addToast } = useOptionalApp();
 
   const [detail, setDetail] = useState<PublicSalonDetail | null>(null);
@@ -88,7 +91,12 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({ salon, onClo
     let cancelled = false;
     setLoading(true);
     setError(null);
-    getMarketplaceSalonDetail(salon.slug || salon.id)
+    // Le test du drapeau est écrit ici, à l'endroit de l'appel, pour que le build supprime la branche démo en production.
+    const load =
+      import.meta.env?.VITE_MARKETPLACE_DEMO === 'true' && salon.isDemo === true
+        ? import('../../lib/marketplace-demo').then((module) => module.buildDemoSalonDetail(salon))
+        : getMarketplaceSalonDetail(salon.slug || salon.id);
+    load
       .then((d) => {
         if (cancelled) return;
         setDetail(d);
@@ -104,10 +112,10 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({ salon, onClo
     return () => {
       cancelled = true;
     };
-  }, [salon.id, salon.slug]);
+  }, [salon, salon.id, salon.slug, demoFiche]);
 
   useEffect(() => {
-    if (!detail || !selectedServiceId) return;
+    if (!detail || !selectedServiceId || demoFiche) return;
     let cancelled = false;
     setSlotsLoading(true);
     setSelectedSlot(null);
@@ -129,9 +137,14 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({ salon, onClo
     return () => {
       cancelled = true;
     };
-  }, [detail, selectedServiceId, selectedDate, selectedStaffId]);
+  }, [detail, selectedServiceId, selectedDate, selectedStaffId, demoFiche]);
 
-  const publicSalon = detail?.salon ?? salon;
+  // La certification décidée par le SuperAdmin prime sur la donnée de base.
+  const salonAdminOverrides = useSalonAdminOverrides();
+  const publicSalon = useMemo(
+    () => applySalonAdminOverrides([detail?.salon ?? salon], salonAdminOverrides)[0],
+    [detail?.salon, salon, salonAdminOverrides],
+  );
   const services = detail?.services ?? [];
   const staff = detail?.staff ?? [];
   const reviews = detail?.reviews ?? [];
@@ -149,6 +162,10 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({ salon, onClo
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBookingError(null);
+    if (demoFiche) {
+      setBookingError('Fiche de démonstration : la réservation est désactivée.');
+      return;
+    }
     if (!selectedService || !selectedSlot) {
       setBookingError('Sélectionnez une prestation et un créneau disponible.');
       return;
@@ -251,6 +268,15 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({ salon, onClo
 
           {detail && (
             <>
+              {demoFiche && (
+                <p
+                  role="status"
+                  className="mb-4 text-sm text-amber-200 bg-amber-950/30 border border-amber-500/30 rounded-lg p-3"
+                >
+                  Fiche de démonstration : prestations, prix et horaires sont fictifs. La réservation est
+                  désactivée.
+                </p>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
                 <div className="md:col-span-2 relative aspect-[16/9] rounded-2xl overflow-hidden bg-stone-900 border border-[#26262a]">
                   {activeImage ? (

@@ -10,7 +10,6 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
-  Sparkles,
   Scissors,
   Award,
   Smartphone,
@@ -22,7 +21,6 @@ import {
   MessageSquare,
   HelpCircle,
   Tag,
-  Flame,
   ArrowRight,
 } from 'lucide-react';
 import {
@@ -42,26 +40,16 @@ interface MarketplaceSectionsAdminProps {
   adminEmail: string;
 }
 
-type AdminSectionSubTab =
-  | 'hero'
-  | 'tabs'
-  | 'trust'
-  | 'categories'
-  | 'steps'
-  | 'promo'
-  | 'custom'
-  | 'faq'
-  | 'pro_cta';
+// Hero, bannière promo et bannière Business Pro sont gérés uniquement dans « Bannières & Métadonnées ».
+type AdminSectionSubTab = 'tabs' | 'trust' | 'categories' | 'steps' | 'custom' | 'faq';
 
-export const MarketplaceSectionsAdmin: React.FC<MarketplaceSectionsAdminProps> = ({
-  adminEmail,
-}) => {
+export const MarketplaceSectionsAdmin: React.FC<MarketplaceSectionsAdminProps> = ({ adminEmail }) => {
   const { addToast } = useOptionalApp();
   const { config, updateConfig, resetConfig } = useMarketplaceContent();
 
   // Local editable draft state
   const [draft, setDraft] = useState<MarketplaceContentConfig>(() => JSON.parse(JSON.stringify(config)));
-  const [activeSubTab, setActiveSubTab] = useState<AdminSectionSubTab>('hero');
+  const [activeSubTab, setActiveSubTab] = useState<AdminSectionSubTab>('tabs');
 
   // New item draft states
   const [newTabLabel, setNewTabLabel] = useState('');
@@ -81,18 +69,42 @@ export const MarketplaceSectionsAdmin: React.FC<MarketplaceSectionsAdminProps> =
   const [newCustomSecTitle, setNewCustomSecTitle] = useState('');
   const [newCustomSecBadge, setNewCustomSecBadge] = useState('SECTION EXCLUSIVE');
   const [newCustomSecDesc, setNewCustomSecDesc] = useState('');
-  const [newCustomSecLayout, setNewCustomSecLayout] = useState<'cards' | 'banner' | 'faq' | 'features'>('cards');
+  const [newCustomSecLayout, setNewCustomSecLayout] = useState<'cards' | 'banner' | 'faq' | 'features'>(
+    'cards',
+  );
 
   // Save changes handler
   const handleSaveAll = () => {
-    updateConfig(draft, adminEmail);
-    addToast('Toutes les modifications de la Marketplace sont enregistrées et visibles en direct !', 'success');
+    // Les bannières d'annonce, sections à la une et métadonnées sont gérées par « Config Marketplace » :
+    // on conserve leur valeur actuelle pour ne jamais écraser une modification faite ailleurs.
+    // Ces blocs appartiennent à « Bannières & Métadonnées » : on lit la valeur courante du store
+    // (et non le brouillon) pour ne jamais écraser une modification faite ailleurs.
+    updateConfig(
+      {
+        ...draft,
+        hero: config.hero,
+        promoBanner: config.promoBanner,
+        proCta: config.proCta,
+        announcement: config.announcement,
+        featuredSections: config.featuredSections,
+        siteMetadata: config.siteMetadata,
+      },
+      adminEmail,
+    );
+    addToast(
+      'Toutes les modifications de la Marketplace sont enregistrées et visibles en direct !',
+      'success',
+    );
   };
 
   const handleResetDefaults = () => {
-    if (window.confirm('Voulez-vous réinitialiser toutes les sections de la Marketplace aux valeurs par défaut d’usine ?')) {
-      resetConfig(adminEmail);
-      setDraft(JSON.parse(JSON.stringify(config)));
+    if (
+      window.confirm(
+        'Voulez-vous réinitialiser toutes les sections de la Marketplace aux valeurs par défaut d’usine ?',
+      )
+    ) {
+      const restored = resetConfig(adminEmail);
+      setDraft(JSON.parse(JSON.stringify(restored)));
       addToast('Contenus réinitialisés aux valeurs d’origine.', 'info');
     }
   };
@@ -148,7 +160,7 @@ export const MarketplaceSectionsAdmin: React.FC<MarketplaceSectionsAdminProps> =
     setDraft((prev) => ({
       ...prev,
       customSections: prev.customSections.map((s) =>
-        s.id === secId ? { ...s, items: [...s.items, newItem] } : s
+        s.id === secId ? { ...s, items: [...s.items, newItem] } : s,
       ),
     }));
   };
@@ -157,7 +169,7 @@ export const MarketplaceSectionsAdmin: React.FC<MarketplaceSectionsAdminProps> =
     setDraft((prev) => ({
       ...prev,
       customSections: prev.customSections.map((s) =>
-        s.id === secId ? { ...s, items: s.items.filter((it) => it.id !== itemId) } : s
+        s.id === secId ? { ...s, items: s.items.filter((it) => it.id !== itemId) } : s,
       ),
     }));
   };
@@ -240,7 +252,8 @@ export const MarketplaceSectionsAdmin: React.FC<MarketplaceSectionsAdminProps> =
             Administration des Sections & Onglets de la Marketplace
           </h2>
           <p className="text-xs text-stone-400 mt-1">
-            Modifiez les textes, visuels, bannières, et ajoutez de nouvelles sections personnalisées visibles immédiatement.
+            Modifiez les textes, visuels, bannières, et ajoutez de nouvelles sections personnalisées visibles
+            immédiatement.
           </p>
         </div>
 
@@ -273,18 +286,20 @@ export const MarketplaceSectionsAdmin: React.FC<MarketplaceSectionsAdminProps> =
         </div>
       </div>
 
+      <p className="text-[11px] text-stone-500">
+        Le hero, les bannières promo et Business Pro, l’annonce et les métadonnées se modifient dans{' '}
+        <span className="text-stone-300 font-semibold">Bannières & Métadonnées</span>.
+      </p>
+
       {/* Sub-tab Navigation */}
       <div className="flex flex-wrap items-center gap-1.5 p-1.5 bg-[#121217] border border-[#22222a] rounded-2xl">
         {[
-          { id: 'hero', label: '1. Hero & Accroche', icon: Sparkles },
-          { id: 'tabs', label: '2. Onglets Navigation', icon: Layout, count: draft.navTabs.length },
-          { id: 'trust', label: '3. Réassurance & Preuves', icon: Award, count: draft.trustItems.length },
-          { id: 'categories', label: '4. Catégories & Tags', icon: Tag, count: draft.categories.length },
-          { id: 'steps', label: '5. Étapes Réservation', icon: Clock, count: draft.steps.length },
-          { id: 'promo', label: '6. Bannière Événement', icon: Flame },
-          { id: 'custom', label: '7. Nouvelles Sections', icon: Plus, count: draft.customSections.length },
-          { id: 'pro_cta', label: '8. Bannière Business Pro', icon: Scissors },
-          { id: 'faq', label: '9. Questions Fréquentes', icon: HelpCircle, count: draft.faqs.length },
+          { id: 'tabs', label: '1. Onglets Navigation', icon: Layout, count: draft.navTabs.length },
+          { id: 'trust', label: '2. Réassurance & Preuves', icon: Award, count: draft.trustItems.length },
+          { id: 'categories', label: '3. Catégories & Tags', icon: Tag, count: draft.categories.length },
+          { id: 'steps', label: '4. Étapes Réservation', icon: Clock, count: draft.steps.length },
+          { id: 'custom', label: '5. Nouvelles Sections', icon: Plus, count: draft.customSections.length },
+          { id: 'faq', label: '6. Questions Fréquentes', icon: HelpCircle, count: draft.faqs.length },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeSubTab === tab.id;
@@ -316,114 +331,6 @@ export const MarketplaceSectionsAdmin: React.FC<MarketplaceSectionsAdminProps> =
 
       {/* SUB-TAB CONTENT PANELS */}
 
-      {/* 1. HERO SECTION */}
-      {activeSubTab === 'hero' && (
-        <div className="bg-[#121216] border border-[#22222a] rounded-3xl p-6 space-y-6">
-          <div className="border-b border-[#1f1f28] pb-4">
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-[#C9A45C]" />
-              Configuration de la Section Hero (Tête de page)
-            </h3>
-            <p className="text-xs text-stone-400 mt-1">
-              Personnalisez le titre d’impact, le sous-titre de luxe, et le champ de recherche principal.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <div>
-              <label className="block text-xs font-semibold text-stone-300 mb-1">Badge d’accroche supérieur</label>
-              <input
-                type="text"
-                value={draft.hero.badgeText}
-                onChange={(e) =>
-                  setDraft({ ...draft, hero: { ...draft.hero, badgeText: e.target.value } })
-                }
-                className="w-full bg-[#181820] border border-[#2b2b36] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-[#C9A45C]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-stone-300 mb-1">Texte du Bouton CTA Principal</label>
-              <input
-                type="text"
-                value={draft.hero.ctaText}
-                onChange={(e) =>
-                  setDraft({ ...draft, hero: { ...draft.hero, ctaText: e.target.value } })
-                }
-                className="w-full bg-[#181820] border border-[#2b2b36] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-[#C9A45C]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-stone-300 mb-1">Titre Principal (Ligne 1)</label>
-              <input
-                type="text"
-                value={draft.hero.headlineMain}
-                onChange={(e) =>
-                  setDraft({ ...draft, hero: { ...draft.hero, headlineMain: e.target.value } })
-                }
-                className="w-full bg-[#181820] border border-[#2b2b36] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-[#C9A45C]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-stone-300 mb-1">
-                Mot Clé de Luxe (Italique & Doré)
-              </label>
-              <input
-                type="text"
-                value={draft.hero.headlineHighlight}
-                onChange={(e) =>
-                  setDraft({ ...draft, hero: { ...draft.hero, headlineHighlight: e.target.value } })
-                }
-                className="w-full bg-[#181820] border border-[#2b2b36] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-[#C9A45C]"
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block text-xs font-semibold text-stone-300 mb-1">Description / Sous-titre</label>
-              <textarea
-                rows={2}
-                value={draft.hero.description}
-                onChange={(e) =>
-                  setDraft({ ...draft, hero: { ...draft.hero, description: e.target.value } })
-                }
-                className="w-full bg-[#181820] border border-[#2b2b36] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-[#C9A45C]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-stone-300 mb-1">Texte d’aide de la recherche</label>
-              <input
-                type="text"
-                value={draft.hero.searchPlaceholder}
-                onChange={(e) =>
-                  setDraft({ ...draft, hero: { ...draft.hero, searchPlaceholder: e.target.value } })
-                }
-                className="w-full bg-[#181820] border border-[#2b2b36] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-[#C9A45C]"
-              />
-            </div>
-
-            <div className="flex items-center gap-3 pt-6">
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={draft.hero.showVideo}
-                  onChange={(e) =>
-                    setDraft({ ...draft, hero: { ...draft.hero, showVideo: e.target.checked } })
-                  }
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-[#25252e] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#C9A45C]"></div>
-              </label>
-              <span className="text-xs text-stone-300 font-semibold">
-                Activer la vidéo cinématographique d'arrière-plan
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* 2. ONGLETS DE NAVIGATION */}
       {activeSubTab === 'tabs' && (
         <div className="bg-[#121216] border border-[#22222a] rounded-3xl p-6 space-y-6">
@@ -433,7 +340,8 @@ export const MarketplaceSectionsAdmin: React.FC<MarketplaceSectionsAdminProps> =
               Gestion des Onglets de Navigation Publique
             </h3>
             <p className="text-xs text-stone-400 mt-1">
-              Activez, modifiez ou ajoutez de nouveaux liens dans l’en-tête et le pied de page de la marketplace.
+              Activez, modifiez ou ajoutez de nouveaux liens dans l’en-tête et le pied de page de la
+              marketplace.
             </p>
           </div>
 
@@ -477,7 +385,7 @@ export const MarketplaceSectionsAdmin: React.FC<MarketplaceSectionsAdminProps> =
                       setDraft({
                         ...draft,
                         navTabs: draft.navTabs.map((t) =>
-                          t.id === tab.id ? { ...t, isVisible: !t.isVisible } : t
+                          t.id === tab.id ? { ...t, isVisible: !t.isVisible } : t,
                         ),
                       });
                     }}
@@ -549,10 +457,7 @@ export const MarketplaceSectionsAdmin: React.FC<MarketplaceSectionsAdminProps> =
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {draft.trustItems.map((item) => (
-              <div
-                key={item.id}
-                className="bg-[#181820] border border-[#282834] rounded-2xl p-4 space-y-3"
-              >
+              <div key={item.id} className="bg-[#181820] border border-[#282834] rounded-2xl p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] uppercase font-bold text-[#C9A45C]">Badge Réassurance</span>
                   <button
@@ -560,7 +465,7 @@ export const MarketplaceSectionsAdmin: React.FC<MarketplaceSectionsAdminProps> =
                       setDraft({
                         ...draft,
                         trustItems: draft.trustItems.map((t) =>
-                          t.id === item.id ? { ...t, isVisible: !t.isVisible } : t
+                          t.id === item.id ? { ...t, isVisible: !t.isVisible } : t,
                         ),
                       });
                     }}
@@ -581,7 +486,9 @@ export const MarketplaceSectionsAdmin: React.FC<MarketplaceSectionsAdminProps> =
                       const val = e.target.value;
                       setDraft({
                         ...draft,
-                        trustItems: draft.trustItems.map((t) => (t.id === item.id ? { ...t, title: val } : t)),
+                        trustItems: draft.trustItems.map((t) =>
+                          t.id === item.id ? { ...t, title: val } : t,
+                        ),
                       });
                     }}
                     className="w-full bg-[#121217] border border-[#2e2e3a] rounded-xl px-3 py-1.5 text-xs text-white font-bold"
@@ -597,7 +504,9 @@ export const MarketplaceSectionsAdmin: React.FC<MarketplaceSectionsAdminProps> =
                       const val = e.target.value;
                       setDraft({
                         ...draft,
-                        trustItems: draft.trustItems.map((t) => (t.id === item.id ? { ...t, subtitle: val } : t)),
+                        trustItems: draft.trustItems.map((t) =>
+                          t.id === item.id ? { ...t, subtitle: val } : t,
+                        ),
                       });
                     }}
                     className="w-full bg-[#121217] border border-[#2e2e3a] rounded-xl px-3 py-1.5 text-xs text-stone-300"
@@ -650,10 +559,7 @@ export const MarketplaceSectionsAdmin: React.FC<MarketplaceSectionsAdminProps> =
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {draft.categories.map((cat) => (
-              <div
-                key={cat.id}
-                className="bg-[#181820] border border-[#282834] rounded-2xl p-4 space-y-3"
-              >
+              <div key={cat.id} className="bg-[#181820] border border-[#282834] rounded-2xl p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] uppercase font-bold text-[#C9A45C]">Tag Prestation</span>
                   <div className="flex items-center gap-1">
@@ -662,7 +568,7 @@ export const MarketplaceSectionsAdmin: React.FC<MarketplaceSectionsAdminProps> =
                         setDraft({
                           ...draft,
                           categories: draft.categories.map((c) =>
-                            c.id === cat.id ? { ...c, isPopular: !c.isPopular } : c
+                            c.id === cat.id ? { ...c, isPopular: !c.isPopular } : c,
                           ),
                         });
                       }}
@@ -708,7 +614,7 @@ export const MarketplaceSectionsAdmin: React.FC<MarketplaceSectionsAdminProps> =
                     setDraft({
                       ...draft,
                       categories: draft.categories.map((c) =>
-                        c.id === cat.id ? { ...c, description: val } : c
+                        c.id === cat.id ? { ...c, description: val } : c,
                       ),
                     });
                   }}
@@ -773,7 +679,9 @@ export const MarketplaceSectionsAdmin: React.FC<MarketplaceSectionsAdminProps> =
                     onClick={() => {
                       setDraft({
                         ...draft,
-                        steps: draft.steps.map((s) => (s.id === st.id ? { ...s, isVisible: !s.isVisible } : s)),
+                        steps: draft.steps.map((s) =>
+                          s.id === st.id ? { ...s, isVisible: !s.isVisible } : s,
+                        ),
                       });
                     }}
                     className={`px-2 py-0.5 rounded text-[10px] font-bold ${
@@ -817,136 +725,6 @@ export const MarketplaceSectionsAdmin: React.FC<MarketplaceSectionsAdminProps> =
                 </div>
               </div>
             ))}
-          </div>
-        </div>
-      )}
-
-      {/* 6. BANNIÈRE PROMO / ÉVÉNEMENT */}
-      {activeSubTab === 'promo' && (
-        <div className="bg-[#121216] border border-[#22222a] rounded-3xl p-6 space-y-6">
-          <div className="border-b border-[#1f1f28] pb-4 flex items-center justify-between">
-            <div>
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Flame className="w-4 h-4 text-[#C9A45C]" />
-                Bannière Promotionnelle & Événements Spéciaux
-              </h3>
-              <p className="text-xs text-stone-400 mt-1">
-                Affichez un encart saisonnier mis en valeur (ex. Fêtes de fin d'année, Tabaski, Grands Concours).
-              </p>
-            </div>
-
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={draft.promoBanner.enabled}
-                onChange={(e) =>
-                  setDraft({
-                    ...draft,
-                    promoBanner: { ...draft.promoBanner, enabled: e.target.checked },
-                  })
-                }
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-[#25252e] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#C9A45C]"></div>
-            </label>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <div>
-              <label className="block text-xs font-semibold text-stone-300 mb-1">Badge d'événement</label>
-              <input
-                type="text"
-                value={draft.promoBanner.badge}
-                onChange={(e) =>
-                  setDraft({
-                    ...draft,
-                    promoBanner: { ...draft.promoBanner, badge: e.target.value },
-                  })
-                }
-                className="w-full bg-[#181820] border border-[#2b2b36] rounded-xl px-3.5 py-2.5 text-xs text-white"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-stone-300 mb-1">Thème visuel</label>
-              <select
-                value={draft.promoBanner.theme}
-                onChange={(e) =>
-                  setDraft({
-                    ...draft,
-                    promoBanner: {
-                      ...draft.promoBanner,
-                      theme: e.target.value as 'gold' | 'dark' | 'emerald',
-                    },
-                  })
-                }
-                className="w-full bg-[#181820] border border-[#2b2b36] rounded-xl px-3.5 py-2.5 text-xs text-white"
-              >
-                <option value="gold">Or Impérial (Gold Luxury)</option>
-                <option value="dark">Obsidienne & Nuit Noire</option>
-                <option value="emerald">Émeraude & Succès</option>
-              </select>
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block text-xs font-semibold text-stone-300 mb-1">Titre de l'annonce</label>
-              <input
-                type="text"
-                value={draft.promoBanner.title}
-                onChange={(e) =>
-                  setDraft({
-                    ...draft,
-                    promoBanner: { ...draft.promoBanner, title: e.target.value },
-                  })
-                }
-                className="w-full bg-[#181820] border border-[#2b2b36] rounded-xl px-3.5 py-2.5 text-xs text-white font-bold"
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block text-xs font-semibold text-stone-300 mb-1">Détails de l'offre</label>
-              <textarea
-                rows={2}
-                value={draft.promoBanner.description}
-                onChange={(e) =>
-                  setDraft({
-                    ...draft,
-                    promoBanner: { ...draft.promoBanner, description: e.target.value },
-                  })
-                }
-                className="w-full bg-[#181820] border border-[#2b2b36] rounded-xl px-3.5 py-2.5 text-xs text-stone-300"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-stone-300 mb-1">Libellé du bouton</label>
-              <input
-                type="text"
-                value={draft.promoBanner.buttonText}
-                onChange={(e) =>
-                  setDraft({
-                    ...draft,
-                    promoBanner: { ...draft.promoBanner, buttonText: e.target.value },
-                  })
-                }
-                className="w-full bg-[#181820] border border-[#2b2b36] rounded-xl px-3.5 py-2.5 text-xs text-white"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-stone-300 mb-1">Lien de redirection</label>
-              <input
-                type="text"
-                value={draft.promoBanner.buttonLink}
-                onChange={(e) =>
-                  setDraft({
-                    ...draft,
-                    promoBanner: { ...draft.promoBanner, buttonLink: e.target.value },
-                  })
-                }
-                className="w-full bg-[#181820] border border-[#2b2b36] rounded-xl px-3.5 py-2.5 text-xs text-white"
-              />
-            </div>
           </div>
         </div>
       )}
@@ -1056,10 +834,7 @@ export const MarketplaceSectionsAdmin: React.FC<MarketplaceSectionsAdminProps> =
           ) : (
             <div className="space-y-6">
               {draft.customSections.map((sec) => (
-                <div
-                  key={sec.id}
-                  className="bg-[#181820] border border-[#282834] rounded-2xl p-5 space-y-4"
-                >
+                <div key={sec.id} className="bg-[#181820] border border-[#282834] rounded-2xl p-5 space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-[#242430]">
                     <div className="flex items-center gap-3">
                       <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-[#C9A45C]/20 text-[#E5C378] border border-[#C9A45C]/30">
@@ -1075,7 +850,7 @@ export const MarketplaceSectionsAdmin: React.FC<MarketplaceSectionsAdminProps> =
                           setDraft({
                             ...draft,
                             customSections: draft.customSections.map((s) =>
-                              s.id === sec.id ? { ...s, isVisible: !s.isVisible } : s
+                              s.id === sec.id ? { ...s, isVisible: !s.isVisible } : s,
                             ),
                           });
                         }}
@@ -1106,7 +881,7 @@ export const MarketplaceSectionsAdmin: React.FC<MarketplaceSectionsAdminProps> =
                         setDraft({
                           ...draft,
                           customSections: draft.customSections.map((s) =>
-                            s.id === sec.id ? { ...s, title: val } : s
+                            s.id === sec.id ? { ...s, title: val } : s,
                           ),
                         });
                       }}
@@ -1122,7 +897,7 @@ export const MarketplaceSectionsAdmin: React.FC<MarketplaceSectionsAdminProps> =
                         setDraft({
                           ...draft,
                           customSections: draft.customSections.map((s) =>
-                            s.id === sec.id ? { ...s, description: val } : s
+                            s.id === sec.id ? { ...s, description: val } : s,
                           ),
                         });
                       }}
@@ -1165,10 +940,10 @@ export const MarketplaceSectionsAdmin: React.FC<MarketplaceSectionsAdminProps> =
                                       ? {
                                           ...s,
                                           items: s.items.map((i) =>
-                                            i.id === it.id ? { ...i, tag: val } : i
+                                            i.id === it.id ? { ...i, tag: val } : i,
                                           ),
                                         }
-                                      : s
+                                      : s,
                                   ),
                                 });
                               }}
@@ -1195,10 +970,10 @@ export const MarketplaceSectionsAdmin: React.FC<MarketplaceSectionsAdminProps> =
                                     ? {
                                         ...s,
                                         items: s.items.map((i) =>
-                                          i.id === it.id ? { ...i, title: val } : i
+                                          i.id === it.id ? { ...i, title: val } : i,
                                         ),
                                       }
-                                    : s
+                                    : s,
                                 ),
                               });
                             }}
@@ -1218,10 +993,10 @@ export const MarketplaceSectionsAdmin: React.FC<MarketplaceSectionsAdminProps> =
                                     ? {
                                         ...s,
                                         items: s.items.map((i) =>
-                                          i.id === it.id ? { ...i, description: val } : i
+                                          i.id === it.id ? { ...i, description: val } : i,
                                         ),
                                       }
-                                    : s
+                                    : s,
                                 ),
                               });
                             }}
@@ -1235,100 +1010,6 @@ export const MarketplaceSectionsAdmin: React.FC<MarketplaceSectionsAdminProps> =
               ))}
             </div>
           )}
-        </div>
-      )}
-
-      {/* 8. BANNIÈRE BUSINESS PRO (ERP CTA) */}
-      {activeSubTab === 'pro_cta' && (
-        <div className="bg-[#121216] border border-[#22222a] rounded-3xl p-6 space-y-6">
-          <div className="border-b border-[#1f1f28] pb-4 flex items-center justify-between">
-            <div>
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Scissors className="w-4 h-4 text-[#C9A45C]" />
-                Bannière d'Appel Professionnels (Barber Cuts Business ERP)
-              </h3>
-              <p className="text-xs text-stone-400 mt-1">
-                Encart invitant les propriétaires de salons à s'inscrire et s'abonner à l'ERP.
-              </p>
-            </div>
-
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={draft.proCta.isVisible}
-                onChange={(e) =>
-                  setDraft({
-                    ...draft,
-                    proCta: { ...draft.proCta, isVisible: e.target.checked },
-                  })
-                }
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-[#25252e] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#C9A45C]"></div>
-            </label>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <div>
-              <label className="block text-xs font-semibold text-stone-300 mb-1">Badge de bannière</label>
-              <input
-                type="text"
-                value={draft.proCta.badge}
-                onChange={(e) =>
-                  setDraft({ ...draft, proCta: { ...draft.proCta, badge: e.target.value } })
-                }
-                className="w-full bg-[#181820] border border-[#2b2b36] rounded-xl px-3.5 py-2.5 text-xs text-white"
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block text-xs font-semibold text-stone-300 mb-1">Titre d'accroche ERP</label>
-              <input
-                type="text"
-                value={draft.proCta.title}
-                onChange={(e) =>
-                  setDraft({ ...draft, proCta: { ...draft.proCta, title: e.target.value } })
-                }
-                className="w-full bg-[#181820] border border-[#2b2b36] rounded-xl px-3.5 py-2.5 text-xs text-white font-bold"
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block text-xs font-semibold text-stone-300 mb-1">Description des atouts</label>
-              <textarea
-                rows={2}
-                value={draft.proCta.description}
-                onChange={(e) =>
-                  setDraft({ ...draft, proCta: { ...draft.proCta, description: e.target.value } })
-                }
-                className="w-full bg-[#181820] border border-[#2b2b36] rounded-xl px-3.5 py-2.5 text-xs text-stone-300"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-stone-300 mb-1">Bouton Principal</label>
-              <input
-                type="text"
-                value={draft.proCta.primaryButtonText}
-                onChange={(e) =>
-                  setDraft({ ...draft, proCta: { ...draft.proCta, primaryButtonText: e.target.value } })
-                }
-                className="w-full bg-[#181820] border border-[#2b2b36] rounded-xl px-3.5 py-2.5 text-xs text-white"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-stone-300 mb-1">Bouton Secondaire</label>
-              <input
-                type="text"
-                value={draft.proCta.secondaryButtonText}
-                onChange={(e) =>
-                  setDraft({ ...draft, proCta: { ...draft.proCta, secondaryButtonText: e.target.value } })
-                }
-                className="w-full bg-[#181820] border border-[#2b2b36] rounded-xl px-3.5 py-2.5 text-xs text-white"
-              />
-            </div>
-          </div>
         </div>
       )}
 
@@ -1347,10 +1028,7 @@ export const MarketplaceSectionsAdmin: React.FC<MarketplaceSectionsAdminProps> =
 
           <div className="space-y-4">
             {draft.faqs.map((faq) => (
-              <div
-                key={faq.id}
-                className="bg-[#181820] border border-[#282834] rounded-2xl p-4 space-y-3"
-              >
+              <div key={faq.id} className="bg-[#181820] border border-[#282834] rounded-2xl p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] uppercase font-bold text-[#C9A45C]">Question Client</span>
                   <div className="flex items-center gap-2">
@@ -1358,7 +1036,9 @@ export const MarketplaceSectionsAdmin: React.FC<MarketplaceSectionsAdminProps> =
                       onClick={() => {
                         setDraft({
                           ...draft,
-                          faqs: draft.faqs.map((f) => (f.id === faq.id ? { ...f, isVisible: !f.isVisible } : f)),
+                          faqs: draft.faqs.map((f) =>
+                            f.id === faq.id ? { ...f, isVisible: !f.isVisible } : f,
+                          ),
                         });
                       }}
                       className={`px-2 py-0.5 rounded text-[10px] font-bold ${

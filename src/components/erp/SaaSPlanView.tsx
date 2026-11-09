@@ -17,11 +17,7 @@ import {
 import { useOptionalApp } from '../../context/AppContext';
 import { useOptionalAuth } from '../../context/AuthContext';
 import type { SaaSPlan, SaaSSubscription } from '../../types';
-import {
-  getAllSaasPlans,
-  getSalonSubscription,
-  subscribeSalonToPlan,
-} from '../../lib/saas';
+import { getAllSaasPlans, getSalonSubscription, subscribeSalonToPlan } from '../../lib/saas';
 
 export const SaaSPlanView: React.FC = () => {
   const { activeSalon, formatPrice, addToast } = useOptionalApp();
@@ -33,17 +29,13 @@ export const SaaSPlanView: React.FC = () => {
   const [switchingTo, setSwitchingTo] = useState<string | null>(null);
 
   const isOwner =
-    memberships.length === 0 ||
-    memberships.some((m) => m.salonId === activeSalon?.id && m.role === 'owner');
+    memberships.length === 0 || memberships.some((m) => m.salonId === activeSalon?.id && m.role === 'owner');
 
   const loadSubscriptionData = async () => {
     if (!activeSalon) return;
     setLoading(true);
     try {
-      const [allPlans, sub] = await Promise.all([
-        getAllSaasPlans(),
-        getSalonSubscription(activeSalon.id),
-      ]);
+      const [allPlans, sub] = await Promise.all([getAllSaasPlans(), getSalonSubscription(activeSalon.id)]);
       setPlans(allPlans.filter((p) => p.isActive));
       setSubscription(sub);
     } catch {
@@ -93,9 +85,7 @@ export const SaaSPlanView: React.FC = () => {
   };
 
   if (!activeSalon) {
-    return (
-      <div className="p-8 text-center text-stone-500">Chargement de votre établissement…</div>
-    );
+    return <div className="p-8 text-center text-stone-500">Chargement de votre établissement…</div>;
   }
 
   const currentPlan =
@@ -116,7 +106,8 @@ export const SaaSPlanView: React.FC = () => {
             Gestion de votre Formule BarberCuts
           </h1>
           <p className="mt-1 text-xs sm:text-sm text-stone-400">
-            Retrouvez les détails de votre abonnement et faites évoluer vos quotas d'équipe en fonction de votre croissance.
+            Retrouvez les détails de votre abonnement et faites évoluer vos quotas d'équipe en fonction de
+            votre croissance.
           </p>
         </div>
 
@@ -153,14 +144,16 @@ export const SaaSPlanView: React.FC = () => {
                 {currentPlan ? currentPlan.name : 'Formule Active'}
               </h2>
               <span className="text-lg sm:text-xl font-bold text-[#E5C378]">
-                {subscription ? formatPrice(subscription.priceAtSubscription) : currentPlan ? formatPrice(currentPlan.priceXof) : '—'}
+                {subscription
+                  ? formatPrice(subscription.priceAtSubscription)
+                  : currentPlan
+                    ? formatPrice(currentPlan.priceXof)
+                    : '—'}
                 <span className="text-xs text-stone-400 font-normal"> / mois</span>
               </span>
             </div>
 
-            <p className="text-xs sm:text-sm text-stone-300 max-w-xl">
-              {currentPlan?.description}
-            </p>
+            <p className="text-xs sm:text-sm text-stone-300 max-w-xl">{currentPlan?.description}</p>
 
             <div className="flex flex-wrap items-center gap-4 text-xs text-stone-400 pt-1">
               <div className="flex items-center gap-1.5">
@@ -203,7 +196,11 @@ export const SaaSPlanView: React.FC = () => {
             <p className="text-[11px] text-stone-400 leading-relaxed">
               Votre tarif souscrit de{' '}
               <strong className="text-[#E5C378]">
-                {subscription ? formatPrice(subscription.priceAtSubscription) : currentPlan ? formatPrice(currentPlan.priceXof) : ''}
+                {subscription
+                  ? formatPrice(subscription.priceAtSubscription)
+                  : currentPlan
+                    ? formatPrice(currentPlan.priceXof)
+                    : ''}
               </strong>{' '}
               est garanti pendant toute la durée active de votre formule.
             </p>
@@ -255,9 +252,7 @@ export const SaaSPlanView: React.FC = () => {
                   {/* Price */}
                   <div className="border-y border-[#202025] py-4">
                     <div className="flex items-baseline gap-1">
-                      <span className="text-3xl font-black text-[#E5C378]">
-                        {formatPrice(plan.priceXof)}
-                      </span>
+                      <span className="text-3xl font-black text-[#E5C378]">{formatPrice(plan.priceXof)}</span>
                       <span className="text-xs text-stone-400">/ mois</span>
                     </div>
                   </div>

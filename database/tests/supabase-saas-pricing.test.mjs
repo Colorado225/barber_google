@@ -46,6 +46,9 @@ test('SaaS Pricing & Subscriptions : migration, modification des prix/avantages,
     await db.exec(await readFile(new URL(file, dir), 'utf8'));
   }
 
+  // Compte super administrateur de la plateforme (rôle requis pour gérer les forfaits et les métriques).
+  await db.query("insert into public.platform_admins (user_id, role) values ($1, 'super_admin')", [ownerA]);
+
   // 3. Création de deux salons
   await asUser(ownerA);
   const resA = await db.query(
@@ -59,6 +62,14 @@ test('SaaS Pricing & Subscriptions : migration, modification des prix/avantages,
   );
   salonB = resB.rows[0].salon_id;
 
+  // Un propriétaire de salon ordinaire ne peut ni modifier le catalogue ni lire les métriques plateforme.
+  await asUser(ownerB);
+  await assert.rejects(
+    db.query("select public.save_saas_plan('pro', 'Pro détourné', 'pro', 1, 'monthly', '', '[]'::jsonb)"),
+    /super administrateur/,
+  );
+  await assert.rejects(db.query('select public.get_platform_metrics()'), /super administrateur/);
+
   // 4. Test RPC publique get_saas_plans (accessible par un visiteur non connecté / marketplace)
   await asAnon();
   const publicPlans = (await db.query('select * from public.get_saas_plans()')).rows;
@@ -70,18 +81,15 @@ test('SaaS Pricing & Subscriptions : migration, modification des prix/avantages,
 
   // 5. Salon A souscrit au plan Starter à 15 000 FCFA
   await asUser(ownerA);
-  const subA = (
-    await db.query('select public.subscribe_salon_to_plan($1, $2) as res', [salonA, 'starter'])
-  ).rows[0].res;
+  const subA = (await db.query('select public.subscribe_salon_to_plan($1, $2) as res', [salonA, 'starter']))
+    .rows[0].res;
 
   assert.equal(subA.plan_id, 'starter');
   assert.equal(Number(subA.price_at_subscription), 15000);
   assert.equal(subA.status, 'active');
 
   // Vérification de la lecture de l'abonnement du salon A
-  const salonASub = (
-    await db.query('select public.get_salon_subscription($1) as res', [salonA])
-  ).rows[0].res;
+  const salonASub = (await db.query('select public.get_salon_subscription($1) as res', [salonA])).rows[0].res;
   assert.equal(salonASub.plan_id, 'starter');
   assert.equal(Number(salonASub.price_at_subscription), 15000);
 
@@ -94,7 +102,7 @@ test('SaaS Pricing & Subscriptions : migration, modification des prix/avantages,
     'Fichier clients CRM & historique',
     'Fiche de présence sur la Marketplace',
     'Lien & QR code de réservation',
-    'NOUVEAU : Support WhatsApp réactif 6j/7'
+    'NOUVEAU : Support WhatsApp réactif 6j/7',
   ]);
 
   const updatedPlan = (
@@ -115,7 +123,7 @@ test('SaaS Pricing & Subscriptions : migration, modification des prix/avantages,
         false,
         true,
         'Nouveau Tarif',
-        1
+        1,
       ],
     )
   ).rows[0].res;
@@ -133,23 +141,22 @@ test('SaaS Pricing & Subscriptions : migration, modification des prix/avantages,
 
   // 8. L'abonné historique (Salon A) CONSERVE son tarif souscrit (15 000 FCFA)
   await asUser(ownerA);
-  const salonASubAfter = (
-    await db.query('select public.get_salon_subscription($1) as res', [salonA])
-  ).rows[0].res;
+  const salonASubAfter = (await db.query('select public.get_salon_subscription($1) as res', [salonA])).rows[0]
+    .res;
   assert.equal(Number(salonASubAfter.price_at_subscription), 15000);
   // Mais son objet plan indique bien le tarif public actuel du catalogue
   assert.equal(Number(salonASubAfter.plan.current_price_xof), 18500);
 
   // 9. Le souscripteur ultérieur (Salon B) souscrit au plan Starter et obtient le NOUVEAU prix (18 500 FCFA)
   await asUser(ownerB);
-  const subB = (
-    await db.query('select public.subscribe_salon_to_plan($1, $2) as res', [salonB, 'starter'])
-  ).rows[0].res;
+  const subB = (await db.query('select public.subscribe_salon_to_plan($1, $2) as res', [salonB, 'starter']))
+    .rows[0].res;
   assert.equal(subB.plan_id, 'starter');
   assert.equal(Number(subB.price_at_subscription), 18500);
   assert.equal(subB.features_snapshot.length, 7);
 
-  // 10. Métriques Super Admin
+  // 10. Métriques Super Admin (lues par le compte super administrateur)
+  await asUser(ownerA);
   const metrics = (await db.query('select public.get_platform_metrics() as res')).rows[0].res;
   assert.equal(Number(metrics.total_salons), 2);
   assert.equal(Number(metrics.active_subscriptions), 2);

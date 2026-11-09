@@ -3,6 +3,11 @@ import { useParams, Link } from 'react-router-dom';
 import { PublicSalonDetail, SalonMarketplaceViewConfig, Service } from '../../../types';
 import { getMarketplaceSalonDetail } from '../../../lib/marketplace';
 import { getDefaultCustomizerConfig } from '../../../lib/marketplace-customizer';
+import {
+  applySalonAdminOverrides,
+  getSalonAdminOverrides,
+  isSalonHiddenByAdmin,
+} from '../../../lib/superadmin';
 import { ClassicSalonLayout } from './layouts/ClassicSalonLayout';
 import { ElegantSalonLayout } from './layouts/ElegantSalonLayout';
 import { EditorialSalonLayout } from './layouts/EditorialSalonLayout';
@@ -37,7 +42,16 @@ export const SalonPublicPage: React.FC<SalonPublicPageProps> = ({ initialDetail,
 
     getMarketplaceSalonDetail(slug)
       .then((data) => {
-        if (!cancelled) setDetail(data);
+        if (cancelled) return;
+        // Décisions SuperAdmin : un salon suspendu ou retiré n'a plus de vitrine publique ;
+        // la certification décidée par l'admin est appliquée au badge affiché.
+        const overrides = getSalonAdminOverrides();
+        if (isSalonHiddenByAdmin(data.salon.id, overrides)) {
+          setError("Cet établissement n'est plus disponible sur la marketplace.");
+          return;
+        }
+        const [salonWithDecisions] = applySalonAdminOverrides([data.salon], overrides);
+        setDetail({ ...data, salon: salonWithDecisions });
       })
       .catch((err) => {
         if (!cancelled) {
