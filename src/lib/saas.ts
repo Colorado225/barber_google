@@ -31,7 +31,8 @@ const DEFAULT_PLANS: SaaSPlan[] = [
     slug: 'pro',
     priceXof: 35000,
     billingPeriod: 'monthly',
-    description: 'Le choix de référence pour les salons en pleine croissance cherchant à maximiser leur rentabilité.',
+    description:
+      'Le choix de référence pour les salons en pleine croissance cherchant à maximiser leur rentabilité.',
     features: [
       "Jusqu'à 5 barbiers",
       "Calcul automatique des commissions d'équipe",
@@ -123,137 +124,184 @@ function setLocalSubscription(salonId: string, sub: SaaSSubscription) {
   }
 }
 
+/** Champs éditables d'un forfait (sans les compteurs calculés par le serveur). */
+export type SaaSPlanInput = Omit<SaaSPlan, 'subscribersCount' | 'createdAt' | 'updatedAt'>;
+
+/** Brouillon en attente : version non publiée d'un forfait, visible uniquement du super administrateur. */
+export interface SaaSPlanDraft {
+  planId: string;
+  plan: SaaSPlanInput;
+  updatedAt: string;
+}
+
+export type SaaSPlanSaveStatus = 'published' | 'draft' | 'local';
+
+function planFromRow(row: Record<string, unknown>): SaaSPlan {
+  return {
+    id: String(row.id),
+    name: String(row.name),
+    slug: String(row.slug),
+    priceXof: Number(row.price_xof),
+    billingPeriod: (row.billing_period as 'monthly' | 'yearly') || 'monthly',
+    description: String(row.description || ''),
+    features: Array.isArray(row.features) ? (row.features as string[]) : [],
+    maxStaff: row.max_staff ? Number(row.max_staff) : null,
+    maxBranches: Number(row.max_branches || 1),
+    isPopular: Boolean(row.is_popular),
+    isActive: Boolean(row.is_active),
+    badgeText: row.badge_text ? String(row.badge_text) : null,
+    displayOrder: Number(row.display_order || 0),
+  };
+}
+
+function planToPayload(plan: SaaSPlanInput): Record<string, unknown> {
+  return {
+    name: plan.name,
+    slug: plan.slug,
+    price_xof: plan.priceXof,
+    billing_period: plan.billingPeriod,
+    description: plan.description,
+    features: plan.features,
+    max_staff: plan.maxStaff,
+    max_branches: plan.maxBranches,
+    is_popular: plan.isPopular,
+    is_active: plan.isActive,
+    badge_text: plan.badgeText ?? null,
+    display_order: plan.displayOrder,
+  };
+}
+
+function planFromPayload(planId: string, payload: Record<string, unknown>): SaaSPlanInput {
+  return {
+    id: planId,
+    name: String(payload.name ?? ''),
+    slug: String(payload.slug ?? ''),
+    priceXof: Number(payload.price_xof ?? 0),
+    billingPeriod: (payload.billing_period as 'monthly' | 'yearly') || 'monthly',
+    description: String(payload.description ?? ''),
+    features: Array.isArray(payload.features) ? (payload.features as string[]) : [],
+    maxStaff:
+      payload.max_staff === null || payload.max_staff === undefined ? null : Number(payload.max_staff),
+    maxBranches: Number(payload.max_branches ?? 1),
+    isPopular: Boolean(payload.is_popular),
+    isActive: payload.is_active === undefined ? true : Boolean(payload.is_active),
+    badgeText: payload.badge_text ? String(payload.badge_text) : null,
+    displayOrder: Number(payload.display_order ?? 0),
+  };
+}
+
+function notifyPlansUpdated() {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent('saas_plans_updated'));
+}
+
 /**
- * Récupère les forfaits actifs pour l'affichage public (Marketplace, page Tarifs, onboarding)
+ * Forfaits affichés publiquement (page Tarifs).
+ * Avec Supabase configuré, la lecture ne retombe jamais sur le stockage du navigateur : une erreur est remontée.
  */
 export async function getSaasPlans(): Promise<SaaSPlan[]> {
   if (isSupabaseConfigured()) {
-    try {
-      const client = getSupabaseClient();
-      const { data, error } = await client.rpc('get_saas_plans');
-      if (!error && Array.isArray(data) && data.length > 0) {
-        return data.map((row: Record<string, unknown>) => ({
-          id: String(row.id),
-          name: String(row.name),
-          slug: String(row.slug),
-          priceXof: Number(row.price_xof),
-          billingPeriod: (row.billing_period as 'monthly' | 'yearly') || 'monthly',
-          description: String(row.description || ''),
-          features: Array.isArray(row.features) ? (row.features as string[]) : [],
-          maxStaff: row.max_staff ? Number(row.max_staff) : null,
-          maxBranches: Number(row.max_branches || 1),
-          isPopular: Boolean(row.is_popular),
-          isActive: Boolean(row.is_active),
-          badgeText: row.badge_text ? String(row.badge_text) : null,
-          displayOrder: Number(row.display_order || 0),
-        }));
-      }
-    } catch {
-      // repli local
-    }
+    const { data, error } = await getSupabaseClient().rpc('get_saas_plans');
+    if (error) throw new Error(error.message);
+    return (Array.isArray(data) ? data : []).map((row: Record<string, unknown>) => planFromRow(row));
   }
 
   return getLocalPlans().filter((p) => p.isActive);
 }
 
 /**
- * Récupère tous les forfaits (y compris inactifs et compteurs d'abonnés) pour la console Super Admin
+ * Tous les forfaits (y compris inactifs et compteurs d'abonnés) pour la console Super Admin.
  */
 export async function getAllSaasPlans(): Promise<SaaSPlan[]> {
   if (isSupabaseConfigured()) {
-    try {
-      const client = getSupabaseClient();
-      const { data, error } = await client.rpc('get_all_saas_plans');
-      if (!error && Array.isArray(data) && data.length > 0) {
-        return data.map((row: Record<string, unknown>) => ({
-          id: String(row.id),
-          name: String(row.name),
-          slug: String(row.slug),
-          priceXof: Number(row.price_xof),
-          billingPeriod: (row.billing_period as 'monthly' | 'yearly') || 'monthly',
-          description: String(row.description || ''),
-          features: Array.isArray(row.features) ? (row.features as string[]) : [],
-          maxStaff: row.max_staff ? Number(row.max_staff) : null,
-          maxBranches: Number(row.max_branches || 1),
-          isPopular: Boolean(row.is_popular),
-          isActive: Boolean(row.is_active),
-          badgeText: row.badge_text ? String(row.badge_text) : null,
-          displayOrder: Number(row.display_order || 0),
-          subscribersCount: row.subscribers_count ? Number(row.subscribers_count) : 0,
-        }));
-      }
-    } catch {
-      // repli local
-    }
+    const { data, error } = await getSupabaseClient().rpc('get_all_saas_plans');
+    if (error) throw new Error(error.message);
+    return (Array.isArray(data) ? data : []).map((row: Record<string, unknown>) => ({
+      ...planFromRow(row),
+      subscribersCount: row.subscribers_count ? Number(row.subscribers_count) : 0,
+    }));
   }
 
   return getLocalPlans();
 }
 
 /**
- * Sauvegarde ou modifie un forfait depuis la console Super Admin.
- * Le nouveau prix et les nouveaux avantages s'appliqueront à la Marketplace et aux futurs souscripteurs.
+ * Enregistre un forfait et le publie immédiatement sur la page Tarifs.
+ * Conservé pour les appelants existants ; l'éditeur utilise saveSaasPlanWorkflow.
  */
 export async function saveSaasPlan(plan: SaaSPlan): Promise<SaaSPlan> {
-  if (isSupabaseConfigured()) {
-    try {
-      const client = getSupabaseClient();
-      const { data, error } = await client.rpc('save_saas_plan', {
-        p_id: plan.id,
-        p_name: plan.name,
-        p_slug: plan.slug,
-        p_price_xof: plan.priceXof,
-        p_billing_period: plan.billingPeriod,
-        p_description: plan.description,
-        p_features: plan.features,
-        p_max_staff: plan.maxStaff,
-        p_max_branches: plan.maxBranches,
-        p_is_popular: plan.isPopular,
-        p_is_active: plan.isActive,
-        p_badge_text: plan.badgeText ?? null,
-        p_display_order: plan.displayOrder,
-      });
+  await saveSaasPlanWorkflow(plan, true);
+  return plan;
+}
 
-      if (!error && data) {
-        // mettre aussi à jour le cache local
-        const local = getLocalPlans();
-        const index = local.findIndex((p) => p.id === plan.id);
-        if (index >= 0) {
-          local[index] = plan;
-        } else {
-          local.push(plan);
-        }
-        setLocalPlans(local);
-        return plan;
-      }
-    } catch {
-      // repli local
-    }
+/**
+ * Enregistre une modification de forfait.
+ * - publish = true : visible immédiatement sur la page Tarifs (et pour les nouveaux souscripteurs).
+ * - publish = false : enregistrée en brouillon, la version publiée ne change pas.
+ * Les abonnements existants conservent leur tarif d'origine dans les deux cas.
+ * Sans Supabase configuré (développement local), la modification est seulement enregistrée dans ce navigateur.
+ */
+export async function saveSaasPlanWorkflow(
+  plan: SaaSPlanInput,
+  publish: boolean,
+): Promise<SaaSPlanSaveStatus> {
+  if (isSupabaseConfigured()) {
+    const { error } = await getSupabaseClient().rpc('save_saas_plan_workflow', {
+      p_id: plan.id,
+      p_payload: planToPayload(plan),
+      p_publish: publish,
+    });
+    if (error) throw new Error(error.message);
+    notifyPlansUpdated();
+    return publish ? 'published' : 'draft';
   }
 
   const local = getLocalPlans();
   const index = local.findIndex((p) => p.id === plan.id);
+  const now = new Date().toISOString();
   if (index >= 0) {
-    local[index] = { ...plan, updatedAt: new Date().toISOString() };
+    local[index] = { ...plan, updatedAt: now };
   } else {
-    local.push({
-      ...plan,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
+    local.push({ ...plan, createdAt: now, updatedAt: now });
   }
   setLocalPlans(local);
-  return plan;
+  return 'local';
+}
+
+/** Brouillons en attente (super administrateur uniquement). */
+export async function getSaasPlanDrafts(): Promise<SaaSPlanDraft[]> {
+  if (!isSupabaseConfigured()) return [];
+  const { data, error } = await getSupabaseClient().rpc('get_saas_plan_drafts');
+  if (error) throw new Error(error.message);
+  return (Array.isArray(data) ? data : []).map((row: Record<string, unknown>) => {
+    const planId = String(row.plan_id);
+    return {
+      planId,
+      plan: planFromPayload(planId, (row.payload ?? {}) as Record<string, unknown>),
+      updatedAt: String(row.updated_at),
+    };
+  });
+}
+
+/** Publie le brouillon d'un forfait sur la page Tarifs. */
+export async function publishSaasPlanDraft(planId: string): Promise<void> {
+  const { error } = await getSupabaseClient().rpc('publish_saas_plan_draft', { p_id: planId });
+  if (error) throw new Error(error.message);
+  notifyPlansUpdated();
+}
+
+/** Abandonne le brouillon d'un forfait ; la version publiée reste inchangée. */
+export async function discardSaasPlanDraft(planId: string): Promise<void> {
+  const { error } = await getSupabaseClient().rpc('discard_saas_plan_draft', { p_id: planId });
+  if (error) throw new Error(error.message);
+  notifyPlansUpdated();
 }
 
 /**
  * Souscrit un salon à un forfait ou met à niveau son offre.
  * Enregistre un instantané exact du tarif au moment de la souscription.
  */
-export async function subscribeSalonToPlan(
-  salonId: string,
-  planId: string,
-): Promise<SaaSSubscription> {
+export async function subscribeSalonToPlan(salonId: string, planId: string): Promise<SaaSSubscription> {
   const allPlans = await getAllSaasPlans();
   const targetPlan = allPlans.find((p) => p.id === planId);
   if (!targetPlan) {
@@ -333,9 +381,7 @@ export async function subscribeSalonToPlan(
 /**
  * Récupère l'abonnement actif d'un salon avec son tarif d'origine et son plan actuel.
  */
-export async function getSalonSubscription(
-  salonId: string,
-): Promise<SaaSSubscription | null> {
+export async function getSalonSubscription(salonId: string): Promise<SaaSSubscription | null> {
   if (isSupabaseConfigured()) {
     try {
       const client = getSupabaseClient();
@@ -410,9 +456,12 @@ export async function getSalonSubscription(
 }
 
 /**
- * Récupère les métriques de la plateforme pour la console Super Admin
+ * Récupère les métriques de la plateforme pour la console Super Admin.
+ *
+ * Renvoie `null` si la RPC échoue ou si Supabase n'est pas configuré : aucune valeur
+ * de repli n'est inventée. L'interface affiche alors « — ».
  */
-export async function getPlatformMetrics(): Promise<PlatformMetrics> {
+export async function getPlatformMetrics(): Promise<PlatformMetrics | null> {
   if (isSupabaseConfigured()) {
     try {
       const client = getSupabaseClient();
@@ -434,18 +483,5 @@ export async function getPlatformMetrics(): Promise<PlatformMetrics> {
     }
   }
 
-  // Calcul basé sur les données locales
-  const plans = getLocalPlans();
-  const subs = Object.values(getLocalSubscriptions());
-  const mrr = subs.reduce((acc, curr) => acc + (curr.priceAtSubscription || 0), 0);
-
-  return {
-    totalSalons: Math.max(subs.length, 3),
-    publishedSalons: 2,
-    activeSubscriptions: Math.max(subs.length, 3),
-    estimatedMrrXof: mrr > 0 ? mrr : 85000,
-    plansCount: plans.length,
-    totalAppointments: 142,
-    totalRevenueXof: 1120000,
-  };
+  return null;
 }

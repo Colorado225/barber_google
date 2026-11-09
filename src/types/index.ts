@@ -51,6 +51,8 @@ export interface Salon {
   publicationDate?: string;
   subscriptionPlanId?: string;
   ownerName?: string;
+  /** Fiche fictive du mode démonstration (VITE_MARKETPLACE_DEMO=true). Jamais un salon réel. */
+  isDemo?: boolean;
 }
 
 export type ServiceCategory = 'coupe' | 'barbe' | 'tresses' | 'soins' | 'coloration' | 'visage' | 'combo';
@@ -496,4 +498,3 @@ export interface PlatformMetrics {
   totalAppointments: number;
   totalRevenueXof: number;
 }
-

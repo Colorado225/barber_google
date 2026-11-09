@@ -1,10 +1,14 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Link, useInRouterContext } from 'react-router-dom';
 import { useOptionalApp } from '../../context/AppContext';
+import type { Salon } from '../../types';
+import type { MarketplaceDemoData } from '../../lib/marketplace-demo';
 import { listSavedBookings, bookingPortalPath, type SavedBooking } from '../../lib/bookingVault';
 import { SalonCard } from './SalonCard';
+import { FeaturedSectionCard } from './FeaturedSectionCard';
 import { useSalonDeepLink } from '../../hooks/useSalonDeepLink';
 import { useMarketplaceContent } from '../../lib/marketplace-content';
+import { applySalonAdminOverrides, useSalonAdminOverrides } from '../../lib/superadmin';
 import {
   Search,
   MapPin,
@@ -45,11 +49,60 @@ export const MarketplaceHome: React.FC = () => {
   } = useOptionalApp();
 
   // Dynamic marketplace sections & content managed by SuperAdmin
-  const { config } = useMarketplaceContent();
+  const { config: storedConfig } = useMarketplaceContent();
+  // Mode démonstration (opt-in, VITE_MARKETPLACE_DEMO=true) : données fictives « [DÉMO] ».
+  // Jamais transmises à l'administration (la source `salons` et la configuration stockée restent intactes).
+  const [demoData, setDemoData] = useState<MarketplaceDemoData | null>(null);
+  useEffect(() => {
+    // Accès optionnel : `import.meta.env` est absent hors Vite (tests Node).
+    if (import.meta.env?.VITE_MARKETPLACE_DEMO !== 'true') return;
+    let cancelled = false;
+    void import('../../lib/marketplace-demo').then((module) => {
+      if (!cancelled) setDemoData(module.DEMO_DATA);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  // Contenus de sections : la configuration stockée, remplacée par les contenus démo en mode démo.
+  const config = useMemo(
+    () => (demoData ? { ...storedConfig, ...demoData.content } : storedConfig),
+    [storedConfig, demoData],
+  );
+
+  const siteMetadata = config.siteMetadata;
+  const socialLinks = [
+    { label: 'Instagram', url: siteMetadata.instagramUrl },
+    { label: 'Facebook', url: siteMetadata.facebookUrl },
+    { label: 'TikTok', url: siteMetadata.tiktokUrl },
+    { label: 'WhatsApp', url: siteMetadata.whatsappUrl },
+  ].filter((link) => Boolean(link.url));
+  const hasContactOrSocial = Boolean(
+    siteMetadata.contactEmail || siteMetadata.contactPhone || socialLinks.length > 0,
+  );
+
+  const featuredSections = useMemo(
+    () =>
+      (config.featuredSections ?? [])
+        .filter((feature) => feature.isVisible)
+        .slice()
+        .sort((a, b) => a.order - b.order),
+    [config.featuredSections],
+  );
+
+  // Décisions SuperAdmin (suspension, publication, certification) appliquées en direct aux salons affichés.
+  const salonAdminOverrides = useSalonAdminOverrides();
+  const marketplaceSalons = useMemo(
+    () =>
+      applySalonAdminOverrides(salons, salonAdminOverrides).filter(
+        (salon) => salon.isPublishedOnMarketplace === true,
+      ),
+    [salons, salonAdminOverrides],
+  );
 
   // QR code links (/?salon=<slug>) open the salon's booking profile directly.
   useSalonDeepLink({
-    salons,
+    salons: marketplaceSalons,
     setSelectedSalonForModal,
     setMode,
     onNotFound: () => addToast('Ce lien QR ne correspond à aucun salon publié.', 'error'),
@@ -84,39 +137,23 @@ export const MarketplaceHome: React.FC = () => {
     return () => mediaQuery.removeEventListener('change', updatePreference);
   }, []);
 
+  const demoSalons = demoData?.salons ?? [];
+  const demoMode = marketplaceSalons.length === 0 && demoSalons.length > 0;
+  const listedSalons = demoMode ? demoSalons : marketplaceSalons;
+
   const communes = useMemo(
     () =>
       [
         ...new Set(
-          salons.map((salon) => salon.commune).filter((commune): commune is string => Boolean(commune)),
+          listedSalons.map((salon) => salon.commune).filter((commune): commune is string => Boolean(commune)),
         ),
       ].sort(),
-    [salons],
+    [listedSalons],
   );
 
-  // Filter salons, taking into account category filter and admin suspension overrides
+  // Filter visible salons (suspension / publication already applied) by search and commune
   const filteredSalons = useMemo(() => {
-    // Check if any salon is suspended in localStorage overrides
-    let adminOverrides: Record<string, { status?: string; isPublished?: boolean }> = {};
-    if (typeof window !== 'undefined') {
-      try {
-        const raw = localStorage.getItem('barbercuts_admin_salon_overrides');
-        if (raw) adminOverrides = JSON.parse(raw);
-      } catch {
-        // ignore
-      }
-    }
-
-    return salons.filter((salon) => {
-      // If overridden as suspended or hidden by SuperAdmin, hide from marketplace
-      if (adminOverrides[salon.id]?.status === 'suspended') return false;
-      if (adminOverrides[salon.id]?.isPublished === false) return false;
-
-      // Base published check
-      if (salon.isPublishedOnMarketplace !== true && !adminOverrides[salon.id]?.isPublished) {
-        return false;
-      }
-
+    return listedSalons.filter((salon) => {
       const matchQuery =
         !searchQuery.trim() ||
         salon.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -128,24 +165,36 @@ export const MarketplaceHome: React.FC = () => {
 
       return matchQuery && matchCommune;
     });
-  }, [salons, searchQuery, selectedCommune]);
+  }, [listedSalons, searchQuery, selectedCommune]);
 
-  // Testimonials built from real reviews
+  // Témoignages : avis réels ; à défaut, avis fictifs étiquetés en mode démo uniquement.
   const testimonials = useMemo(() => {
-    return reviews.slice(0, 4).map((rev) => ({
-      id: rev.id,
-      name: rev.author,
-      role: rev.verified ? 'Client vérifié' : 'Client',
-      quote: rev.comment,
-      rating: rev.rating,
-      initials: rev.author
+    const initialsOf = (name: string) =>
+      name
         .split(' ')
         .map((part) => part.charAt(0))
         .join('')
         .slice(0, 2)
-        .toUpperCase(),
+        .toUpperCase();
+    if (reviews.length > 0) {
+      return reviews.slice(0, 4).map((rev) => ({
+        id: rev.id,
+        name: rev.author,
+        role: rev.verified ? 'Client vérifié' : 'Client',
+        quote: rev.comment,
+        rating: rev.rating,
+        initials: initialsOf(rev.author),
+      }));
+    }
+    return (demoData?.testimonials ?? []).map((demo) => ({
+      id: demo.id,
+      name: demo.author,
+      role: demo.role,
+      quote: demo.comment,
+      rating: demo.rating,
+      initials: initialsOf(demo.author),
     }));
-  }, [reviews]);
+  }, [reviews, demoData]);
 
   const activeTestimonyData = testimonials.length
     ? testimonials[activeTestimony % testimonials.length]
@@ -362,6 +411,20 @@ export const MarketplaceHome: React.FC = () => {
         </section>
       )}
 
+      {/* SECTIONS À LA UNE (créées et ordonnées par le SuperAdmin) */}
+      {featuredSections.length > 0 && (
+        <section
+          aria-label="Sections à la une"
+          className="py-14 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full"
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {featuredSections.map((feature) => (
+              <FeaturedSectionCard key={feature.id} feature={feature} />
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* CATEGORIES / PRESTATION TAGS FILTER */}
       {config.categories && config.categories.filter((c) => c.isVisible).length > 0 && (
         <section className="py-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
@@ -480,7 +543,9 @@ export const MarketplaceHome: React.FC = () => {
             <h2 className="text-2xl sm:text-3xl font-extrabold text-white mt-1">Salons publiés</h2>
           </div>
           <span className="text-xs text-stone-400 hidden sm:inline">
-            {filteredSalons.length} établissement(s)
+            {demoMode
+              ? `${filteredSalons.length} fiche(s) de démonstration`
+              : `${filteredSalons.length} établissement(s)`}
           </span>
         </div>
 
@@ -491,6 +556,15 @@ export const MarketplaceHome: React.FC = () => {
             className="text-sm text-red-300 bg-red-950/30 border border-red-500/30 rounded-lg p-3 mb-4"
           >
             {marketplaceError}
+          </p>
+        )}
+        {demoMode && (
+          <p
+            role="status"
+            className="text-sm text-amber-200 bg-amber-950/30 border border-amber-500/30 rounded-lg p-3 mb-4"
+          >
+            Mode démonstration : salons, avis et sections ci-dessous sont fictifs. Aucun salon réel n’est
+            publié pour le moment, et ces fiches ne sont pas réservables.
           </p>
         )}
         {filteredSalons.length === 0 ? (
@@ -559,9 +633,7 @@ export const MarketplaceHome: React.FC = () => {
                 </span>
                 <h2 className="text-2xl sm:text-3xl font-extrabold text-white mt-1">{sec.title}</h2>
                 {sec.description && (
-                  <p className="text-xs text-stone-400 mt-1 max-w-2xl leading-relaxed">
-                    {sec.description}
-                  </p>
+                  <p className="text-xs text-stone-400 mt-1 max-w-2xl leading-relaxed">{sec.description}</p>
                 )}
               </div>
 
@@ -620,9 +692,7 @@ export const MarketplaceHome: React.FC = () => {
                     <h3 className="text-xl sm:text-2xl font-bold text-white font-serif-luxury">
                       {sec.title}
                     </h3>
-                    <p className="text-xs sm:text-sm text-stone-300 leading-relaxed">
-                      {sec.description}
-                    </p>
+                    <p className="text-xs sm:text-sm text-stone-300 leading-relaxed">{sec.description}</p>
                     <div className="pt-2 flex flex-wrap gap-4">
                       {sec.items.map((it) => (
                         <div
@@ -845,11 +915,11 @@ export const MarketplaceHome: React.FC = () => {
                 {config.proCta.badge || 'BARBER CUTS BUSINESS'}
               </span>
               <h2 className="text-2xl sm:text-4xl font-extrabold text-white leading-tight font-serif-luxury">
-                {config.proCta.title || 'Développez votre salon avec notre ERP SaaS tout-en-un.'}
+                {config.proCta.title || 'Gérez votre salon avec l’ERP Barber Cuts.'}
               </h2>
               <p className="text-sm text-stone-300 leading-relaxed">
                 {config.proCta.description ||
-                  'Planning en direct, gestion de caisse et Mobile Money, relances automatiques WhatsApp, fidélisation CRM, gestion des stocks et multi-succursales.'}
+                  'Planning, caisse, clients, services, personnel et statistiques réunis dans un même espace.'}
               </p>
 
               <div className="flex flex-wrap items-center gap-4 pt-3">
@@ -888,13 +958,14 @@ export const MarketplaceHome: React.FC = () => {
                 <div className="w-8 h-8 rounded-lg bg-[#1c1a16] border border-[#C9A45C]/30 flex items-center justify-center text-[#C9A45C]">
                   <Scissors className="w-4 h-4" />
                 </div>
-                <span className="text-lg font-bold text-white">
-                  Barber<span className="text-[#C9A45C]">Cuts</span>
-                </span>
+                <span className="text-lg font-bold text-white">{siteMetadata.siteName}</span>
               </div>
-              <p className="text-xs text-stone-400 leading-relaxed">
-                La plateforme SaaS ERP et Marketplace leader des barbershops d'élite.
-              </p>
+              {siteMetadata.tagline && (
+                <p className="text-xs text-[#E5C378] font-semibold">{siteMetadata.tagline}</p>
+              )}
+              {siteMetadata.footerText && (
+                <p className="text-xs text-stone-400 leading-relaxed">{siteMetadata.footerText}</p>
+              )}
             </div>
 
             <div>
@@ -924,7 +995,10 @@ export const MarketplaceHome: React.FC = () => {
               </h4>
               <ul className="space-y-2">
                 <li>
-                  <a href="/tarifs" className="text-[#E5C378] hover:underline font-semibold transition-colors">
+                  <a
+                    href="/tarifs"
+                    className="text-[#E5C378] hover:underline font-semibold transition-colors"
+                  >
                     Tarifs & Formules Salons
                   </a>
                 </li>
@@ -943,14 +1017,42 @@ export const MarketplaceHome: React.FC = () => {
 
             <div>
               <h4 className="text-xs font-bold text-[#C9A45C] uppercase tracking-wider mb-3">INFORMATIONS</h4>
-              <p className="text-xs text-stone-400 leading-relaxed">
-                Les établissements affichés proviennent des données publiées dans la plateforme.
-              </p>
+              {hasContactOrSocial ? (
+                <ul className="space-y-2">
+                  {siteMetadata.contactEmail && (
+                    <li>
+                      <a
+                        href={`mailto:${siteMetadata.contactEmail}`}
+                        className="hover:text-white transition-colors"
+                      >
+                        {siteMetadata.contactEmail}
+                      </a>
+                    </li>
+                  )}
+                  {siteMetadata.contactPhone && <li>{siteMetadata.contactPhone}</li>}
+                  {socialLinks.map((link) => (
+                    <li key={link.label}>
+                      <a
+                        href={link.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="hover:text-white transition-colors"
+                      >
+                        {link.label}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-xs text-stone-400 leading-relaxed">
+                  Les établissements affichés proviennent des données publiées dans la plateforme.
+                </p>
+              )}
             </div>
           </div>
 
           <div className="pt-8 border-t border-[#19191c] flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-stone-400">
-            <span>© 2026 Barber Cuts. Tous droits réservés.</span>
+            <span>{siteMetadata.copyrightText}</span>
             <div className="flex gap-4">
               <span>Conditions d'utilisation</span>
               <span>Politique de confidentialité</span>

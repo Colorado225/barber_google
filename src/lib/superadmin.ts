@@ -1,3 +1,4 @@
+import { useSyncExternalStore } from 'react';
 import { getSupabaseClient, isSupabaseConfigured } from './supabase';
 import type { Salon, SaaSPlan, SaaSSubscription } from '../types';
 import { getAllSaasPlans, getPlatformMetrics } from './saas';
@@ -23,8 +24,9 @@ export interface SalonAdminDetail {
   planName: string;
   priceAtSubscription: number;
   status: 'active' | 'suspended';
-  appointmentsCount: number;
-  totalRevenueXof: number;
+  /** Indicateurs réels non fournis par la liste publique : `undefined` tant qu'ils ne sont pas branchés. */
+  appointmentsCount?: number;
+  totalRevenueXof?: number;
   createdAt: string;
 }
 
@@ -51,84 +53,127 @@ export interface AuditLogEntry {
 
 const SUPERADMIN_SESSION_KEY = 'barbercuts_superadmin_session';
 const SALON_ADMIN_OVERRIDE_KEY = 'barbercuts_admin_salon_overrides';
+export const SALON_ADMIN_OVERRIDES_EVENT = 'admin_salons_updated';
 const REVIEWS_MODERATION_KEY = 'barbercuts_admin_reviews';
 const AUDIT_LOG_KEY = 'barbercuts_admin_audit_log';
 
-const DEFAULT_SUPERADMIN: AdminUser = {
-  id: 'sa_001_root',
-  email: 'admin@barbercuts.com',
-  name: 'SuperAdmin Principal',
-  role: 'super_admin',
-  lastLogin: new Date().toISOString(),
-};
+/**
+ * Compte unique autorisé à administrer la plateforme.
+ * La vérification réelle se fait côté serveur (Supabase Auth + table `platform_admins`) :
+ * ce module ne fait que relayer le résultat.
+ */
+export const SUPERADMIN_EMAIL = 'dominiquek051@gmail.com';
+
+const SUPERADMIN_ACCESS_DENIED = 'Identifiants super-administrateur invalides ou accès non autorisé.';
+
+function clearSuperAdminSession(): void {
+  if (typeof window === 'undefined') return;
+  sessionStorage.removeItem(SUPERADMIN_SESSION_KEY);
+  localStorage.removeItem(SUPERADMIN_SESSION_KEY);
+}
 
 /**
- * Vérifie si une session SuperAdmin est actuellement active
+ * Lecture synchrone du cache de session (interface uniquement).
+ * Ce cache n'est PAS une preuve d'accès : seul `verifySuperAdminAccess` fait foi.
  */
 export function getSuperAdminSession(): AdminUser | null {
   if (typeof window === 'undefined') return null;
   try {
-    const raw = sessionStorage.getItem(SUPERADMIN_SESSION_KEY) || localStorage.getItem(SUPERADMIN_SESSION_KEY);
+    const raw = sessionStorage.getItem(SUPERADMIN_SESSION_KEY);
     if (!raw) return null;
-    return JSON.parse(raw) as AdminUser;
+    const cached = JSON.parse(raw) as AdminUser;
+    return cached.email?.toLowerCase() === SUPERADMIN_EMAIL ? cached : null;
   } catch {
     return null;
   }
 }
 
+function cacheSuperAdminSession(admin: AdminUser): void {
+  if (typeof window === 'undefined') return;
+  sessionStorage.setItem(SUPERADMIN_SESSION_KEY, JSON.stringify(admin));
+}
+
 /**
- * Connexion à la console SuperAdmin
+ * Vérifie côté serveur que la session Supabase courante appartient au super administrateur
+ * (e-mail unique + ligne `platform_admins` avec le rôle super_admin).
+ * Sans configuration Supabase, aucun accès n'est accordé.
  */
-export async function loginSuperAdmin(email: string, password: string): Promise<AdminUser> {
-  // Dans un environnement de démonstration / production hybride,
-  // on valide soit le mot de passe maître de sécurité, soit via Supabase Auth
-  const cleanEmail = email.trim().toLowerCase();
-  
-  if (
-    (cleanEmail === 'admin@barbercuts.com' || cleanEmail === 'superadmin@barbercuts.com' || cleanEmail.includes('admin')) &&
-    password.length >= 6
-  ) {
+export async function verifySuperAdminAccess(): Promise<AdminUser | null> {
+  if (!isSupabaseConfigured()) {
+    clearSuperAdminSession();
+    return null;
+  }
+  try {
+    const client = getSupabaseClient();
+    const { data: sessionData } = await client.auth.getSession();
+    const user = sessionData.session?.user;
+    if (!user) {
+      clearSuperAdminSession();
+      return null;
+    }
+    if (user.email?.toLowerCase() !== SUPERADMIN_EMAIL) {
+      clearSuperAdminSession();
+      await client.auth.signOut();
+      return null;
+    }
+    const { data: row, error } = await client
+      .from('platform_admins')
+      .select('role')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    if (error || row?.role !== 'super_admin') {
+      clearSuperAdminSession();
+      await client.auth.signOut();
+      return null;
+    }
     const admin: AdminUser = {
-      ...DEFAULT_SUPERADMIN,
-      email: cleanEmail,
+      id: user.id,
+      email: SUPERADMIN_EMAIL,
+      name: user.user_metadata?.full_name || 'SuperAdmin Principal',
+      role: 'super_admin',
       lastLogin: new Date().toISOString(),
     };
-    if (typeof window !== 'undefined') {
-      sessionStorage.setItem(SUPERADMIN_SESSION_KEY, JSON.stringify(admin));
-      logAdminAction('Connexion réussie à la console', 'Console SuperAdmin', admin.email, 'info');
-    }
+    cacheSuperAdminSession(admin);
     return admin;
+  } catch {
+    clearSuperAdminSession();
+    return null;
+  }
+}
+
+/**
+ * Connexion à la console SuperAdmin : Supabase Auth uniquement, compte unique,
+ * puis vérification serveur du rôle. Aucun mot de passe maître.
+ */
+export async function loginSuperAdmin(email: string, password: string): Promise<AdminUser> {
+  const cleanEmail = email.trim().toLowerCase();
+
+  // Même message pour une mauvaise adresse et un mauvais mot de passe : pas d'énumération.
+  if (cleanEmail !== SUPERADMIN_EMAIL) {
+    throw new Error(SUPERADMIN_ACCESS_DENIED);
+  }
+  if (!isSupabaseConfigured()) {
+    throw new Error(
+      'Authentification serveur non configurée : la console super administrateur est indisponible.',
+    );
   }
 
-  // Tenter également Supabase Auth
-  if (isSupabaseConfigured()) {
-    try {
-      const client = getSupabaseClient();
-      const { data, error } = await client.auth.signInWithPassword({
-        email: cleanEmail,
-        password,
-      });
-      if (!error && data.user) {
-        const admin: AdminUser = {
-          id: data.user.id,
-          email: data.user.email || cleanEmail,
-          name: data.user.user_metadata?.full_name || 'SuperAdmin',
-          role: 'super_admin',
-          lastLogin: new Date().toISOString(),
-        };
-        if (typeof window !== 'undefined') {
-          sessionStorage.setItem(SUPERADMIN_SESSION_KEY, JSON.stringify(admin));
-          logAdminAction('Connexion authentifiée via Supabase', 'Console SuperAdmin', admin.email, 'info');
-        }
-        return admin;
-      }
-    } catch {
-      // repli
-    }
+  try {
+    const { data, error } = await getSupabaseClient().auth.signInWithPassword({
+      email: cleanEmail,
+      password,
+    });
+    if (error || !data.user) throw new Error(SUPERADMIN_ACCESS_DENIED);
+  } catch {
+    throw new Error(SUPERADMIN_ACCESS_DENIED);
   }
 
-  // Si mot de passe invalide
-  throw new Error('Identifiants super-administrateur invalides ou accès non autorisé.');
+  const admin = await verifySuperAdminAccess();
+  if (!admin) {
+    throw new Error(SUPERADMIN_ACCESS_DENIED);
+  }
+  logAdminAction('Connexion authentifiée via Supabase', 'Console SuperAdmin', admin.email, 'info');
+  return admin;
 }
 
 /**
@@ -140,8 +185,10 @@ export function logoutSuperAdmin(): void {
   if (current) {
     logAdminAction('Déconnexion de la console', 'Console SuperAdmin', current.email, 'info');
   }
-  sessionStorage.removeItem(SUPERADMIN_SESSION_KEY);
-  localStorage.removeItem(SUPERADMIN_SESSION_KEY);
+  clearSuperAdminSession();
+  if (isSupabaseConfigured()) {
+    void getSupabaseClient().auth.signOut();
+  }
   window.dispatchEvent(new CustomEvent('superadmin_session_changed'));
 }
 
@@ -193,7 +240,7 @@ export function getAuditLogs(): AuditLogEntry[] {
           timestamp: new Date(Date.now() - 7200000).toISOString(),
           action: 'Application de la politique tarifaire SaaS 2026',
           target: 'Catalogue Forfaits',
-          performedBy: 'admin@barbercuts.com',
+          performedBy: SUPERADMIN_EMAIL,
           severity: 'info',
         },
       ];
@@ -206,109 +253,145 @@ export function getAuditLogs(): AuditLogEntry[] {
   }
 }
 
+export type SalonAdminOverrides = Record<string, Partial<SalonAdminDetail>>;
+
+/** Lecture brute des overrides SuperAdmin (vérification, publication, suspension, formule…). */
+export function getSalonAdminOverrides(): SalonAdminOverrides {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(SALON_ADMIN_OVERRIDE_KEY);
+    return raw ? (JSON.parse(raw) as SalonAdminOverrides) : {};
+  } catch {
+    return {};
+  }
+}
+
 /**
- * Récupère la liste consolidée de tous les salons pour administration
+ * Applique les décisions du SuperAdmin aux salons affichés côté client.
+ * - Un salon suspendu n'est jamais visible sur la marketplace.
+ * - La publication est celle décidée par l'admin, sinon celle de la base.
+ * - La certification (badge) est celle décidée par l'admin, sinon celle de la base.
+ * Source unique de vérité : la marketplace et l'administration utilisent cette même règle.
+ */
+export function applySalonAdminOverrides<
+  T extends { id: string; isVerified?: boolean; isPublishedOnMarketplace?: boolean },
+>(salons: T[], overrides: SalonAdminOverrides = getSalonAdminOverrides()): T[] {
+  return salons.map((salon) => {
+    const override = overrides[salon.id];
+    if (!override) return salon;
+    const isSuspended = override.status === 'suspended';
+    return {
+      ...salon,
+      isVerified: override.isVerified ?? salon.isVerified,
+      isPublishedOnMarketplace:
+        !isSuspended && (override.isPublished ?? salon.isPublishedOnMarketplace === true),
+    };
+  });
+}
+
+/**
+ * Vrai si le SuperAdmin a suspendu ou retiré ce salon de la marketplace.
+ * Ne se fonde que sur les décisions admin (et non sur le flag de base) : utile pour les vues
+ * dont la donnée de base n'est pas complète, comme la vitrine publique d'un salon.
+ */
+export function isSalonHiddenByAdmin(
+  salonId: string,
+  overrides: SalonAdminOverrides = getSalonAdminOverrides(),
+): boolean {
+  const override = overrides[salonId];
+  return Boolean(override && (override.status === 'suspended' || override.isPublished === false));
+}
+
+/** Un salon est en ligne sur la marketplace s'il est publié et son accès n'est pas suspendu. */
+export function isSalonLiveOnMarketplace(salon: Pick<SalonAdminDetail, 'isPublished' | 'status'>): boolean {
+  return salon.isPublished && salon.status === 'active';
+}
+
+let cachedOverridesRaw: string | null = null;
+let cachedOverrides: SalonAdminOverrides = {};
+
+function readRawSalonAdminOverrides(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return localStorage.getItem(SALON_ADMIN_OVERRIDE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function getSalonAdminOverridesSnapshot(): SalonAdminOverrides {
+  const raw = readRawSalonAdminOverrides();
+  if (raw !== cachedOverridesRaw) {
+    cachedOverridesRaw = raw;
+    cachedOverrides = getSalonAdminOverrides();
+  }
+  return cachedOverrides;
+}
+
+function subscribeToSalonAdminOverrides(listener: () => void): () => void {
+  if (typeof window === 'undefined') return () => undefined;
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === null || event.key === SALON_ADMIN_OVERRIDE_KEY) listener();
+  };
+  window.addEventListener(SALON_ADMIN_OVERRIDES_EVENT, listener);
+  window.addEventListener('storage', onStorage);
+  return () => {
+    window.removeEventListener(SALON_ADMIN_OVERRIDES_EVENT, listener);
+    window.removeEventListener('storage', onStorage);
+  };
+}
+
+/** Hook réactif : la vue publique se met à jour dès qu'un SuperAdmin modifie un salon. */
+export function useSalonAdminOverrides(): SalonAdminOverrides {
+  return useSyncExternalStore(
+    subscribeToSalonAdminOverrides,
+    getSalonAdminOverridesSnapshot,
+    getSalonAdminOverridesSnapshot,
+  );
+}
+
+/** Tarifs officiels des forfaits SaaS (identiques au schéma `saas_plans`). */
+const OFFICIAL_PLANS: Record<string, { name: string; priceXof: number }> = {
+  starter: { name: 'Starter Solo', priceXof: 15000 },
+  pro: { name: 'Pro Équipe', priceXof: 35000 },
+  prestige: { name: 'Prestige & Chaînes', priceXof: 75000 },
+};
+
+/**
+ * Liste consolidée des salons pour l'administration.
+ *
+ * Aucune donnée n'est inventée : seuls les champs renvoyés par la base sont repris.
+ * Les champs absents (organisation, téléphone, formule, indicateurs) restent vides ou
+ * `undefined` et l'interface l'indique explicitement.
  */
 export function getAdminSalonsList(baseSalons: Salon[]): SalonAdminDetail[] {
-  let overrides: Record<string, Partial<SalonAdminDetail>> = {};
-  if (typeof window !== 'undefined') {
-    try {
-      const raw = localStorage.getItem(SALON_ADMIN_OVERRIDE_KEY);
-      if (raw) overrides = JSON.parse(raw);
-    } catch {
-      // ignore
-    }
-  }
+  const overrides = getSalonAdminOverrides();
 
-  // Si aucun salon n'est retourné par la base (ex. environnement local ou premier démarrage),
-  // on fournit une liste de salons locataires de référence
-  const referenceSalons: Array<Partial<Salon>> =
-    baseSalons.length > 0
-      ? baseSalons
-      : [
-          {
-            id: 'salon_001_cocody',
-            name: 'Palace Barber Cocody Danga',
-            commune: 'Cocody',
-            phone: '+225 07 45 88 12 01',
-            email: 'contact@palacebarber-danga.ci',
-            isPublishedOnMarketplace: true,
-            isVerified: true,
-            subscriptionPlanId: 'pro',
-          },
-          {
-            id: 'salon_002_plateau',
-            name: 'Empire Cuts Business Club',
-            commune: 'Plateau',
-            phone: '+225 05 77 19 34 88',
-            email: 'contact@empirecuts-abidjan.ci',
-            isPublishedOnMarketplace: true,
-            isVerified: true,
-            subscriptionPlanId: 'prestige',
-          },
-          {
-            id: 'salon_003_marcory',
-            name: 'Le Roi du Dégradé Zone 4',
-            commune: 'Marcory',
-            phone: '+225 01 22 90 45 11',
-            email: 'leroidudegrade.z4@gmail.com',
-            isPublishedOnMarketplace: true,
-            isVerified: false,
-            subscriptionPlanId: 'starter',
-          },
-          {
-            id: 'salon_004_riviera',
-            name: 'Atelier Masculin Riviera 3',
-            commune: 'Riviera',
-            phone: '+225 07 11 34 56 78',
-            email: 'direction@ateliermasculin.ci',
-            isPublishedOnMarketplace: false,
-            isVerified: false,
-            subscriptionPlanId: 'starter',
-          },
-          {
-            id: 'salon_005_yopougon',
-            name: 'Barber Master Bel Air',
-            commune: 'Yopougon',
-            phone: '+225 05 99 88 77 66',
-            email: 'contact@barbermaster-yop.ci',
-            isPublishedOnMarketplace: true,
-            isVerified: false,
-            subscriptionPlanId: 'pro',
-          },
-        ];
-
-  const defaultSalons: SalonAdminDetail[] = referenceSalons.map((salon, i) => {
-    const sId = salon.id || `salon_${i + 1}`;
-    const planId = salon.subscriptionPlanId || (i % 3 === 0 ? 'pro' : i % 3 === 1 ? 'starter' : 'prestige');
-    const planName = planId === 'starter' ? 'Starter Solo' : planId === 'pro' ? 'Pro Équipe' : 'Prestige & Chaînes';
-    const price = planId === 'starter' ? 15000 : planId === 'pro' ? 35000 : 75000;
-
+  return baseSalons.map((salon) => {
+    const plan = salon.subscriptionPlanId ? OFFICIAL_PLANS[salon.subscriptionPlanId] : undefined;
     const base: SalonAdminDetail = {
-      id: sId,
-      name: salon.name || `Salon Locataire ${i + 1}`,
-      organizationName: salon.name?.includes('Palace') ? 'Palace Barber Group' : 'Groupe Indépendant SARL',
-      commune: salon.commune || 'Abidjan',
-      phone: salon.phone || '+225 07 00 00 00',
-      email: salon.email || `contact@${(salon.name || 'salon').toLowerCase().replace(/[^a-z0-9]/g, '')}.ci`,
-      isPublished: salon.isPublishedOnMarketplace ?? true,
-      isVerified: salon.isVerified ?? (i < 2),
-      planId,
-      planName,
-      priceAtSubscription: price,
+      id: salon.id,
+      name: salon.name,
+      organizationName: '',
+      commune: salon.commune ?? '',
+      phone: salon.phone ?? '',
+      email: salon.email,
+      isPublished: salon.isPublishedOnMarketplace === true,
+      isVerified: salon.isVerified === true,
+      planId: salon.subscriptionPlanId ?? '',
+      planName: plan?.name ?? '',
+      priceAtSubscription: plan?.priceXof ?? 0,
       status: 'active',
-      appointmentsCount: 38 + i * 24,
-      totalRevenueXof: 185000 + i * 115000,
-      createdAt: new Date(Date.now() - (20 + i * 12) * 86400000).toISOString(),
+      appointmentsCount: undefined,
+      totalRevenueXof: undefined,
+      createdAt: salon.publicationDate ?? '',
     };
 
-    if (overrides[sId]) {
-      return { ...base, ...overrides[sId] };
+    if (overrides[salon.id]) {
+      return { ...base, ...overrides[salon.id] };
     }
     return base;
   });
-
-  return defaultSalons;
 }
 
 /**
@@ -326,12 +409,19 @@ export function updateSalonByAdmin(salonId: string, updates: Partial<SalonAdminD
       ? `Modification statut : ${updates.status}`
       : updates.isPublished !== undefined
         ? `Visibilité marketplace : ${updates.isPublished ? 'Publié' : 'Masqué'}`
-        : updates.planName
-          ? `Changement de formule : ${updates.planName}`
-          : 'Mise à jour des paramètres salon';
+        : updates.isVerified !== undefined
+          ? `Certification : ${updates.isVerified ? 'accordée' : 'retirée'}`
+          : updates.planName
+            ? `Changement de formule : ${updates.planName}`
+            : 'Mise à jour des paramètres salon';
 
-    logAdminAction(actionDesc, `Salon ${salonId}`, adminEmail, updates.status === 'suspended' ? 'warning' : 'info');
-    window.dispatchEvent(new CustomEvent('admin_salons_updated'));
+    logAdminAction(
+      actionDesc,
+      `Salon ${salonId}`,
+      adminEmail,
+      updates.status === 'suspended' ? 'warning' : 'info',
+    );
+    window.dispatchEvent(new CustomEvent(SALON_ADMIN_OVERRIDES_EVENT));
   } catch {
     // ignore
   }

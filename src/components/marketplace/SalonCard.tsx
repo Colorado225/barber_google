@@ -25,12 +25,17 @@ export const SalonCard: React.FC<SalonCardProps> = ({ salon }) => {
     >
       {/* Cover Image Container */}
       <div className="relative aspect-[16/10] w-full overflow-hidden bg-[#111113]">
-        <img
-          src={salon.coverImage}
-          alt={salon.name}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-          loading="lazy"
-        />
+        {salon.coverImage ? (
+          <img
+            src={salon.coverImage}
+            alt={salon.name}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            loading="lazy"
+          />
+        ) : (
+          // Pas d'image de couverture : fond neutre plutôt qu'une image cassée.
+          <div aria-hidden="true" className="w-full h-full bg-gradient-to-br from-[#1f1f24] to-[#0c0c0e]" />
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-[#161619] via-transparent to-black/30" />
 
         {/* Type Badge */}
@@ -100,13 +105,19 @@ export const SalonCard: React.FC<SalonCardProps> = ({ salon }) => {
           </div>
 
           <div className="flex items-center gap-2">
-            <Link
-              to={`/salons/${salon.slug || salon.id}`}
-              onClick={(e) => e.stopPropagation()}
-              className="text-[11px] font-medium text-stone-400 hover:text-[#C9A45C] px-2.5 py-1.5 rounded-lg bg-[#1d1d21] hover:bg-[#25252b] border border-stone-800 transition-colors"
-            >
-              Vitrine
-            </Link>
+            {salon.isDemo ? (
+              <span className="text-[11px] font-medium text-stone-500 px-2.5 py-1.5 rounded-lg bg-[#1d1d21] border border-stone-800">
+                Démo
+              </span>
+            ) : (
+              <Link
+                to={`/salons/${salon.slug || salon.id}`}
+                onClick={(e) => e.stopPropagation()}
+                className="text-[11px] font-medium text-stone-400 hover:text-[#C9A45C] px-2.5 py-1.5 rounded-lg bg-[#1d1d21] hover:bg-[#25252b] border border-stone-800 transition-colors"
+              >
+                Vitrine
+              </Link>
+            )}
 
             <span className="text-xs font-semibold text-stone-300 group-hover:text-white bg-[#222226] group-hover:bg-[#C9A45C] group-hover:text-[#101010] px-3 py-1.5 rounded-lg transition-all">
               Réserver

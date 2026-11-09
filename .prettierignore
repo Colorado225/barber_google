@@ -3,3 +3,4 @@ dist
 package-lock.json
 database/migrations
 public
+ameliorations.md

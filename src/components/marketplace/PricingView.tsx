@@ -58,13 +58,12 @@ export const PricingView: React.FC = () => {
         </div>
 
         <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-white max-w-3xl mx-auto leading-tight">
-          La plateforme tout-en-un pour faire{' '}
-          <span className="text-[#C9A45C]">prospérer votre salon</span>
+          La plateforme tout-en-un pour faire <span className="text-[#C9A45C]">prospérer votre salon</span>
         </h1>
 
         <p className="text-sm sm:text-base text-stone-400 max-w-2xl mx-auto">
-          Gestion de planning, caisse Mobile Money, programme de fidélité et présence garantie
-          sur la Marketplace de référence. Choisissez la formule adaptée à votre rythme.
+          Gestion de planning, caisse Mobile Money, programme de fidélité et présence garantie sur la
+          Marketplace de référence. Choisissez la formule adaptée à votre rythme.
         </p>
 
         {/* Billing Switcher */}
@@ -105,9 +104,7 @@ export const PricingView: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch">
             {plans.map((plan) => {
               const adjustedPrice =
-                billingPeriod === 'yearly'
-                  ? Math.round((plan.priceXof * 12 * 0.85) / 12)
-                  : plan.priceXof;
+                billingPeriod === 'yearly' ? Math.round((plan.priceXof * 12 * 0.85) / 12) : plan.priceXof;
 
               return (
                 <div
@@ -134,9 +131,7 @@ export const PricingView: React.FC = () => {
                     {/* Price display */}
                     <div className="border-y border-[#202025] py-5">
                       <div className="flex items-baseline gap-1.5">
-                        <span className="text-4xl font-black text-white">
-                          {formatPrice(adjustedPrice)}
-                        </span>
+                        <span className="text-4xl font-black text-white">{formatPrice(adjustedPrice)}</span>
                         <span className="text-xs text-stone-400 font-semibold">/ mois</span>
                       </div>
                       <div className="text-[11px] text-stone-400 mt-1">
@@ -215,7 +210,8 @@ export const PricingView: React.FC = () => {
             <ShieldCheck className="w-6 h-6 text-[#C9A45C] mx-auto" />
             <h4 className="text-sm font-bold text-white">Sans Engagement & Tarif Garanti</h4>
             <p className="text-xs text-stone-400">
-              Modifiez ou annulez à tout moment. Votre tarif souscrit est garanti pendant toute la durée active.
+              Modifiez ou annulez à tout moment. Votre tarif souscrit est garanti pendant toute la durée
+              active.
             </p>
           </div>
 
@@ -259,13 +255,11 @@ export const PricingView: React.FC = () => {
             </div>
 
             <div className="p-5 rounded-2xl bg-[#141416] border border-[#222226] space-y-2">
-              <h5 className="text-sm font-bold text-white">
-                Puis-je changer de formule en cours de route ?
-              </h5>
+              <h5 className="text-sm font-bold text-white">Puis-je changer de formule en cours de route ?</h5>
               <p className="text-xs text-stone-400 leading-relaxed">
                 Absolument. Vous pouvez passer d'un forfait Starter à un forfait Pro en 1 clic directement
-                depuis votre espace ERP (onglet « Abonnement ») pour débloquer davantage de barbiers et
-                de fonctionnalités.
+                depuis votre espace ERP (onglet « Abonnement ») pour débloquer davantage de barbiers et de
+                fonctionnalités.
               </p>
             </div>
           </div>

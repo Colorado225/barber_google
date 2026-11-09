@@ -18,8 +18,8 @@ interface AdminLoginFormProps {
 }
 
 export const AdminLoginForm: React.FC<AdminLoginFormProps> = ({ onSuccess }) => {
-  const [email, setEmail] = useState('admin@barbercuts.com');
-  const [password, setPassword] = useState('SuperAdmin2026!');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -85,7 +85,7 @@ export const AdminLoginForm: React.FC<AdminLoginFormProps> = ({ onSuccess }) => 
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@barbercuts.com"
+                  placeholder="Adresse e-mail du compte"
                   className="w-full pl-10 pr-4 py-3 rounded-xl bg-[#08080a] border border-[#26262e] text-xs text-white placeholder-stone-600 focus:outline-none focus:border-[#C9A45C]"
                 />
                 <Mail className="w-4 h-4 text-stone-500 absolute left-3.5 top-3.5" />
@@ -131,30 +131,12 @@ export const AdminLoginForm: React.FC<AdminLoginFormProps> = ({ onSuccess }) => 
               )}
             </button>
           </form>
-
-          {/* Demo Access Helper Box */}
-          <div className="p-3.5 rounded-xl bg-[#14141a] border border-[#202028] text-xs space-y-1.5">
-            <div className="text-[11px] font-bold text-[#E5C378] flex items-center gap-1.5">
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>Accès d'évaluation préconfiguré :</span>
-            </div>
-            <div className="text-[11px] text-stone-400 font-mono">
-              E-mail : <span className="text-white">admin@barbercuts.com</span>
-            </div>
-            <div className="text-[11px] text-stone-400 font-mono">
-              Passe : <span className="text-white">SuperAdmin2026!</span>
-            </div>
-          </div>
         </div>
 
         {/* Security Warning Notice */}
         <div className="text-center text-[11px] text-stone-500 space-y-1">
-          <p>
-            Environnement sous surveillance cryptographique et détection d'anomalies.
-          </p>
-          <p>
-            Adresse IP & Session tracées dans le registre de conformité.
-          </p>
+          <p>Environnement sous surveillance cryptographique et détection d'anomalies.</p>
+          <p>Adresse IP & Session tracées dans le registre de conformité.</p>
         </div>
       </div>
     </div>

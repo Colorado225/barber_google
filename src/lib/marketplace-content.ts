@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 import { logAdminAction } from './superadmin';
 
 export interface MarketplaceTabConfig {
@@ -14,7 +14,8 @@ export interface MarketplaceTrustItem {
   id: string;
   title: string;
   subtitle: string;
-  iconName: 'ShieldCheck' | 'Scissors' | 'Clock' | 'Smartphone' | 'Star' | 'Sparkles' | 'Award' | 'CheckCircle';
+  iconName:
+    'ShieldCheck' | 'Scissors' | 'Clock' | 'Smartphone' | 'Star' | 'Sparkles' | 'Award' | 'CheckCircle';
   isVisible: boolean;
 }
 
@@ -98,6 +99,43 @@ export interface MarketplaceFaqItem {
   isVisible: boolean;
 }
 
+/** Bandeau d'annonce affiché tout en haut de la marketplace (site-wide). */
+export interface MarketplaceAnnouncementConfig {
+  enabled: boolean;
+  text: string;
+  linkLabel: string;
+  linkUrl: string;
+}
+
+/** Section « à la une » mise en avant sur la page d'accueil de la marketplace. */
+export interface MarketplaceFeaturedSection {
+  id: string;
+  eyebrow: string;
+  title: string;
+  description: string;
+  ctaLabel: string;
+  ctaLink: string;
+  theme: 'gold' | 'dark' | 'emerald';
+  isVisible: boolean;
+  order: number;
+}
+
+/** Métadonnées globales du site : SEO, identité, contact, réseaux et pied de page. */
+export interface MarketplaceSiteMetadata {
+  siteName: string;
+  tagline: string;
+  metaTitle: string;
+  metaDescription: string;
+  contactEmail: string;
+  contactPhone: string;
+  footerText: string;
+  copyrightText: string;
+  instagramUrl: string;
+  facebookUrl: string;
+  tiktokUrl: string;
+  whatsappUrl: string;
+}
+
 export interface MarketplaceContentConfig {
   hero: MarketplaceHeroConfig;
   trustItems: MarketplaceTrustItem[];
@@ -108,11 +146,15 @@ export interface MarketplaceContentConfig {
   faqs: MarketplaceFaqItem[];
   customSections: MarketplaceCustomSection[];
   navTabs: MarketplaceTabConfig[];
+  announcement: MarketplaceAnnouncementConfig;
+  featuredSections: MarketplaceFeaturedSection[];
+  siteMetadata: MarketplaceSiteMetadata;
   updatedAt: string;
 }
 
 export const MARKETPLACE_CONTENT_STORAGE_KEY = 'barbercuts_marketplace_content_config';
 export const MARKETPLACE_CONFIG_EVENT = 'marketplace_config_updated';
+const DEFAULT_AUDIT_ACTION = 'Mise à jour des sections & onglets Marketplace';
 
 export const DEFAULT_MARKETPLACE_CONTENT: MarketplaceContentConfig = {
   hero: {
@@ -129,29 +171,29 @@ export const DEFAULT_MARKETPLACE_CONTENT: MarketplaceContentConfig = {
   trustItems: [
     {
       id: 'trust-1',
-      title: '15 000+ Coupes Réservées',
-      subtitle: 'Sans attente inutile au salon',
+      title: 'Réservation en ligne',
+      subtitle: 'Choisissez un créneau proposé sur la fiche du salon',
       iconName: 'Clock',
       isVisible: true,
     },
     {
       id: 'trust-2',
-      title: '100% Barbiers Certifiés',
-      subtitle: 'Sélectionnés pour leur savoir-faire',
+      title: 'Salons publiés',
+      subtitle: 'Seuls les salons qui ont publié leur fiche sont affichés',
       iconName: 'Award',
       isVisible: true,
     },
     {
       id: 'trust-3',
-      title: 'Paiement Wave & MoMo',
-      subtitle: 'Mobile Money instantané & sécurisé',
+      title: 'Paiement selon le salon',
+      subtitle: 'Les modes de paiement sont indiqués sur chaque fiche',
       iconName: 'Smartphone',
       isVisible: true,
     },
     {
       id: 'trust-4',
-      title: 'Avis Clients Vérifiés',
-      subtitle: 'Notés uniquement après rendez-vous',
+      title: 'Avis vérifiés',
+      subtitle: 'Un avis lié à un rendez-vous terminé est marqué comme vérifié',
       iconName: 'Star',
       isVisible: true,
     },
@@ -208,8 +250,7 @@ export const DEFAULT_MARKETPLACE_CONTENT: MarketplaceContentConfig = {
       id: 'step-1',
       stepNumber: '01',
       title: 'Trouvez',
-      description:
-        'Comparez les salons réputés, leurs prestations, photos réelles et avis vérifiés près de chez vous.',
+      description: 'Parcourez les salons publiés, leurs prestations et leurs informations.',
       iconName: 'Search',
       isVisible: true,
     },
@@ -217,8 +258,7 @@ export const DEFAULT_MARKETPLACE_CONTENT: MarketplaceContentConfig = {
       id: 'step-2',
       stepNumber: '02',
       title: 'Réservez',
-      description:
-        'Choisissez votre barbier favori et un créneau réellement disponible sans attendre au salon.',
+      description: 'Choisissez un service et un créneau proposé sur la fiche du salon.',
       iconName: 'Clock',
       isVisible: true,
     },
@@ -226,27 +266,24 @@ export const DEFAULT_MARKETPLACE_CONTENT: MarketplaceContentConfig = {
       id: 'step-3',
       stepNumber: '03',
       title: 'Payez',
-      description:
-        'Réglez sereinement sur place ou par Mobile Money : Wave, Orange Money, MTN MoMo, Moov.',
+      description: 'Les modes de paiement dépendent de chaque salon. Consultez sa fiche.',
       iconName: 'Smartphone',
       isVisible: true,
     },
   ],
   promoBanner: {
-    enabled: true,
-    badge: 'OFFRE PRIVILÈGE',
-    title: 'Grand Concours des Meilleurs Barbiers d’Abidjan 2026',
-    description:
-      'Votez pour vos artisans préférés et profitez de réductions exclusives sur vos prochaines coupes VIP.',
-    buttonText: 'Découvrir les salons certifiés',
+    enabled: false,
+    badge: '',
+    title: '',
+    description: '',
+    buttonText: '',
     buttonLink: '#salons-section',
     theme: 'gold',
   },
   proCta: {
     badge: 'BARBER CUTS BUSINESS',
-    title: 'Développez votre salon avec notre ERP SaaS tout-en-un.',
-    description:
-      'Planning en direct, gestion de caisse et Mobile Money, relances automatiques WhatsApp, fidélisation CRM, gestion des stocks et multi-succursales.',
+    title: 'Gérez votre salon avec l’ERP Barber Cuts.',
+    description: 'Planning, caisse, clients, services, personnel et statistiques réunis dans un même espace.',
     primaryButtonText: 'Découvrir les Tarifs Salons',
     primaryButtonLink: '/tarifs',
     secondaryButtonText: 'Inscrire mon salon',
@@ -259,59 +296,24 @@ export const DEFAULT_MARKETPLACE_CONTENT: MarketplaceContentConfig = {
       id: 'faq-1',
       question: 'Comment réserver un rendez-vous sur BarberCuts ?',
       answer:
-        'Sélectionnez le salon de votre choix, parcourez ses prestations et disponibilités en temps réel, choisissez votre créneau et renseignez votre prénom et numéro de téléphone.',
+        'Sélectionnez le salon de votre choix, puis un service et un créneau proposé sur sa fiche. Renseignez ensuite votre nom, votre prénom et votre numéro de téléphone.',
       isVisible: true,
     },
     {
       id: 'faq-2',
-      question: 'Puis-je payer avec Wave ou Orange Money ?',
-      answer:
-        'Oui ! Les salons partenaires acceptent le règlement en espèces sur place ainsi que les paiements Mobile Money (Wave, Orange Money, MTN MoMo, Moov Money).',
+      question: 'Quels moyens de paiement sont acceptés ?',
+      answer: 'Les moyens de paiement dépendent de chaque salon. Ils sont indiqués sur sa fiche.',
       isVisible: true,
     },
     {
       id: 'faq-3',
       question: 'Comment annuler ou modifier ma réservation ?',
       answer:
-        'Grâce au lien unique de réservation transmis par notification ou accessible depuis "Mes réservations", vous pouvez annuler ou contacter votre barbier directement.',
+        'Ouvrez le lien de suivi de votre réservation : vous pouvez l’annuler ou contacter le salon. Les liens enregistrés sur cet appareil sont listés dans « Mes réservations ».',
       isVisible: true,
     },
   ],
-  customSections: [
-    {
-      id: 'custom-charte-qualite',
-      title: 'Notre Charte d’Excellence & d’Hygiène',
-      badgeText: 'STANDARDS ÉLITE',
-      description:
-        'Chaque établissement listé sur BarberCuts respecte un protocole rigoureux de confort et de propreté.',
-      layout: 'cards',
-      isVisible: true,
-      order: 1,
-      items: [
-        {
-          id: 'item-1',
-          title: 'Stérilisation Systématique',
-          description:
-            'Tondeuses, ciseaux et lames désinfectés aux rayons UV et à l’alcool isopropylique avant chaque prestation.',
-          tag: 'Hygiène Médicale',
-        },
-        {
-          id: 'item-2',
-          title: 'Ponctualité Sans Faille',
-          description:
-            'Votre créneau réservé vous attend. Votre barbier est prêt dès votre heure convenue.',
-          tag: 'Zéro Attente',
-        },
-        {
-          id: 'item-3',
-          title: 'Produits de Soin Professionnels',
-          description:
-            'Huiles à barbe bio, baumes apaisants, cires modelantes et sérums sélectionnés auprès des meilleures marques.',
-          tag: 'Cosmétique Haut de Gamme',
-        },
-      ],
-    },
-  ],
+  customSections: [],
   navTabs: [
     {
       id: 'tab-explore',
@@ -342,17 +344,61 @@ export const DEFAULT_MARKETPLACE_CONTENT: MarketplaceContentConfig = {
       order: 4,
     },
   ],
+  announcement: {
+    enabled: false,
+    text: '',
+    linkLabel: '',
+    linkUrl: '',
+  },
+  // Aucune section à la une par défaut : rien n'est affiché tant que le SuperAdmin n'en crée pas.
+  featuredSections: [],
+  siteMetadata: {
+    siteName: 'BarberCuts',
+    tagline: 'La plateforme des barbershops d’élite',
+    metaTitle: 'BarberCuts | Réservez votre barbier en ligne',
+    metaDescription:
+      'Parcourez les salons publiés sur BarberCuts et réservez votre prochain rendez-vous en ligne.',
+    contactEmail: '',
+    contactPhone: '',
+    footerText: "La plateforme SaaS ERP et Marketplace leader des barbershops d'élite.",
+    copyrightText: '© 2026 Barber Cuts. Tous droits réservés.',
+    instagramUrl: '',
+    facebookUrl: '',
+    tiktokUrl: '',
+    whatsappUrl: '',
+  },
   updatedAt: new Date().toISOString(),
 };
 
+type MarketplaceContentListener = () => void;
+
 /**
- * Récupère la configuration actuelle des sections et onglets de la Marketplace
+ * Store partagé (source unique de vérité côté client).
+ * Toute écriture notifie immédiatement les abonnés (useSyncExternalStore) : la marketplace,
+ * la navbar et les écrans d'administration se mettent à jour dans le même cycle de rendu.
  */
-export function getMarketplaceContent(): MarketplaceContentConfig {
-  if (typeof window === 'undefined') return DEFAULT_MARKETPLACE_CONTENT;
+const marketplaceContentListeners = new Set<MarketplaceContentListener>();
+
+// Cache mémorisé : useSyncExternalStore exige une référence stable tant que la donnée brute ne change pas.
+let cachedContentRaw: string | null | undefined;
+let cachedContent: MarketplaceContentConfig = DEFAULT_MARKETPLACE_CONTENT;
+
+function readRawMarketplaceContent(): string | null {
+  if (typeof window === 'undefined') return null;
   try {
-    const raw = localStorage.getItem(MARKETPLACE_CONTENT_STORAGE_KEY);
-    if (!raw) return DEFAULT_MARKETPLACE_CONTENT;
+    return localStorage.getItem(MARKETPLACE_CONTENT_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Parse la configuration stockée et complète les champs manquants avec les valeurs par défaut
+ * (compatibilité avec les configurations enregistrées avant l'ajout des bannières, sections à la une et métadonnées).
+ */
+export function parseMarketplaceContent(raw: string | null): MarketplaceContentConfig {
+  if (!raw) return DEFAULT_MARKETPLACE_CONTENT;
+  try {
     const parsed = JSON.parse(raw);
     return {
       ...DEFAULT_MARKETPLACE_CONTENT,
@@ -360,45 +406,101 @@ export function getMarketplaceContent(): MarketplaceContentConfig {
       hero: { ...DEFAULT_MARKETPLACE_CONTENT.hero, ...(parsed.hero || {}) },
       promoBanner: { ...DEFAULT_MARKETPLACE_CONTENT.promoBanner, ...(parsed.promoBanner || {}) },
       proCta: { ...DEFAULT_MARKETPLACE_CONTENT.proCta, ...(parsed.proCta || {}) },
+      announcement: { ...DEFAULT_MARKETPLACE_CONTENT.announcement, ...(parsed.announcement || {}) },
+      siteMetadata: { ...DEFAULT_MARKETPLACE_CONTENT.siteMetadata, ...(parsed.siteMetadata || {}) },
       trustItems: parsed.trustItems || DEFAULT_MARKETPLACE_CONTENT.trustItems,
       categories: parsed.categories || DEFAULT_MARKETPLACE_CONTENT.categories,
       steps: parsed.steps || DEFAULT_MARKETPLACE_CONTENT.steps,
       faqs: parsed.faqs || DEFAULT_MARKETPLACE_CONTENT.faqs,
       customSections: parsed.customSections || DEFAULT_MARKETPLACE_CONTENT.customSections,
       navTabs: parsed.navTabs || DEFAULT_MARKETPLACE_CONTENT.navTabs,
+      featuredSections: parsed.featuredSections || DEFAULT_MARKETPLACE_CONTENT.featuredSections,
     };
   } catch {
     return DEFAULT_MARKETPLACE_CONTENT;
   }
 }
 
+function getMarketplaceContentSnapshot(): MarketplaceContentConfig {
+  const raw = readRawMarketplaceContent();
+  if (raw !== cachedContentRaw) {
+    cachedContentRaw = raw;
+    cachedContent = parseMarketplaceContent(raw);
+  }
+  return cachedContent;
+}
+
+function subscribeToMarketplaceContent(listener: MarketplaceContentListener): () => void {
+  marketplaceContentListeners.add(listener);
+  // Synchronisation entre onglets du navigateur (l'événement storage ne se déclenche pas dans l'onglet émetteur).
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === null || event.key === MARKETPLACE_CONTENT_STORAGE_KEY) listener();
+  };
+  if (typeof window !== 'undefined') window.addEventListener('storage', onStorage);
+  return () => {
+    marketplaceContentListeners.delete(listener);
+    if (typeof window !== 'undefined') window.removeEventListener('storage', onStorage);
+  };
+}
+
+function notifyMarketplaceContentChanged(detail: MarketplaceContentConfig): void {
+  marketplaceContentListeners.forEach((listener) => listener());
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(MARKETPLACE_CONFIG_EVENT, { detail }));
+  }
+}
+
+/** Abonnement au store (utilisable hors React, p. ex. dans les tests ou d'autres modules). */
+export function subscribeMarketplaceContent(listener: MarketplaceContentListener): () => void {
+  return subscribeToMarketplaceContent(listener);
+}
+
+/**
+ * Récupère la configuration actuelle des sections et onglets de la Marketplace
+ */
+export function getMarketplaceContent(): MarketplaceContentConfig {
+  return getMarketplaceContentSnapshot();
+}
+
 /**
  * Enregistre la configuration mise à jour par le SuperAdmin et déclenche la synchronisation en direct
  */
-export function saveMarketplaceContent(config: MarketplaceContentConfig, adminEmail: string = 'admin@barbercuts.com'): void {
-  if (typeof window === 'undefined') return;
+export function saveMarketplaceContent(
+  config: MarketplaceContentConfig,
+  adminEmail: string = 'dominiquek051@gmail.com',
+  auditAction: string = DEFAULT_AUDIT_ACTION,
+): MarketplaceContentConfig {
+  const updated: MarketplaceContentConfig = {
+    ...config,
+    updatedAt: new Date().toISOString(),
+  };
+  if (typeof window === 'undefined') return updated;
   try {
-    const updated = {
-      ...config,
-      updatedAt: new Date().toISOString(),
-    };
     localStorage.setItem(MARKETPLACE_CONTENT_STORAGE_KEY, JSON.stringify(updated));
-    window.dispatchEvent(new CustomEvent(MARKETPLACE_CONFIG_EVENT, { detail: updated }));
-    logAdminAction('Mise à jour des sections & onglets Marketplace', 'Marketplace Globale', adminEmail, 'info');
+    notifyMarketplaceContentChanged(updated);
+    logAdminAction(auditAction, 'Marketplace Globale', adminEmail, 'info');
   } catch (err) {
     console.error('Erreur lors de la sauvegarde de la configuration marketplace', err);
   }
+  return updated;
 }
 
 /**
  * Réinitialise la configuration aux valeurs par défaut d'usine
  */
-export function resetMarketplaceContent(adminEmail: string = 'admin@barbercuts.com'): MarketplaceContentConfig {
+export function resetMarketplaceContent(
+  adminEmail: string = 'dominiquek051@gmail.com',
+): MarketplaceContentConfig {
   if (typeof window !== 'undefined') {
     try {
       localStorage.setItem(MARKETPLACE_CONTENT_STORAGE_KEY, JSON.stringify(DEFAULT_MARKETPLACE_CONTENT));
-      window.dispatchEvent(new CustomEvent(MARKETPLACE_CONFIG_EVENT, { detail: DEFAULT_MARKETPLACE_CONTENT }));
-      logAdminAction('Réinitialisation des contenus Marketplace', 'Marketplace Globale', adminEmail, 'warning');
+      notifyMarketplaceContentChanged(DEFAULT_MARKETPLACE_CONTENT);
+      logAdminAction(
+        'Réinitialisation des contenus Marketplace',
+        'Marketplace Globale',
+        adminEmail,
+        'warning',
+      );
     } catch {
       // ignore
     }
@@ -407,30 +509,23 @@ export function resetMarketplaceContent(adminEmail: string = 'admin@barbercuts.c
 }
 
 /**
- * Hook React pour consommer dynamiquement les contenus de la Marketplace
+ * Hook React pour consommer dynamiquement les contenus de la Marketplace.
+ * Tous les composants qui l'utilisent partagent le même état : une mise à jour est visible partout immédiatement.
  */
 export function useMarketplaceContent() {
-  const [config, setConfig] = useState<MarketplaceContentConfig>(() => getMarketplaceContent());
+  const config = useSyncExternalStore(
+    subscribeToMarketplaceContent,
+    getMarketplaceContentSnapshot,
+    getMarketplaceContentSnapshot,
+  );
 
-  useEffect(() => {
-    const handleUpdate = () => {
-      setConfig(getMarketplaceContent());
-    };
-    window.addEventListener(MARKETPLACE_CONFIG_EVENT, handleUpdate);
-    return () => {
-      window.removeEventListener(MARKETPLACE_CONFIG_EVENT, handleUpdate);
-    };
-  }, []);
+  const updateConfig = useCallback(
+    (newConfig: MarketplaceContentConfig, adminEmail?: string, auditAction?: string) =>
+      saveMarketplaceContent(newConfig, adminEmail, auditAction),
+    [],
+  );
 
-  const updateConfig = (newConfig: MarketplaceContentConfig, adminEmail?: string) => {
-    saveMarketplaceContent(newConfig, adminEmail);
-    setConfig(newConfig);
-  };
-
-  const resetConfig = (adminEmail?: string) => {
-    const res = resetMarketplaceContent(adminEmail);
-    setConfig(res);
-  };
+  const resetConfig = useCallback((adminEmail?: string) => resetMarketplaceContent(adminEmail), []);
 
   return { config, updateConfig, resetConfig };
 }
