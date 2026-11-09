@@ -1,7 +1,4 @@
-import { useSyncExternalStore } from 'react';
 import { getSupabaseClient, isSupabaseConfigured } from './supabase';
-import type { Salon, SaaSPlan, SaaSSubscription } from '../types';
-import { getAllSaasPlans, getPlatformMetrics } from './saas';
 
 export interface AdminUser {
   id: string;
@@ -11,6 +8,10 @@ export interface AdminUser {
   lastLogin: string;
 }
 
+/**
+ * Salon tel que renvoyé par `platform_list_salons` (source : base de données).
+ * Aucun champ n'est complété localement : une valeur absente reste vide ou `undefined`.
+ */
 export interface SalonAdminDetail {
   id: string;
   name: string;
@@ -24,12 +25,17 @@ export interface SalonAdminDetail {
   planName: string;
   priceAtSubscription: number;
   status: 'active' | 'suspended';
-  /** Indicateurs réels non fournis par la liste publique : `undefined` tant qu'ils ne sont pas branchés. */
+  statusReason?: string;
+  subscriptionStatus?: string;
+  billingPeriod?: string;
+  currentPeriodEnd?: string;
+  /** Indicateurs réels non fournis par la liste admin : `undefined` tant qu'ils ne sont pas branchés. */
   appointmentsCount?: number;
   totalRevenueXof?: number;
   createdAt: string;
 }
 
+/** Avis tel que renvoyé par `platform_list_reviews`. */
 export interface MarketplaceReviewItem {
   id: string;
   salonId: string;
@@ -39,9 +45,22 @@ export interface MarketplaceReviewItem {
   comment: string;
   createdAt: string;
   isVerified: boolean;
-  isFlagged?: boolean;
+  isHidden: boolean;
+  hiddenReason?: string;
 }
 
+/** Entrée du journal d'audit serveur (`platform_audit_logs`, via `platform_list_audit_logs`). */
+export interface PlatformAuditEntry {
+  id: string;
+  createdAt: string;
+  action: string;
+  targetType: string;
+  targetId: string;
+  actorEmail: string | null;
+  details: Record<string, unknown>;
+}
+
+/** Entrée du journal local : réservé au contenu CMS de la marketplace (`marketplace-content.ts`). */
 export interface AuditLogEntry {
   id: string;
   timestamp: string;
@@ -52,9 +71,6 @@ export interface AuditLogEntry {
 }
 
 const SUPERADMIN_SESSION_KEY = 'barbercuts_superadmin_session';
-const SALON_ADMIN_OVERRIDE_KEY = 'barbercuts_admin_salon_overrides';
-export const SALON_ADMIN_OVERRIDES_EVENT = 'admin_salons_updated';
-const REVIEWS_MODERATION_KEY = 'barbercuts_admin_reviews';
 const AUDIT_LOG_KEY = 'barbercuts_admin_audit_log';
 
 /**
@@ -193,7 +209,9 @@ export function logoutSuperAdmin(): void {
 }
 
 /**
- * Journalise une action administrative
+ * Journal LOCAL (navigateur) : limité au contenu CMS de la marketplace et aux connexions.
+ * Les décisions SuperAdmin (salons, avis, formules, administrateurs) sont journalisées en base
+ * par les RPC `platform_*` et lues via `listPlatformAuditLogs`.
  */
 export function logAdminAction(
   action: string,
@@ -218,9 +236,7 @@ export function logAdminAction(
   }
 }
 
-/**
- * Récupère le journal d'audit
- */
+/** Lecture du journal local (voir `logAdminAction`). */
 export function getAuditLogs(): AuditLogEntry[] {
   if (typeof window === 'undefined') return [];
   try {
@@ -232,205 +248,7 @@ export function getAuditLogs(): AuditLogEntry[] {
   }
 }
 
-export type SalonAdminOverrides = Record<string, Partial<SalonAdminDetail>>;
-
-/** Lecture brute des overrides SuperAdmin (vérification, publication, suspension, formule…). */
-export function getSalonAdminOverrides(): SalonAdminOverrides {
-  if (typeof window === 'undefined') return {};
-  try {
-    const raw = localStorage.getItem(SALON_ADMIN_OVERRIDE_KEY);
-    return raw ? (JSON.parse(raw) as SalonAdminOverrides) : {};
-  } catch {
-    return {};
-  }
-}
-
-/**
- * Applique les décisions du SuperAdmin aux salons affichés côté client.
- * - Un salon suspendu n'est jamais visible sur la marketplace.
- * - La publication est celle décidée par l'admin, sinon celle de la base.
- * - La certification (badge) est celle décidée par l'admin, sinon celle de la base.
- * Source unique de vérité : la marketplace et l'administration utilisent cette même règle.
- */
-export function applySalonAdminOverrides<
-  T extends { id: string; isVerified?: boolean; isPublishedOnMarketplace?: boolean },
->(salons: T[], overrides: SalonAdminOverrides = getSalonAdminOverrides()): T[] {
-  return salons.map((salon) => {
-    const override = overrides[salon.id];
-    if (!override) return salon;
-    const isSuspended = override.status === 'suspended';
-    return {
-      ...salon,
-      isVerified: override.isVerified ?? salon.isVerified,
-      isPublishedOnMarketplace:
-        !isSuspended && (override.isPublished ?? salon.isPublishedOnMarketplace === true),
-    };
-  });
-}
-
-/**
- * Vrai si le SuperAdmin a suspendu ou retiré ce salon de la marketplace.
- * Ne se fonde que sur les décisions admin (et non sur le flag de base) : utile pour les vues
- * dont la donnée de base n'est pas complète, comme la vitrine publique d'un salon.
- */
-export function isSalonHiddenByAdmin(
-  salonId: string,
-  overrides: SalonAdminOverrides = getSalonAdminOverrides(),
-): boolean {
-  const override = overrides[salonId];
-  return Boolean(override && (override.status === 'suspended' || override.isPublished === false));
-}
-
 /** Un salon est en ligne sur la marketplace s'il est publié et son accès n'est pas suspendu. */
 export function isSalonLiveOnMarketplace(salon: Pick<SalonAdminDetail, 'isPublished' | 'status'>): boolean {
   return salon.isPublished && salon.status === 'active';
-}
-
-let cachedOverridesRaw: string | null = null;
-let cachedOverrides: SalonAdminOverrides = {};
-
-function readRawSalonAdminOverrides(): string | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    return localStorage.getItem(SALON_ADMIN_OVERRIDE_KEY);
-  } catch {
-    return null;
-  }
-}
-
-function getSalonAdminOverridesSnapshot(): SalonAdminOverrides {
-  const raw = readRawSalonAdminOverrides();
-  if (raw !== cachedOverridesRaw) {
-    cachedOverridesRaw = raw;
-    cachedOverrides = getSalonAdminOverrides();
-  }
-  return cachedOverrides;
-}
-
-function subscribeToSalonAdminOverrides(listener: () => void): () => void {
-  if (typeof window === 'undefined') return () => undefined;
-  const onStorage = (event: StorageEvent) => {
-    if (event.key === null || event.key === SALON_ADMIN_OVERRIDE_KEY) listener();
-  };
-  window.addEventListener(SALON_ADMIN_OVERRIDES_EVENT, listener);
-  window.addEventListener('storage', onStorage);
-  return () => {
-    window.removeEventListener(SALON_ADMIN_OVERRIDES_EVENT, listener);
-    window.removeEventListener('storage', onStorage);
-  };
-}
-
-/** Hook réactif : la vue publique se met à jour dès qu'un SuperAdmin modifie un salon. */
-export function useSalonAdminOverrides(): SalonAdminOverrides {
-  return useSyncExternalStore(
-    subscribeToSalonAdminOverrides,
-    getSalonAdminOverridesSnapshot,
-    getSalonAdminOverridesSnapshot,
-  );
-}
-
-/** Tarifs officiels des forfaits SaaS (identiques au schéma `saas_plans`). */
-const OFFICIAL_PLANS: Record<string, { name: string; priceXof: number }> = {
-  starter: { name: 'Starter Solo', priceXof: 15000 },
-  pro: { name: 'Pro Équipe', priceXof: 35000 },
-  prestige: { name: 'Prestige & Chaînes', priceXof: 75000 },
-};
-
-/**
- * Liste consolidée des salons pour l'administration.
- *
- * Aucune donnée n'est inventée : seuls les champs renvoyés par la base sont repris.
- * Les champs absents (organisation, téléphone, formule, indicateurs) restent vides ou
- * `undefined` et l'interface l'indique explicitement.
- */
-export function getAdminSalonsList(baseSalons: Salon[]): SalonAdminDetail[] {
-  const overrides = getSalonAdminOverrides();
-
-  return baseSalons.map((salon) => {
-    const plan = salon.subscriptionPlanId ? OFFICIAL_PLANS[salon.subscriptionPlanId] : undefined;
-    const base: SalonAdminDetail = {
-      id: salon.id,
-      name: salon.name,
-      organizationName: '',
-      commune: salon.commune ?? '',
-      phone: salon.phone ?? '',
-      email: salon.email,
-      isPublished: salon.isPublishedOnMarketplace === true,
-      isVerified: salon.isVerified === true,
-      planId: salon.subscriptionPlanId ?? '',
-      planName: plan?.name ?? '',
-      priceAtSubscription: plan?.priceXof ?? 0,
-      status: 'active',
-      appointmentsCount: undefined,
-      totalRevenueXof: undefined,
-      createdAt: salon.publicationDate ?? '',
-    };
-
-    if (overrides[salon.id]) {
-      return { ...base, ...overrides[salon.id] };
-    }
-    return base;
-  });
-}
-
-/**
- * Met à jour le statut ou le forfait d'un salon depuis le superadmin
- */
-export function updateSalonByAdmin(salonId: string, updates: Partial<SalonAdminDetail>, adminEmail: string) {
-  if (typeof window === 'undefined') return;
-  try {
-    const raw = localStorage.getItem(SALON_ADMIN_OVERRIDE_KEY);
-    const overrides = raw ? JSON.parse(raw) : {};
-    overrides[salonId] = { ...(overrides[salonId] || {}), ...updates };
-    localStorage.setItem(SALON_ADMIN_OVERRIDE_KEY, JSON.stringify(overrides));
-
-    const actionDesc = updates.status
-      ? `Modification statut : ${updates.status}`
-      : updates.isPublished !== undefined
-        ? `Visibilité marketplace : ${updates.isPublished ? 'Publié' : 'Masqué'}`
-        : updates.isVerified !== undefined
-          ? `Certification : ${updates.isVerified ? 'accordée' : 'retirée'}`
-          : updates.planName
-            ? `Changement de formule : ${updates.planName}`
-            : 'Mise à jour des paramètres salon';
-
-    logAdminAction(
-      actionDesc,
-      `Salon ${salonId}`,
-      adminEmail,
-      updates.status === 'suspended' ? 'warning' : 'info',
-    );
-    window.dispatchEvent(new CustomEvent(SALON_ADMIN_OVERRIDES_EVENT));
-  } catch {
-    // ignore
-  }
-}
-
-/**
- * Liste des avis modérables
- */
-export function getMarketplaceReviews(): MarketplaceReviewItem[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = localStorage.getItem(REVIEWS_MODERATION_KEY);
-    if (!raw) return [];
-    return JSON.parse(raw);
-  } catch {
-    return [];
-  }
-}
-
-/**
- * Suppression / modération d'un avis
- */
-export function deleteReviewByAdmin(reviewId: string, adminEmail: string) {
-  if (typeof window === 'undefined') return;
-  try {
-    const list = getMarketplaceReviews().filter((r) => r.id !== reviewId);
-    localStorage.setItem(REVIEWS_MODERATION_KEY, JSON.stringify(list));
-    logAdminAction(`Suppression de l’avis ${reviewId}`, 'Modération Avis', adminEmail, 'warning');
-    window.dispatchEvent(new CustomEvent('admin_reviews_updated'));
-  } catch {
-    // ignore
-  }
 }

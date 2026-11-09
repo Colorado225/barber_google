@@ -1,25 +1,44 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { getAdminSalonsList } from '../src/lib/superadmin';
+import { mapPlatformSalon, type PlatformSalonRow } from '../src/lib/platform-admin';
 import { getPlatformMetrics } from '../src/lib/saas';
 import { DEMO_SALONS } from '../src/lib/marketplace-demo';
-import type { Salon } from '../src/types';
 
-const realSalon: Salon = {
-  id: 'real-1',
-  name: 'Salon réel test',
-  commune: 'Cocody',
-  isPublishedOnMarketplace: true,
-  isVerified: true,
-  subscriptionPlanId: 'pro',
-};
+/** Ligne telle que renvoyée par la RPC `platform_list_salons`. */
+function dbRow(patch: Partial<PlatformSalonRow> = {}): PlatformSalonRow {
+  return {
+    id: 'real-1',
+    name: 'Salon réel test',
+    organization_name: null,
+    city: 'Abidjan',
+    commune: 'Cocody',
+    is_published: true,
+    is_verified: true,
+    platform_status: 'active',
+    platform_status_reason: null,
+    publication_date: null,
+    plan_id: 'pro',
+    plan_name: 'Pro Équipe',
+    price_at_subscription: 35000,
+    billing_period: 'monthly',
+    subscription_status: 'active',
+    current_period_end: '2026-12-09T00:00:00Z',
+    ...patch,
+  };
+}
 
-test('admin list returns only salons received from the database (no invented rows)', () => {
-  assert.deepEqual(getAdminSalonsList([]), []);
+test('admin list maps only the rows received from the database (one entry per row, no invented rows)', () => {
+  const rows = [dbRow(), dbRow({ id: 'real-2', name: 'Salon réel 2' })];
+  const mapped = rows.map(mapPlatformSalon);
+  assert.equal(mapped.length, rows.length);
+  assert.deepEqual(
+    mapped.map((s) => s.id),
+    ['real-1', 'real-2'],
+  );
 });
 
 test('admin list does not invent contact, plan, metrics or organisation for a real salon', () => {
-  const [row] = getAdminSalonsList([realSalon]);
+  const row = mapPlatformSalon(dbRow());
   assert.equal(row.id, 'real-1');
   assert.equal(row.name, 'Salon réel test');
   assert.equal(row.isPublished, true);
@@ -33,17 +52,29 @@ test('admin list does not invent contact, plan, metrics or organisation for a re
   assert.equal(row.totalRevenueXof, undefined);
 });
 
-test('a salon without subscription data shows an empty plan, not a default one', () => {
-  const [row] = getAdminSalonsList([{ id: 'x', name: 'Sans formule' }]);
+test('a salon without subscription shows an empty plan and no renewal date, not a default one', () => {
+  const row = mapPlatformSalon(
+    dbRow({
+      plan_id: null,
+      plan_name: null,
+      price_at_subscription: null,
+      subscription_status: null,
+      current_period_end: null,
+      is_published: false,
+      is_verified: false,
+    }),
+  );
   assert.equal(row.planName, '');
   assert.equal(row.planId, '');
   assert.equal(row.priceAtSubscription, 0);
+  assert.equal(row.subscriptionStatus, undefined);
+  assert.equal(row.currentPeriodEnd, undefined);
   assert.equal(row.isPublished, false);
   assert.equal(row.isVerified, false);
 });
 
 test('known invented values from the former fallbacks never reach the admin list', () => {
-  const serialized = JSON.stringify(getAdminSalonsList([realSalon]));
+  const serialized = JSON.stringify(mapPlatformSalon(dbRow()));
   for (const forbidden of ['Palace', 'Empire Cuts', 'Roi du Dégradé', '1120000', '185000', '142']) {
     assert.equal(serialized.includes(forbidden), false, `valeur inventée détectée : ${forbidden}`);
   }

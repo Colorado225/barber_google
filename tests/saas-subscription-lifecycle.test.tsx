@@ -8,7 +8,8 @@ import {
   reviewSaasPayment,
   subscribeSalonToPlan,
 } from '../src/lib/saas';
-import { getAuditLogs, getMarketplaceReviews } from '../src/lib/superadmin';
+import { getAuditLogs } from '../src/lib/superadmin';
+import { listPlatformAuditLogs, listPlatformReviews } from '../src/lib/platform-admin';
 
 // Lot 1 (P0) : aucun abonnement ne doit être activé ni fabriqué depuis le navigateur.
 // Les tests tournent sans Supabase configuré : toute écriture d'abonnement doit échouer,
@@ -54,11 +55,12 @@ test('aucune demande en attente ni déclaration de paiement sans base de donnée
   await assert.rejects(reviewSaasPayment('pay-1', 'confirm'), /base de données/);
 });
 
-test('journal d’audit et avis SuperAdmin ne contiennent aucune entrée pré-remplie', () => {
+test('journal d’audit et avis SuperAdmin ne contiennent aucune entrée pré-remplie', async () => {
   assert.deepEqual(getAuditLogs(), []);
-  assert.deepEqual(getMarketplaceReviews(), []);
-  assert.equal(store.has('barbercuts_admin_audit_log'), false);
   assert.equal(store.has('barbercuts_admin_reviews'), false);
+  // Sans base, ni le journal ni les avis ne sont reconstitués localement.
+  await assert.rejects(listPlatformAuditLogs(), /non configurée/);
+  await assert.rejects(listPlatformReviews(), /non configurée/);
 });
 
 test('régression : le code d’abonnement ne contient plus de repli local ni de plan simulé', async () => {

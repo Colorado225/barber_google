@@ -58,24 +58,47 @@ en production, et la décision de déploiement est bloquée (voir `MASTER-PLAN-E
 - Libellé « commissions déduites » corrigé : la marge affichée est encaissements − dépenses.
 - Placeholder « Le Roi du Dégradé » retiré de l'onboarding (il apparaissait dans le bundle de production).
 
+### Décisions SuperAdmin en base (terminé en code, non déployé)
+
+- Migration `20261111090000_platform_admin_operations` : suspension, publication, certification, attribution de formule,
+  modération des avis, journal d'audit et gestion des administrateurs passent par des RPC `platform_*`
+  (`SECURITY DEFINER`, `search_path` vide, `EXECUTE` pour `authenticated` seulement, contrôle `is_platform_superadmin()`).
+- Suspension : motif obligatoire. Un trigger dépublie le salon suspendu ; la publication d'un salon suspendu est refusée.
+- Formule : motif obligatoire ; l'abonnement actif est créé directement par la base (mensuel, forfait actif).
+- Avis : masquage avec motif et rétablissement ; l'auteur et le motif sont dans le journal.
+- Administrateurs : `super_admin` réservé à `dominiquek051@gmail.com` ; pas de retrait de soi-même ni du dernier
+  `super_admin`. Les rôles de support n'ont pas encore de droits distincts.
+- Client : `src/lib/platform-admin.ts`. Sans Supabase, chaque opération échoue. Plus aucune surcharge, aucun avis ni
+  aucune décision n'est lu ou écrit en `localStorage`.
+- Interface : `AdminDashboard` (liste, abonnements, onglets « Modération des Avis » et « Administrateurs & Journal »),
+  `SalonManagement`, `ReasonDialog`. La date de renouvellement fabriquée (+25 jours) et le libellé « Impayé » ont été
+  supprimés. Les champs nom, commune et coordonnées du salon ne sont plus modifiables ici : aucune RPC ne les enregistre.
+- Marketplace : `MarketplaceHome`, `SalonDetailModal`, `SalonPublicPage` lisent la base sans surcharge locale.
+
 ## Ce qui reste ouvert dans le lot
 
-| Élément                                      | Statut          | Détail                                                                       |
-| -------------------------------------------- | --------------- | ---------------------------------------------------------------------------- |
-| Suspension des salons en base                | non commencé    | Toujours dans `localStorage` (`superadmin.ts`)                               |
-| Modération des avis en base                  | non commencé    | Les RPC `delete_review` existent mais l'admin lit le local                   |
-| Gestion des administrateurs                  | non commencé    | —                                                                            |
-| Publication via RPC                          | partiel         | `set_salon_publication` existe ; surcharges locales encore lues              |
-| Liste admin des forfaits                     | partiel         | `getAdminSalonsList` déduit nom et prix d'une table statique                 |
-| Migrations reproductibles                    | bloqué          | Historique distant divergent (3 versions absentes du dépôt, 1 nom différent) |
-| Déploiement de la migration `20261110090000` | bloqué          | Décision utilisateur + réparation d'historique + sauvegarde                  |
-| Brouillons de forfaits en production         | bloqué          | Dépend de `20261109120000`, non appliquée                                    |
-| Test visuel des écrans modifiés              | non fait        | Pas de vérification navigateur dans cette session                            |
-| `supabase db reset` / `db lint`              | non exécuté ici | Lancé par la CI à l'ouverture de la PR                                       |
+| Élément                                               | Statut          | Détail                                                                              |
+| ----------------------------------------------------- | --------------- | ----------------------------------------------------------------------------------- |
+| Suspension des salons en base                         | terminé (code)  | RPC `platform_set_salon_status`, non déployée                                       |
+| Modération des avis en base                           | partiel         | Masquage en base ; le public n'exclut pas encore les avis masqués (D6)              |
+| Gestion des administrateurs                           | terminé (code)  | RPC `platform_grant_admin` / `platform_revoke_admin` ; rôles de support sans droits |
+| Publication via RPC                                   | terminé (code)  | RPC `platform_set_salon_publication`, refusée pour un salon suspendu                |
+| Liste admin des forfaits                              | terminé (code)  | `platform_list_salons` lit le forfait et le prix dans la base                       |
+| Journal CMS et connexions                             | partiel         | Reste dans `localStorage` (`marketplace-content.ts`, connexions)                    |
+| Capture de la production (`marketplace_salon_detail`) | bloqué          | Divergence D6 : réécrire la fonction avant de filtrer les avis masqués              |
+| Migrations reproductibles                             | bloqué          | Historique distant divergent (3 versions absentes du dépôt, 1 nom différent)        |
+| Déploiement de la migration `20261110090000`          | bloqué          | Décision utilisateur + réparation d'historique + sauvegarde                         |
+| Brouillons de forfaits en production                  | bloqué          | Dépend de `20261109120000`, non appliquée                                           |
+| Test visuel des écrans modifiés                       | non fait        | Pas de vérification navigateur dans cette session                                   |
+| Runbook de réparation D6                              | préparé         | `RUNBOOK-D6-HISTORIQUE-MIGRATIONS.md` ; aucune commande exécutée                    |
+| `supabase db reset` / `db lint`                       | non exécuté ici | Lancé par la CI à l'ouverture de la PR                                              |
 
 ## Fichiers
 
-- Migration : `supabase/migrations/20261110090000_saas_subscription_verification.sql`
+- Migrations : `supabase/migrations/20261110090000_saas_subscription_verification.sql`,
+  `supabase/migrations/20261111090000_platform_admin_operations.sql`
+- Client : `src/lib/platform-admin.ts` (nouveau)
+- Interface : `src/components/admin/ReasonDialog.tsx`, `ReviewModerationPanel.tsx`, `PlatformAdminsPanel.tsx` (nouveaux)
 - Tests : `database/tests/supabase-saas-subscription-verification.test.mjs` (nouveau),
   `database/tests/supabase-saas-pricing.test.mjs` (adapté : validation avant activation),
   `tests/saas-subscription-lifecycle.test.tsx` (nouveau)
@@ -89,12 +112,13 @@ en production, et la décision de déploiement est bloquée (voir `MASTER-PLAN-E
 - `npm run typecheck` : 0 erreur.
 - `npm run lint` : 0 erreur.
 - `npx prettier --check .` : conforme.
-- `npm test` : Node/PGlite 68/68, TSX 52/52.
+- `npm test` : Node/PGlite 69/69 (dont `supabase-platform-admin-operations`, PGlite), TSX 58/58.
 - `npm run build` : OK, aucune chaîne de démonstration ni nom fictif dans `dist/`.
 
 ## Conditions avant déploiement
 
-1. Décisions D1 (paiement manuel ou passerelle), D2 (quotas sans abonnement) et D6 (réparation d'historique).
+1. Décisions D1 (paiement manuel ou passerelle), D2 (quotas sans abonnement) et D6 (réparation d'historique,
+   procédure dans `RUNBOOK-D6-HISTORIQUE-MIGRATIONS.md`).
 2. Sauvegarde de la base de production.
 3. Autorisation explicite, puis workflow `supabase-migrations.yml` sur `main` avec `confirm_production_migration`.
 4. Contrôle manuel : souscription, déclaration, validation, rejet, et vérification que la file de validation n'est

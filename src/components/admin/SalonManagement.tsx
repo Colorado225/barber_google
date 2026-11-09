@@ -27,18 +27,27 @@ import {
   UserCheck,
 } from 'lucide-react';
 import type { SalonAdminDetail } from '../../lib/superadmin';
-import { isSalonLiveOnMarketplace, updateSalonByAdmin } from '../../lib/superadmin';
+import type { SaaSPlan } from '../../types';
+import { isSalonLiveOnMarketplace } from '../../lib/superadmin';
+import {
+  assignPlatformSalonPlan,
+  setPlatformSalonPublication,
+  setPlatformSalonStatus,
+  setPlatformSalonVerification,
+} from '../../lib/platform-admin';
 import { useOptionalApp } from '../../context/AppContext';
+import { ReasonDialog } from './ReasonDialog';
 
 interface SalonManagementProps {
   salons: SalonAdminDetail[];
-  onRefresh: () => void;
-  adminEmail: string;
+  plans: SaaSPlan[];
+  /** Relit la liste depuis la base après chaque décision. */
+  onRefresh: () => void | Promise<void>;
 }
 
 type FilterStatus = 'all' | 'verified' | 'unverified' | 'published' | 'hidden' | 'active' | 'suspended';
 
-export const SalonManagement: React.FC<SalonManagementProps> = ({ salons, onRefresh, adminEmail }) => {
+export const SalonManagement: React.FC<SalonManagementProps> = ({ salons, plans, onRefresh }) => {
   const { addToast, formatPrice } = useOptionalApp();
 
   // Search & Filtering State
@@ -49,15 +58,10 @@ export const SalonManagement: React.FC<SalonManagementProps> = ({ salons, onRefr
   // Detail & Edit Modal State
   const [selectedSalon, setSelectedSalon] = useState<SalonAdminDetail | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editFormData, setEditFormData] = useState({
-    name: '',
-    organizationName: '',
-    commune: '',
-    phone: '',
-    email: '',
-    planId: '',
-    planName: '',
-  });
+  const [editFormData, setEditFormData] = useState({ planId: '', reason: '' });
+  const [editError, setEditError] = useState<string | null>(null);
+  // Suspension : fenêtre de motif ouverte pour ce salon.
+  const [suspendTarget, setSuspendTarget] = useState<SalonAdminDetail | null>(null);
 
   // Unique communes list
   const communes = useMemo(() => {
@@ -100,88 +104,89 @@ export const SalonManagement: React.FC<SalonManagementProps> = ({ salons, onRefr
   const publishedCount = salons.filter(isSalonLiveOnMarketplace).length;
   const suspendedCount = salons.filter((s) => s.status === 'suspended').length;
 
-  // Actions
+  // Actions : chaque décision est envoyée à la base (RPC), tracée côté serveur, puis la liste est relue.
+  const runAction = async (work: () => Promise<void>, successMessage: string) => {
+    try {
+      await work();
+      addToast(successMessage, 'success');
+      await onRefresh();
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'L’action a échoué.', 'error');
+    }
+  };
+
   const handleToggleVerify = (salon: SalonAdminDetail, e?: React.MouseEvent) => {
     e?.stopPropagation();
     const newVerified = !salon.isVerified;
-    updateSalonByAdmin(salon.id, { isVerified: newVerified }, adminEmail);
-    addToast(
+    void runAction(
+      () => setPlatformSalonVerification(salon.id, newVerified),
       `Badge de certification ${newVerified ? 'accordé à' : 'retiré de'} "${salon.name}".`,
-      newVerified ? 'success' : 'info',
     );
-    onRefresh();
   };
 
   const handleTogglePublish = (salon: SalonAdminDetail, e?: React.MouseEvent) => {
     e?.stopPropagation();
     const newPublished = !salon.isPublished;
-    updateSalonByAdmin(salon.id, { isPublished: newPublished }, adminEmail);
-    addToast(
+    void runAction(
+      () => setPlatformSalonPublication(salon.id, newPublished),
       `Salon "${salon.name}" ${newPublished ? 'visible sur la Marketplace' : 'masqué de la Marketplace'}.`,
-      'info',
     );
-    onRefresh();
   };
 
+  // Suspension : motif obligatoire (fenêtre dédiée). La réactivation ne demande pas de motif.
   const handleToggleStatus = (salon: SalonAdminDetail, e?: React.MouseEvent) => {
     e?.stopPropagation();
-    const newStatus = salon.status === 'active' ? 'suspended' : 'active';
-    // Si on suspend un salon, on masque aussi sa vitrine par sécurité
-    const updates: Partial<SalonAdminDetail> = {
-      status: newStatus,
-      ...(newStatus === 'suspended' ? { isPublished: false } : {}),
-    };
-    updateSalonByAdmin(salon.id, updates, adminEmail);
-    addToast(
-      newStatus === 'suspended'
-        ? `Accès de "${salon.name}" SUSPENDU et retiré de la marketplace.`
-        : `Accès de "${salon.name}" RÉACTIVÉ. Le salon reste masqué : republiez-le pour le remettre en ligne.`,
-      newStatus === 'suspended' ? 'error' : 'success',
+    if (salon.status === 'active') {
+      setSuspendTarget(salon);
+      return;
+    }
+    void runAction(
+      () => setPlatformSalonStatus(salon.id, 'active').then(() => undefined),
+      `Accès de "${salon.name}" réactivé. Le salon reste masqué : republiez-le pour le remettre en ligne.`,
     );
-    onRefresh();
+  };
+
+  const confirmSuspension = async (reason: string) => {
+    if (!suspendTarget) return;
+    const target = suspendTarget;
+    await setPlatformSalonStatus(target.id, 'suspended', reason);
+    setSuspendTarget(null);
+    addToast(`Accès de "${target.name}" suspendu et retiré de la marketplace.`, 'error');
+    await onRefresh();
   };
 
   const openEditModal = (salon: SalonAdminDetail, e?: React.MouseEvent) => {
     e?.stopPropagation();
     setSelectedSalon(salon);
-    setEditFormData({
-      name: salon.name,
-      organizationName: salon.organizationName,
-      commune: salon.commune,
-      phone: salon.phone,
-      email: salon.email || '',
-      planId: salon.planId,
-      planName: salon.planName,
-    });
+    setEditFormData({ planId: salon.planId, reason: '' });
+    setEditError(null);
     setIsEditModalOpen(true);
   };
 
-  const handleSaveEdit = (e: React.FormEvent) => {
+  const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedSalon) return;
-    if (!editFormData.name.trim()) {
-      addToast('Le nom du salon est obligatoire', 'error');
+    if (!editFormData.planId) {
+      setEditError('Choisissez une formule.');
       return;
     }
-
-    updateSalonByAdmin(
-      selectedSalon.id,
-      {
-        name: editFormData.name.trim(),
-        organizationName: editFormData.organizationName.trim(),
-        commune: editFormData.commune.trim(),
-        phone: editFormData.phone.trim(),
-        email: editFormData.email.trim(),
-        planId: editFormData.planId,
-        planName: editFormData.planName,
-      },
-      adminEmail,
-    );
-
-    addToast(`Informations du salon "${editFormData.name}" mises à jour avec succès.`, 'success');
-    setIsEditModalOpen(false);
-    setSelectedSalon(null);
-    onRefresh();
+    if (editFormData.planId === selectedSalon.planId) {
+      setEditError('Cette formule est déjà attribuée à ce salon.');
+      return;
+    }
+    if (!editFormData.reason.trim()) {
+      setEditError('Le motif est obligatoire.');
+      return;
+    }
+    try {
+      await assignPlatformSalonPlan(selectedSalon.id, editFormData.planId, editFormData.reason.trim());
+      addToast(`Formule de "${selectedSalon.name}" mise à jour.`, 'success');
+      setIsEditModalOpen(false);
+      setSelectedSalon(null);
+      await onRefresh();
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : 'L’attribution a échoué.');
+    }
   };
 
   return (
@@ -399,7 +404,7 @@ export const SalonManagement: React.FC<SalonManagementProps> = ({ salons, onRefr
                         </div>
                         <div className="text-[11px] text-stone-400 flex items-center gap-1 mt-0.5">
                           <Phone className="w-3 h-3 text-stone-500" />
-                          <span>{salon.phone}</span>
+                          <span>{salon.phone || '—'}</span>
                         </div>
                       </td>
 
@@ -515,6 +520,16 @@ export const SalonManagement: React.FC<SalonManagementProps> = ({ salons, onRefr
       </div>
 
       {/* DETAIL & EDIT MODAL */}
+      {suspendTarget && (
+        <ReasonDialog
+          title={`Suspendre « ${suspendTarget.name} »`}
+          description="Le salon perd son accès ERP et disparaît de la marketplace. Le motif est conservé dans le journal d’audit."
+          confirmLabel="Suspendre l’accès"
+          tone="danger"
+          onConfirm={confirmSuspension}
+          onCancel={() => setSuspendTarget(null)}
+        />
+      )}
       {isEditModalOpen && selectedSalon && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-[#121217] border border-[#2b2b36] rounded-3xl w-full max-w-xl max-h-[90vh] overflow-y-auto p-6 shadow-2xl space-y-6">
@@ -575,91 +590,43 @@ export const SalonManagement: React.FC<SalonManagementProps> = ({ salons, onRefr
 
             {/* Edit Form */}
             <form onSubmit={handleSaveEdit} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <p className="text-[11px] text-stone-500">
+                Nom, commune et coordonnées : lecture seule ici (non modifiables par cette console).
+              </p>
+              <div className="grid grid-cols-1 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-stone-300 mb-1">
-                    Nom Commercial du Salon
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={editFormData.name}
-                    onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
-                    className="w-full bg-[#181820] border border-[#2d2d38] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-[#C9A45C]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-stone-300 mb-1">
-                    Raison Sociale / Entité
-                  </label>
-                  <input
-                    type="text"
-                    value={editFormData.organizationName}
-                    onChange={(e) => setEditFormData({ ...editFormData, organizationName: e.target.value })}
-                    className="w-full bg-[#181820] border border-[#2d2d38] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-[#C9A45C]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-stone-300 mb-1">Commune / Ville</label>
-                  <input
-                    type="text"
-                    required
-                    value={editFormData.commune}
-                    onChange={(e) => setEditFormData({ ...editFormData, commune: e.target.value })}
-                    className="w-full bg-[#181820] border border-[#2d2d38] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-[#C9A45C]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-stone-300 mb-1">
-                    Téléphone de contact
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={editFormData.phone}
-                    onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
-                    className="w-full bg-[#181820] border border-[#2d2d38] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-[#C9A45C]"
-                  />
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-semibold text-stone-300 mb-1">
-                    Email professionnel
-                  </label>
-                  <input
-                    type="email"
-                    value={editFormData.email}
-                    onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
-                    className="w-full bg-[#181820] border border-[#2d2d38] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-[#C9A45C]"
-                  />
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-semibold text-stone-300 mb-1">
-                    Formule SaaS Assignée
+                    Formule SaaS assignée
                   </label>
                   <select
                     value={editFormData.planId}
-                    onChange={(e) => {
-                      const id = e.target.value;
-                      const name =
-                        id === 'starter'
-                          ? 'Starter Solo'
-                          : id === 'pro'
-                            ? 'Pro Équipe'
-                            : 'Prestige & Chaînes';
-                      setEditFormData({ ...editFormData, planId: id, planName: name });
-                    }}
+                    onChange={(e) => setEditFormData({ ...editFormData, planId: e.target.value })}
                     className="w-full bg-[#181820] border border-[#2d2d38] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-[#C9A45C]"
                   >
-                    <option value="starter">Starter Solo (15 000 FCFA/mois)</option>
-                    <option value="pro">Pro Équipe (35 000 FCFA/mois)</option>
-                    <option value="prestige">Prestige & Chaînes (75 000 FCFA/mois)</option>
+                    {plans.map((plan) => (
+                      <option key={plan.id} value={plan.id}>
+                        {plan.name} ({formatPrice(plan.priceXof)} / mois)
+                      </option>
+                    ))}
                   </select>
                 </div>
+                <div>
+                  <label className="block text-xs font-semibold text-stone-300 mb-1">
+                    Motif de l’attribution (obligatoire)
+                  </label>
+                  <textarea
+                    value={editFormData.reason}
+                    onChange={(e) => setEditFormData({ ...editFormData, reason: e.target.value })}
+                    rows={2}
+                    maxLength={500}
+                    className="w-full bg-[#181820] border border-[#2d2d38] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-[#C9A45C]"
+                  />
+                </div>
+                {editError && (
+                  <p role="alert" className="text-xs text-red-300">
+                    {editError}
+                  </p>
+                )}
               </div>
 
               {/* Action Buttons */}

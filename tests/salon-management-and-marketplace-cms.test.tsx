@@ -2,12 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import {
-  getAdminSalonsList,
-  updateSalonByAdmin,
-  getAuditLogs,
-  type SalonAdminDetail,
-} from '../src/lib/superadmin';
+import { mapPlatformSalon, type PlatformSalonRow } from '../src/lib/platform-admin';
+import { SalonManagement } from '../src/components/admin/SalonManagement';
+import type { SalonAdminDetail } from '../src/lib/superadmin';
+import type { SaaSPlan } from '../src/types';
 import {
   getMarketplaceContent,
   saveMarketplaceContent,
@@ -45,49 +43,80 @@ function setupMockLocalStorage() {
   };
 }
 
-test('SalonManagement : consultation, certification et désactivation/suspension des salons locataires', () => {
+function renderManagement(salons: SalonAdminDetail[]): string {
+  return renderToStaticMarkup(
+    React.createElement(
+      AppProvider,
+      null,
+      React.createElement(SalonManagement, { salons, plans: PLANS, onRefresh: () => undefined }),
+    ),
+  );
+}
+
+const PLANS: SaaSPlan[] = [
+  { id: 'starter', name: 'Starter Solo', priceXof: 15000, maxStaff: 1, maxBranches: 1 } as SaaSPlan,
+  { id: 'pro', name: 'Pro Équipe', priceXof: 35000, maxStaff: 5, maxBranches: 1 } as SaaSPlan,
+];
+
+function row(patch: Partial<PlatformSalonRow>): PlatformSalonRow {
+  return {
+    id: 'real-a',
+    name: 'Salon A',
+    organization_name: null,
+    city: 'Abidjan',
+    commune: 'Cocody',
+    is_published: true,
+    is_verified: false,
+    platform_status: 'active',
+    platform_status_reason: null,
+    publication_date: null,
+    plan_id: 'pro',
+    plan_name: 'Pro Équipe',
+    price_at_subscription: 35000,
+    billing_period: 'monthly',
+    subscription_status: 'active',
+    current_period_end: '2026-12-09T00:00:00Z',
+    ...patch,
+  };
+}
+
+test('SalonManagement : affiche uniquement les salons reçus de la base, avec leur statut réel', () => {
   setupMockLocalStorage();
 
-  // Salons tels que renvoyés par la base (aucune donnée inventée).
-  const REAL_SALONS = [
-    { id: 'real-a', name: 'Salon A', commune: 'Cocody', isPublishedOnMarketplace: true, isVerified: false },
-    { id: 'real-b', name: 'Salon B', commune: 'Plateau', isPublishedOnMarketplace: true, isVerified: false },
-    { id: 'real-c', name: 'Salon C', commune: 'Marcory', isPublishedOnMarketplace: false, isVerified: false },
+  const salons: SalonAdminDetail[] = [
+    mapPlatformSalon(row({ id: 'real-a', name: 'Salon A' })),
+    mapPlatformSalon(
+      row({
+        id: 'real-b',
+        name: 'Salon B',
+        platform_status: 'suspended',
+        platform_status_reason: 'Plainte client',
+        is_published: false,
+        plan_id: null,
+        plan_name: null,
+        price_at_subscription: null,
+        subscription_status: null,
+        current_period_end: null,
+      }),
+    ),
   ];
 
-  // 1. Consultation de la liste consolidée
-  const salons = getAdminSalonsList(REAL_SALONS);
-  assert.equal(
-    salons.length,
-    REAL_SALONS.length,
-    'La liste doit refléter exactement les salons reçus de la base',
-  );
+  const html = renderManagement(salons);
 
-  const salonA = salons[0];
-  assert.ok(salonA.id, 'Le salon doit posséder un identifiant');
-  assert.ok(salonA.name, 'Le salon doit posséder un nom commercial');
-  assert.equal(salonA.status, 'active', 'Le salon doit être actif par défaut');
+  assert.ok(html.includes('Salon A'));
+  assert.ok(html.includes('Salon B'));
+  assert.ok(html.includes('Accès Suspendu'), 'Le salon suspendu doit être signalé comme tel');
+  assert.ok(html.includes('Formule non disponible'), 'Sans abonnement, aucune formule n’est affichée');
+  // Aucune décision n'est stockée localement.
+  assert.equal(globalThis.localStorage.getItem('barbercuts_admin_salon_overrides'), null);
+});
 
-  // 2. Certification officielle par le SuperAdmin
-  updateSalonByAdmin(salonA.id, { isVerified: true }, 'admin@barbercuts.com');
-  const updatedSalons = getAdminSalonsList(REAL_SALONS);
-  const verifiedSalon = updatedSalons.find((s) => s.id === salonA.id);
-  assert.equal(verifiedSalon?.isVerified, true, 'Le salon doit être marqué certifié');
-
-  // 3. Désactivation / Suspension d’un salon locataire
-  updateSalonByAdmin(salonA.id, { status: 'suspended', isPublished: false }, 'admin@barbercuts.com');
-  const suspendedSalons = getAdminSalonsList(REAL_SALONS);
-  const targetSuspended = suspendedSalons.find((s) => s.id === salonA.id);
-  assert.equal(targetSuspended?.status, 'suspended', 'Le statut du salon doit être suspendu');
-  assert.equal(targetSuspended?.isPublished, false, 'Le salon suspendu doit être masqué de la marketplace');
-
-  // 4. Vérification de la traçabilité dans les journaux d’audit
-  const logs = getAuditLogs();
-  assert.ok(logs.length >= 2, 'Les actions administratives doivent être journalisées');
-  assert.ok(
-    logs.some((l) => l.action.includes('Modification statut') || l.action.includes('suspendu')),
-    'Le journal doit tracer la suspension du salon',
-  );
+test('SalonManagement : aucune décision n’est enregistrée localement (lecture seule sans base)', () => {
+  setupMockLocalStorage();
+  const salons = [mapPlatformSalon(row({ id: 'real-c', name: 'Salon C', is_published: false }))];
+  renderManagement(salons);
+  assert.equal(globalThis.localStorage.getItem('barbercuts_admin_salon_overrides'), null);
+  assert.equal(globalThis.localStorage.getItem('barbercuts_admin_audit_log'), null);
 });
 
 test('MarketplaceSectionsAdmin : administration dynamique des sections, onglets et ajout de nouvelles sections', () => {

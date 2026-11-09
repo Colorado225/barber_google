@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import { useOptionalApp } from '../../context/AppContext';
 import { bookingPortalPath, bookingPortalUrl, saveBookingLink } from '../../lib/bookingVault';
 import { Salon } from '../../types';
-import { applySalonAdminOverrides, useSalonAdminOverrides } from '../../lib/superadmin';
 import {
   getMarketplaceSalonDetail,
   getMarketplaceAvailability,
@@ -139,12 +138,8 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({ salon, onClo
     };
   }, [detail, selectedServiceId, selectedDate, selectedStaffId, demoFiche]);
 
-  // La certification décidée par le SuperAdmin prime sur la donnée de base.
-  const salonAdminOverrides = useSalonAdminOverrides();
-  const publicSalon = useMemo(
-    () => applySalonAdminOverrides([detail?.salon ?? salon], salonAdminOverrides)[0],
-    [detail?.salon, salon, salonAdminOverrides],
-  );
+  // Certification et publication : celles de la base (aucune surcharge locale).
+  const publicSalon = useMemo(() => detail?.salon ?? salon, [detail?.salon, salon]);
   const services = detail?.services ?? [];
   const staff = detail?.staff ?? [];
   const reviews = detail?.reviews ?? [];

@@ -11,12 +11,8 @@ import {
   subscribeMarketplaceContent,
   type MarketplaceContentConfig,
 } from '../src/lib/marketplace-content';
-import {
-  applySalonAdminOverrides,
-  getSalonAdminOverrides,
-  isSalonLiveOnMarketplace,
-  updateSalonByAdmin,
-} from '../src/lib/superadmin';
+import * as superadmin from '../src/lib/superadmin';
+import { isSalonLiveOnMarketplace } from '../src/lib/superadmin';
 import { AppProvider } from '../src/context/AppContext';
 import App from '../src/App';
 import { MarketplaceHome } from '../src/components/marketplace/MarketplaceHome';
@@ -194,30 +190,18 @@ test('marketplace : sans section à la une ni bandeau, aucun bloc vide n’est r
   assert.ok(!home.includes('aria-label="Annonce"'));
 });
 
-test('superadmin : certification et suspension appliquées à la visibilité publique', () => {
+test('superadmin : aucune décision locale ne modifie la visibilité publique (la base est la source)', () => {
   installStorage();
   installServerWindow();
 
-  const base = [
-    { id: 's1', isVerified: false, isPublishedOnMarketplace: true },
-    { id: 's2', isVerified: false, isPublishedOnMarketplace: true },
-    { id: 's3', isVerified: false, isPublishedOnMarketplace: false },
-  ];
-
-  updateSalonByAdmin('s1', { isVerified: true }, ADMIN);
-  updateSalonByAdmin('s2', { status: 'suspended' }, ADMIN);
-  updateSalonByAdmin('s3', { isPublished: true }, ADMIN);
-
-  assert.ok(getSalonAdminOverrides().s1, 'Les décisions sont persistées');
-  const applied = applySalonAdminOverrides(base);
-
-  assert.equal(applied[0].isVerified, true, 'Le badge certifié est visible côté public');
-  assert.equal(applied[0].isPublishedOnMarketplace, true);
-  assert.equal(applied[1].isPublishedOnMarketplace, false, 'Un salon suspendu disparaît de la marketplace');
-  assert.equal(applied[2].isPublishedOnMarketplace, true, 'Publication décidée par l’admin appliquée');
+  // Les anciennes surcharges localStorage ne sont plus lues ni exportées.
+  assert.equal('applySalonAdminOverrides' in superadmin, false);
+  assert.equal('updateSalonByAdmin' in superadmin, false);
+  assert.equal('getSalonAdminOverrides' in superadmin, false);
 
   assert.equal(isSalonLiveOnMarketplace({ isPublished: true, status: 'suspended' }), false);
   assert.equal(isSalonLiveOnMarketplace({ isPublished: true, status: 'active' }), true);
+  assert.equal(isSalonLiveOnMarketplace({ isPublished: false, status: 'active' }), false);
 });
 
 test('gestionnaire : formulaires pré-remplis depuis la configuration courante', () => {

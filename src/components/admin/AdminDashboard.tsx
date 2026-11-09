@@ -45,19 +45,24 @@ import {
 import {
   verifySuperAdminAccess,
   logoutSuperAdmin,
-  getAdminSalonsList,
-  updateSalonByAdmin,
-  getMarketplaceReviews,
-  deleteReviewByAdmin,
-  getAuditLogs,
   isSalonLiveOnMarketplace,
   type AdminUser,
   type SalonAdminDetail,
   type MarketplaceReviewItem,
-  type AuditLogEntry,
+  type PlatformAuditEntry,
 } from '../../lib/superadmin';
+import {
+  listPlatformSalons,
+  listPlatformReviews,
+  listPlatformAuditLogs,
+  setPlatformSalonStatus,
+  assignPlatformSalonPlan,
+} from '../../lib/platform-admin';
 import { AdminLoginForm } from './AdminLoginForm';
 import { SalonManagement } from './SalonManagement';
+import { ReasonDialog } from './ReasonDialog';
+import { ReviewModerationPanel } from './ReviewModerationPanel';
+import { PlatformAdminsPanel } from './PlatformAdminsPanel';
 import { MarketplaceSectionsAdmin } from './MarketplaceSectionsAdmin';
 import { MarketplaceConfigManager } from './MarketplaceConfigManager';
 import { PricingTierEditor } from './PricingTierEditor';
@@ -71,6 +76,8 @@ export type AdminDashboardTab =
   | 'marketplace-config'
   | 'pricing'
   | 'subscriptions'
+  | 'reviews'
+  | 'governance'
   | 'settings';
 
 interface PlatformSettings {
@@ -98,7 +105,7 @@ function loadPlatformSettings(): PlatformSettings {
 }
 
 export const AdminDashboard: React.FC = () => {
-  const { addToast, formatPrice, salons: appSalons } = useOptionalApp();
+  const { addToast, formatPrice } = useOptionalApp();
 
   // Authentication gate state
   // Aucune session n'est acceptée avant vérification serveur (voir verifySuperAdminAccess).
@@ -125,7 +132,7 @@ export const AdminDashboard: React.FC = () => {
   const [metrics, setMetrics] = useState<PlatformMetrics | null>(null);
   const [salons, setSalons] = useState<SalonAdminDetail[]>([]);
   const [reviews, setReviews] = useState<MarketplaceReviewItem[]>([]);
-  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
+  const [auditLogs, setAuditLogs] = useState<PlatformAuditEntry[]>([]);
   const [loading, setLoading] = useState(false);
 
   // Search & Filters
@@ -143,6 +150,10 @@ export const AdminDashboard: React.FC = () => {
   // Subscription Edit Modal for a Salon
   const [selectedSalonForSub, setSelectedSalonForSub] = useState<SalonAdminDetail | null>(null);
   const [newSubPlanId, setNewSubPlanId] = useState('');
+  const [subReason, setSubReason] = useState('');
+  const [subError, setSubError] = useState<string | null>(null);
+  // Suspension depuis l'onglet Abonnements : fenêtre de motif.
+  const [statusTarget, setStatusTarget] = useState<SalonAdminDetail | null>(null);
 
   // Platform-wide Settings State (stored in localStorage).
   // La bannière d'annonce est désormais gérée dans « Config Marketplace » (source unique).
@@ -151,19 +162,23 @@ export const AdminDashboard: React.FC = () => {
   const loadAllData = async () => {
     setLoading(true);
     try {
-      const [fetchedPlans, fetchedMetrics, fetchedDrafts] = await Promise.all([
-        getAllSaasPlans(),
-        getPlatformMetrics(),
-        getSaasPlanDrafts(),
-      ]);
+      const [fetchedPlans, fetchedMetrics, fetchedDrafts, fetchedSalons, fetchedReviews, fetchedAudit] =
+        await Promise.all([
+          getAllSaasPlans(),
+          getPlatformMetrics(),
+          getSaasPlanDrafts(),
+          listPlatformSalons(),
+          listPlatformReviews(),
+          listPlatformAuditLogs(100),
+        ]);
       setPlans(fetchedPlans);
       setMetrics(fetchedMetrics);
       setPlanDrafts(fetchedDrafts);
-      setSalons(getAdminSalonsList(appSalons));
-      setReviews(getMarketplaceReviews());
-      setAuditLogs(getAuditLogs());
-    } catch {
-      addToast('Erreur lors du chargement des données', 'error');
+      setSalons(fetchedSalons);
+      setReviews(fetchedReviews);
+      setAuditLogs(fetchedAudit);
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Erreur lors du chargement des données', 'error');
     } finally {
       setLoading(false);
     }
@@ -174,22 +189,16 @@ export const AdminDashboard: React.FC = () => {
       loadAllData();
     }
     const handleSessionChange = () => setAdminSession(null);
-    const handleSalonsUpdate = () => {
-      setSalons(getAdminSalonsList(appSalons));
-      setAuditLogs(getAuditLogs());
-    };
     const handlePlansUpdate = () => loadAllData();
 
     window.addEventListener('superadmin_session_changed', handleSessionChange);
-    window.addEventListener('admin_salons_updated', handleSalonsUpdate);
     window.addEventListener('saas_plans_updated', handlePlansUpdate);
 
     return () => {
       window.removeEventListener('superadmin_session_changed', handleSessionChange);
-      window.removeEventListener('admin_salons_updated', handleSalonsUpdate);
       window.removeEventListener('saas_plans_updated', handlePlansUpdate);
     };
-  }, [adminSession, appSalons]);
+  }, [adminSession]);
 
   // VÉRIFICATION D'ACCÈS EN COURS : rien de sensible n'est affiché avant la réponse du serveur
   if (!accessChecked) {
@@ -257,48 +266,62 @@ export const AdminDashboard: React.FC = () => {
       .map((d) => ({ view: { ...d.plan, subscribersCount: 0 } as PlanCardView, draft: d, draftOnly: true })),
   ];
 
-  // Salon Listing Handlers
-  const handleToggleListingPublish = (salon: SalonAdminDetail) => {
-    const updated = !salon.isPublished;
-    updateSalonByAdmin(salon.id, { isPublished: updated }, adminSession.email);
-    addToast(
-      `Salon "${salon.name}" ${updated ? 'publié sur la Marketplace' : 'masqué de la Marketplace'}.`,
-      'info',
-    );
+  // Décisions SuperAdmin : envoyées à la base (RPC tracées), puis la liste est relue.
+  const runDecision = async (
+    work: () => Promise<void>,
+    successMessage: string,
+    tone: 'success' | 'info' | 'error' = 'info',
+  ) => {
+    try {
+      await work();
+      addToast(successMessage, tone);
+      await loadAllData();
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'L’action a échoué.', 'error');
+    }
   };
 
-  const handleToggleVerified = (salon: SalonAdminDetail) => {
-    const updated = !salon.isVerified;
-    updateSalonByAdmin(salon.id, { isVerified: updated }, adminSession.email);
-    addToast(`Badge de vérification ${updated ? 'accordé à' : 'retiré de'} "${salon.name}".`, 'info');
-  };
-
+  // Suspension : motif obligatoire (fenêtre dédiée). Réactivation directe, sans motif.
   const handleToggleSalonStatus = (salon: SalonAdminDetail) => {
-    const updated = salon.status === 'active' ? 'suspended' : 'active';
-    updateSalonByAdmin(salon.id, { status: updated }, adminSession.email);
-    addToast(
-      `Accès ERP pour "${salon.name}" ${updated === 'suspended' ? 'suspendu' : 'réactivé'}.`,
-      updated === 'suspended' ? 'error' : 'success',
+    if (salon.status === 'active') {
+      setStatusTarget(salon);
+      return;
+    }
+    void runDecision(
+      () => setPlatformSalonStatus(salon.id, 'active').then(() => undefined),
+      `Accès ERP pour "${salon.name}" réactivé. Republiez-le pour le remettre en ligne.`,
+      'success',
     );
   };
 
-  // Subscription Plan override handler
-  const handleSaveSubscriptionOverride = () => {
+  const confirmSuspension = async (reason: string) => {
+    if (!statusTarget) return;
+    const target = statusTarget;
+    await setPlatformSalonStatus(target.id, 'suspended', reason);
+    setStatusTarget(null);
+    addToast(`Accès ERP pour "${target.name}" suspendu.`, 'error');
+    await loadAllData();
+  };
+
+  // Attribution manuelle de formule : motif obligatoire, abonnement actif mensuel créé par la base.
+  const handleSaveSubscriptionOverride = async () => {
     if (!selectedSalonForSub || !newSubPlanId) return;
     const targetPlan = plans.find((p) => p.id === newSubPlanId);
     if (!targetPlan) return;
-
-    updateSalonByAdmin(
-      selectedSalonForSub.id,
-      {
-        planId: targetPlan.id,
-        planName: targetPlan.name,
-        priceAtSubscription: targetPlan.priceXof,
-      },
-      adminSession.email,
-    );
-    addToast(`Formule de "${selectedSalonForSub.name}" mise à jour vers ${targetPlan.name}.`, 'success');
-    setSelectedSalonForSub(null);
+    if (!subReason.trim()) {
+      setSubError('Le motif est obligatoire.');
+      return;
+    }
+    try {
+      await assignPlatformSalonPlan(selectedSalonForSub.id, targetPlan.id, subReason.trim());
+      addToast(`Formule de "${selectedSalonForSub.name}" mise à jour vers ${targetPlan.name}.`, 'success');
+      setSelectedSalonForSub(null);
+      setSubReason('');
+      setSubError(null);
+      await loadAllData();
+    } catch (err) {
+      setSubError(err instanceof Error ? err.message : 'L’attribution a échoué.');
+    }
   };
 
   // Save Platform-wide settings
@@ -406,6 +429,8 @@ export const AdminDashboard: React.FC = () => {
                   icon: CreditCard,
                   count: salons.length,
                 },
+                { id: 'reviews', label: 'Modération des Avis', icon: MessageSquare, count: reviews.length },
+                { id: 'governance', label: 'Administrateurs & Journal', icon: ShieldCheck },
                 { id: 'settings', label: 'Paramètres Globaux', icon: Settings },
               ].map((item) => {
                 const Icon = item.icon;
@@ -567,11 +592,11 @@ export const AdminDashboard: React.FC = () => {
                       {auditLogs.slice(0, 4).map((log) => (
                         <tr key={log.id}>
                           <td className="py-2.5 px-4 text-stone-500">
-                            {new Date(log.timestamp).toLocaleTimeString('fr-FR')}
+                            {new Date(log.createdAt).toLocaleTimeString('fr-FR')}
                           </td>
                           <td className="py-2.5 px-4 text-white font-sans">{log.action}</td>
-                          <td className="py-2.5 px-4 text-[#E5C378]">{log.target}</td>
-                          <td className="py-2.5 px-4 text-stone-400">{log.performedBy}</td>
+                          <td className="py-2.5 px-4 text-[#E5C378]">{log.targetType}</td>
+                          <td className="py-2.5 px-4 text-stone-400">{log.actorEmail ?? 'Système'}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -731,8 +756,18 @@ export const AdminDashboard: React.FC = () => {
           )}
 
           {/* TAB 2: SALON MANAGEMENT (VIEW, VERIFY, DEACTIVATE/SUSPEND) */}
+          {activeTab === 'reviews' && <ReviewModerationPanel reviews={reviews} onRefresh={loadAllData} />}
+
+          {activeTab === 'governance' && (
+            <PlatformAdminsPanel
+              currentUserId={adminSession.id}
+              auditLogs={auditLogs}
+              onRefresh={loadAllData}
+            />
+          )}
+
           {activeTab === 'salons' && (
-            <SalonManagement salons={salons} onRefresh={loadAllData} adminEmail={adminSession.email} />
+            <SalonManagement salons={salons} plans={plans} onRefresh={loadAllData} />
           )}
 
           {/* TAB 3: MARKETPLACE SECTIONS & TABS CMS */}
@@ -797,11 +832,20 @@ export const AdminDashboard: React.FC = () => {
                                   : 'bg-red-500/15 text-red-400 border border-red-500/30'
                               }`}
                             >
-                              {salon.status === 'active' ? 'Abonné Actif' : 'Suspendu / Impayé'}
+                              {salon.status === 'suspended'
+                                ? 'Accès suspendu'
+                                : salon.subscriptionStatus === 'active' ||
+                                    salon.subscriptionStatus === 'trialing'
+                                  ? 'Abonnement actif'
+                                  : salon.subscriptionStatus === 'pending_payment'
+                                    ? 'Paiement en attente'
+                                    : 'Aucun abonnement'}
                             </span>
                           </td>
                           <td className="py-3.5 px-4 text-stone-400">
-                            {new Date(Date.now() + 25 * 86400000).toLocaleDateString('fr-FR')}
+                            {salon.currentPeriodEnd
+                              ? new Date(salon.currentPeriodEnd).toLocaleDateString('fr-FR')
+                              : '—'}
                           </td>
                           <td className="py-3.5 px-4 text-right space-x-2">
                             <button
@@ -940,6 +984,17 @@ export const AdminDashboard: React.FC = () => {
         </main>
       </div>
 
+      {statusTarget && (
+        <ReasonDialog
+          title={`Suspendre l’accès de « ${statusTarget.name} »`}
+          description="Le salon perd son accès ERP et disparaît de la marketplace. Le motif est conservé dans le journal d’audit."
+          confirmLabel="Suspendre l’accès"
+          tone="danger"
+          onConfirm={confirmSuspension}
+          onCancel={() => setStatusTarget(null)}
+        />
+      )}
+
       {/* PLAN EDIT MODAL */}
       {editorTarget && (
         <PricingTierEditor
@@ -984,17 +1039,39 @@ export const AdminDashboard: React.FC = () => {
               </select>
             </div>
 
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold text-stone-300">
+                Motif de l’attribution (obligatoire)
+                <textarea
+                  value={subReason}
+                  onChange={(e) => setSubReason(e.target.value)}
+                  rows={2}
+                  maxLength={500}
+                  className="mt-1.5 w-full px-3.5 py-2.5 rounded-xl bg-[#08080a] border border-[#202028] text-xs text-white focus:outline-none focus:border-[#C9A45C]"
+                />
+              </label>
+              {subError && (
+                <p role="alert" className="text-xs text-red-300">
+                  {subError}
+                </p>
+              )}
+            </div>
+
             <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#1c1c24]">
               <button
                 type="button"
-                onClick={() => setSelectedSalonForSub(null)}
+                onClick={() => {
+                  setSelectedSalonForSub(null);
+                  setSubError(null);
+                  setSubReason('');
+                }}
                 className="px-4 py-2 rounded-xl bg-[#181820] text-stone-400 text-xs font-semibold"
               >
                 Annuler
               </button>
               <button
                 type="button"
-                onClick={handleSaveSubscriptionOverride}
+                onClick={() => void handleSaveSubscriptionOverride()}
                 className="px-4 py-2 rounded-xl bg-[#C9A45C] text-[#101010] font-bold text-xs"
               >
                 Appliquer la Formule

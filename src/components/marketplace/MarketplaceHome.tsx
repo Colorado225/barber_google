@@ -8,7 +8,6 @@ import { SalonCard } from './SalonCard';
 import { FeaturedSectionCard } from './FeaturedSectionCard';
 import { useSalonDeepLink } from '../../hooks/useSalonDeepLink';
 import { useMarketplaceContent } from '../../lib/marketplace-content';
-import { applySalonAdminOverrides, useSalonAdminOverrides } from '../../lib/superadmin';
 import {
   Search,
   MapPin,
@@ -90,14 +89,10 @@ export const MarketplaceHome: React.FC = () => {
     [config.featuredSections],
   );
 
-  // Décisions SuperAdmin (suspension, publication, certification) appliquées en direct aux salons affichés.
-  const salonAdminOverrides = useSalonAdminOverrides();
+  // Source : la base. Un salon suspendu est dépublié par le trigger serveur, donc absent ici.
   const marketplaceSalons = useMemo(
-    () =>
-      applySalonAdminOverrides(salons, salonAdminOverrides).filter(
-        (salon) => salon.isPublishedOnMarketplace === true,
-      ),
-    [salons, salonAdminOverrides],
+    () => salons.filter((salon) => salon.isPublishedOnMarketplace === true),
+    [salons],
   );
 
   // QR code links (/?salon=<slug>) open the salon's booking profile directly.
