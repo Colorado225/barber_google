@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useServicesDomain } from '../features/services/useServicesDomain';
 import { useStaffDomain } from '../features/staff/useStaffDomain';
 import { useClientCommands } from '../features/clients/useClientCommands';
@@ -6,6 +6,7 @@ import { useLoyaltyRewardsDomain } from '../features/loyalty/useLoyaltyRewardsDo
 import { useLoyaltyProgramDomain } from '../features/loyalty/useLoyaltyProgramDomain';
 import { useNotificationsDomain } from '../features/notifications/useNotificationsDomain';
 import { useAppointmentsDomain } from '../features/appointments/useAppointmentsDomain';
+import { useFinanceDomain } from '../features/finance/useFinanceDomain';
 import { newIdempotencyKey } from '../features/shared/idempotency';
 import { useExpensesDomain } from '../features/expenses/useExpensesDomain';
 import { useStockDomain } from '../features/stock/useStockDomain';
@@ -256,11 +257,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [marketplaceLoading, setMarketplaceLoading] = useState(false);
   const [marketplaceError, setMarketplaceError] = useState<string | null>(null);
   const [clients, setClients] = useState<Client[]>(INITIAL_CLIENTS);
-  const [transactions, setTransactions] = useState<PaymentTransaction[]>(INITIAL_TRANSACTIONS);
-  const [cashSession, setCashSession] = useState<CashSession | null>(null);
-  const [cashSessions, setCashSessions] = useState<CashSession[]>([]);
   const [branches, setBranches] = useState<{ id: string; name: string }[]>([]);
-  const [financialSummary, setFinancialSummary] = useState<FinancialSummary | null>(null);
   const [reviews, setReviews] = useState<Review[]>(INITIAL_REVIEWS);
 
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -319,34 +316,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // ----- Chargement initial depuis Supabase -----
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
-
-  const financeRange = () => {
-    const now = new Date();
-    const to = now.toISOString().slice(0, 10);
-    const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 11, 1))
-      .toISOString()
-      .slice(0, 10);
-    return { from, to, monthStart: `${to.slice(0, 8)}01` };
-  };
-
-  // Charge uniquement les données financières autorisées par le rôle actif.
-  const loadFinance = async (salonId: string) => {
-    const api = salonApi(salonId);
-    const { from, to, monthStart } = financeRange();
-    const [payments, sessions, summary] = await Promise.all([
-      hasPermission('payments.read', salonId)
-        ? api.payments.list({ from, to, limit: 500 })
-        : Promise.resolve([] as PaymentTransaction[]),
-      hasPermission('cash.read', salonId) ? api.cash.sessions(50) : Promise.resolve([] as CashSession[]),
-      hasPermission('reports.read', salonId)
-        ? api.reports.summary(monthStart, to)
-        : Promise.resolve(null as FinancialSummary | null),
-    ]);
-    setTransactions(payments);
-    setCashSessions(sessions);
-    setCashSession(sessions.find((s) => s.status === 'open') ?? null);
-    setFinancialSummary(summary);
-  };
 
   const reloadWorkspace = async (salonId: string) => {
     setIsSyncing(true);
@@ -449,162 +418,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const { notifications, loadNotifications, refreshNotifications, dispatchNotifications, retryNotification } =
     useNotificationsDomain({ hasPermission, requireActiveSalon, addToast, activeSalonId });
 
-  const paymentStatusFromBalance = (
-    balance: AppointmentBalance,
-    billed: number,
-  ): Appointment['paymentStatus'] => {
-    if (billed > 0 && balance.collected >= billed) return 'paid';
-    if (balance.collected > 0) return 'deposit_paid';
-    if (balance.refunded > 0) return 'refunded';
-    return 'unpaid';
-  };
-
-  const syncAfterFinance = async (appointmentId?: string) => {
-    const salonId = requireActiveSalon().id;
-    await loadFinance(salonId);
-    // Un encaissement confirmé déclenche les points de fidélité côté base.
-    await loadLoyalty(salonId);
-    if (appointmentId) {
-      const balance = await salonApi(salonId).payments.balance(appointmentId);
-      setAppointments((prev) =>
-        prev.map((a) =>
-          a.id === appointmentId ? { ...a, paymentStatus: paymentStatusFromBalance(balance, a.price) } : a,
-        ),
-      );
-    }
-  };
-
-  const refreshFinance = async () => {
-    await loadFinance(requireActiveSalon().id);
-  };
-
-  const recordPayment = async (payment: {
-    appointmentId: string;
-    amount: number;
-    method: PaymentMethod;
-    providerReference?: string;
-    reason?: string;
-    idempotencyKey?: string;
-  }): Promise<PaymentTransaction> => {
-    const salonId = requireActiveSalon().id;
-    if (!payment.appointmentId) throw new Error('Un rendez-vous est requis pour encaisser.');
-    if (!Number.isInteger(payment.amount) || payment.amount <= 0) {
-      throw new Error('Le montant doit être un entier positif en FCFA.');
-    }
-    const saved = await salonApi(salonId).payments.record({
-      appointmentId: payment.appointmentId,
-      amount: payment.amount,
-      method: payment.method,
-      idempotencyKey: payment.idempotencyKey ?? newIdempotencyKey(),
-      providerReference: payment.providerReference ?? null,
-      reason: payment.reason ?? '',
-    });
-    await syncAfterFinance(payment.appointmentId);
-    addToast(
-      saved.status === 'pending'
-        ? 'Paiement Mobile Money enregistré en attente de vérification manuelle.'
-        : 'Encaissement enregistré dans le journal de caisse.',
-      'success',
-    );
-    return saved;
-  };
-
-  const confirmPendingPayment = async (
-    paymentId: string,
-    providerReference: string,
-    settlementNote: string,
-  ) => {
-    const saved = await salonApi(requireActiveSalon().id).payments.confirm(
-      paymentId,
-      providerReference,
-      settlementNote,
-    );
-    await syncAfterFinance(saved.appointmentId);
-    addToast('Paiement vérifié manuellement et confirmé.', 'success');
-    return saved;
-  };
-
-  const rejectPendingPayment = async (paymentId: string, reason: string) => {
-    const saved = await salonApi(requireActiveSalon().id).payments.reject(paymentId, reason);
-    await syncAfterFinance(saved.appointmentId);
-    addToast('Paiement en attente rejeté.', 'info');
-    return saved;
-  };
-
-  const recordPaymentCorrection = async (correction: {
-    originalEntryId: string;
-    kind: Exclude<PaymentEntryKind, 'payment'>;
-    amount: number;
-    reason: string;
-    providerReference?: string;
-    settlementNote?: string;
-    idempotencyKey?: string;
-  }): Promise<PaymentTransaction> => {
-    if (!Number.isInteger(correction.amount) || correction.amount <= 0) {
-      throw new Error('Le montant de correction doit être un entier positif en FCFA.');
-    }
-    const saved = await salonApi(requireActiveSalon().id).payments.correct({
-      originalEntryId: correction.originalEntryId,
-      kind: correction.kind,
-      amount: correction.amount,
-      reason: correction.reason,
-      idempotencyKey: correction.idempotencyKey ?? newIdempotencyKey(),
-      providerReference: correction.providerReference ?? null,
-      settlementNote: correction.settlementNote ?? '',
-    });
-    await syncAfterFinance(saved.appointmentId);
-    addToast('Correction enregistrée dans le journal (écriture liée, motif conservé).', 'success');
-    return saved;
-  };
-
-  const getAppointmentBalance = useCallback(
-    async (appointmentId: string): Promise<AppointmentBalance> => {
-      return salonApi(activeSalonId).payments.balance(appointmentId);
-    },
-    [activeSalonId],
-  );
-
-  const closeCurrentCashSession = async (
-    actualCashAmount: number,
-    notes?: string,
-    sessionId?: string,
-  ): Promise<CashSession> => {
-    const target = sessionId ?? cashSession?.id;
-    if (!target) throw new Error('Aucune session de caisse ouverte à clôturer.');
-    if (!Number.isInteger(actualCashAmount) || actualCashAmount < 0) {
-      throw new Error('Le montant compté doit être un entier positif ou nul en FCFA.');
-    }
-    const saved = await salonApi(requireActiveSalon().id).cash.close(target, actualCashAmount, notes ?? '');
-    await loadFinance(requireActiveSalon().id);
-    addToast('Session de caisse clôturée.', 'success');
-    return saved;
-  };
-
-  const openNewCashSession = async (
-    openingBalance: number,
-    branchId?: string,
-    note?: string,
-  ): Promise<CashSession> => {
-    const salonId = requireActiveSalon().id;
-    const targetBranch =
-      branchId ?? memberships.find((m) => m.salonId === salonId)?.branchId ?? branches[0]?.id;
-    if (!targetBranch) throw new Error('Aucune succursale disponible pour ouvrir une caisse.');
-    if (!Number.isInteger(openingBalance) || openingBalance < 0) {
-      throw new Error('Le fond de caisse doit être un entier positif ou nul en FCFA.');
-    }
-    const saved = await salonApi(salonId).cash.open(targetBranch, openingBalance, note ?? '');
-    await loadFinance(salonId);
-    addToast('Session de caisse ouverte.', 'success');
-    return saved;
-  };
-
-  const reconcileCashSession = async (sessionId: string, note: string): Promise<CashSession> => {
-    const saved = await salonApi(requireActiveSalon().id).cash.reconcile(sessionId, note);
-    await loadFinance(requireActiveSalon().id);
-    addToast('Session de caisse rapprochée.', 'success');
-    return saved;
-  };
-
   // ----- Prestations (persistées dans Supabase) -----
   // Catalogue extrait (features/services) : même API, déstructurée ici.
   const { services, setServices, setServiceActive, addService, updateService, deleteService } =
@@ -652,6 +465,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addToast,
     loadNotifications,
     loadLoyalty,
+  });
+
+  // Finances : encaissements, corrections, sessions de caisse, soldes (features/finance).
+  const {
+    transactions,
+    cashSession,
+    cashSessions,
+    financialSummary,
+    loadFinance,
+    refreshFinance,
+    syncAfterFinance,
+    recordPayment,
+    confirmPendingPayment,
+    rejectPendingPayment,
+    recordPaymentCorrection,
+    getAppointmentBalance,
+    closeCurrentCashSession,
+    openNewCashSession,
+    reconcileCashSession,
+  } = useFinanceDomain({
+    hasPermission,
+    requireActiveSalon,
+    addToast,
+    activeSalonId,
+    memberships,
+    branches,
+    loadLoyalty,
+    setAppointments,
   });
 
   // Domaines extraits (features/) : même API exposée, déstructurée ci-dessous.
