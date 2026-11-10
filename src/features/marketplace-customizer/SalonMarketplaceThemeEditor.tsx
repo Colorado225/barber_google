@@ -1,8 +1,7 @@
 import React from 'react';
 import { SalonMarketplaceLayout, SalonMarketplaceViewConfig, SalonCardStyle } from '../../types';
-import { Card } from '../../components/ui/card';
 import { cn } from '../../lib/utils';
-import { Check, Sparkles, Layout, Palette, Box } from 'lucide-react';
+import { Check, Layout, Palette, Box } from 'lucide-react';
 
 interface SalonMarketplaceThemeEditorProps {
   config: SalonMarketplaceViewConfig;

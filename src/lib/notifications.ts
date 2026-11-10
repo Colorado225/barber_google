@@ -19,10 +19,53 @@ export const NOTIFICATION_CHANNEL_HONEST_FEATURE =
 
 export const LEGACY_FALSE_SMS_FEATURE = 'Rappels SMS & WhatsApp anti-no-show';
 
+export const LEGACY_FALSE_COMMISSION_FEATURE = "Calcul automatique des commissions d'équipe";
+export const HONEST_COMMISSION_FEATURE =
+  'Suivi des taux de commission par membre (calcul automatique des montants dus à venir)';
+
+export const LEGACY_FALSE_ACCOUNTING_EXPORT_FEATURE = 'Export comptable et réconciliation des caisses';
+export const HONEST_CASH_RECONCILIATION_FEATURE =
+  'Rapprochement et réconciliation des caisses (export comptable non disponible)';
+
+export const LEGACY_FALSE_PRIORITY_MARKETPLACE_FEATURE = 'Mise en avant prioritaire sur la Marketplace';
+export const HONEST_MARKETPLACE_SHOWCASE_FEATURE =
+  'Vitrine complète sur la Marketplace (classement par publication ; mise en avant non automatisée)';
+
+export const LEGACY_FALSE_VIP_SUPPORT_FEATURE = 'Support technique VIP prioritaire 7j/7';
+export const HONEST_PRESTIGE_SUPPORT_FEATURE =
+  'Accompagnement à l’onboarding multi-sites (support VIP 7j/7 non intégré à l’application)';
+
+export const LEGACY_OVERSTATED_NETWORK_FEATURE = 'Multi-succursales & gestion de réseau centralisée';
+export const HONEST_MULTI_BRANCH_FEATURE =
+  'Multi-succursales jusqu’à 5 établissements (quota serveur & sélecteur ERP)';
+
+export const LEGACY_OVERSTATED_REPORTS_FEATURE = 'Rapports financiers et bilans comptables consolidés';
+export const HONEST_REPORTS_FEATURE = 'Rapports financiers et indicateurs d’activité par établissement';
+
+const LEGACY_FEATURE_REPLACEMENTS: Record<string, string> = {
+  [LEGACY_FALSE_SMS_FEATURE]: NOTIFICATION_CHANNEL_HONEST_FEATURE,
+  [LEGACY_FALSE_COMMISSION_FEATURE]: HONEST_COMMISSION_FEATURE,
+  'Calcul automatique des commissions d’équipe': HONEST_COMMISSION_FEATURE,
+  [LEGACY_FALSE_ACCOUNTING_EXPORT_FEATURE]: HONEST_CASH_RECONCILIATION_FEATURE,
+  [LEGACY_FALSE_PRIORITY_MARKETPLACE_FEATURE]: HONEST_MARKETPLACE_SHOWCASE_FEATURE,
+  [LEGACY_FALSE_VIP_SUPPORT_FEATURE]: HONEST_PRESTIGE_SUPPORT_FEATURE,
+  [LEGACY_OVERSTATED_NETWORK_FEATURE]: HONEST_MULTI_BRANCH_FEATURE,
+  [LEGACY_OVERSTATED_REPORTS_FEATURE]: HONEST_REPORTS_FEATURE,
+};
+
 export function normalizeSaasPlanFeatures(features: string[]): string[] {
-  return features.map((item) =>
-    item.trim() === LEGACY_FALSE_SMS_FEATURE ? NOTIFICATION_CHANNEL_HONEST_FEATURE : item,
-  );
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of features) {
+    const trimmed = raw.trim();
+    if (!trimmed) continue;
+    const normalized = LEGACY_FEATURE_REPLACEMENTS[trimmed] ?? raw;
+    if (!seen.has(normalized)) {
+      seen.add(normalized);
+      out.push(normalized);
+    }
+  }
+  return out;
 }
 
 export function isRepeatedNotificationFailure(n: AppointmentNotification): boolean {

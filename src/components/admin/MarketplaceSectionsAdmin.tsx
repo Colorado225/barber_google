@@ -7,21 +7,10 @@ import {
   Save,
   RotateCcw,
   Eye,
-  Check,
-  ChevronDown,
-  ChevronUp,
-  Scissors,
   Award,
-  Smartphone,
-  Star,
   Clock,
-  Search,
-  Sliders,
-  ExternalLink,
-  MessageSquare,
   HelpCircle,
   Tag,
-  ArrowRight,
 } from 'lucide-react';
 import {
   useMarketplaceContent,
@@ -30,7 +19,6 @@ import {
   type MarketplaceCustomSectionItem,
   type MarketplaceCategoryItem,
   type MarketplaceTrustItem,
-  type MarketplaceStepItem,
   type MarketplaceTabConfig,
   type MarketplaceFaqItem,
 } from '../../lib/marketplace-content';
@@ -666,7 +654,7 @@ export const MarketplaceSectionsAdmin: React.FC<MarketplaceSectionsAdminProps> =
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {draft.steps.map((st, i) => (
+            {draft.steps.map((st) => (
               <div
                 key={st.id}
                 className="bg-[#181820] border border-[#282834] rounded-2xl p-5 space-y-3 relative"

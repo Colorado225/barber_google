@@ -1,16 +1,5 @@
 import React, { useState } from 'react';
-import {
-  ShieldCheck,
-  Lock,
-  Mail,
-  ArrowRight,
-  Eye,
-  EyeOff,
-  AlertTriangle,
-  Sparkles,
-  KeyRound,
-  CheckCircle2,
-} from 'lucide-react';
+import { ShieldCheck, Lock, Mail, Eye, EyeOff, AlertTriangle, Sparkles, KeyRound } from 'lucide-react';
 import { loginSuperAdmin, type AdminUser } from '../../lib/superadmin';
 
 interface AdminLoginFormProps {

@@ -244,10 +244,10 @@ const DEMO_FEATURED_SECTIONS: MarketplaceFeaturedSection[] = [
 ];
 
 /** Contenus remplacés en mode démo. Les autres champs (hero, catégories, méta-données) restent ceux de la configuration. */
-export interface MarketplaceDemoContent extends Pick<
+export type MarketplaceDemoContent = Pick<
   MarketplaceContentConfig,
   'trustItems' | 'steps' | 'promoBanner' | 'proCta' | 'faqs' | 'customSections' | 'featuredSections'
-> {}
+>;
 
 export const DEMO_CONTENT: MarketplaceDemoContent = {
   trustItems: DEMO_TRUST_ITEMS,

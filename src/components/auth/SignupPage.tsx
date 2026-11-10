@@ -1,11 +1,29 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, Eye, EyeOff, Lock, Mail, Scissors, User } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowRight, Eye, EyeOff, Lock, Mail, Scissors, Sparkles, User } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { getSupabaseAuthErrorMessage } from '../../lib/auth-errors';
+import {
+  buildPlanSelectionQuery,
+  formatSaasBillingPeriodLabel,
+  parsePlanSelectionFromSearch,
+  readPlanSelectionIntent,
+  savePlanSelectionIntent,
+} from '../../lib/saasPricing';
 import { isSupabaseConfigured } from '../../lib/supabase';
+import { getPublicPlatformStatus } from '../../lib/platformSettings';
 
-export const SignupPage: React.FC = () => {
+const KNOWN_PLAN_NAMES: Record<string, string> = {
+  starter: 'Starter Solo',
+  pro: 'Pro Équipe',
+  prestige: 'Prestige & Chaînes',
+};
+
+export interface SignupPageProps {
+  loadPlatformStatus?: typeof getPublicPlatformStatus;
+}
+
+export const SignupPage: React.FC<SignupPageProps> = ({ loadPlatformStatus = getPublicPlatformStatus }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -14,12 +32,50 @@ export const SignupPage: React.FC = () => {
   const [confirmationVisible, setConfirmationVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [maintenanceMode, setMaintenanceMode] = useState(false);
   const { signUp } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const supabaseConfigured = isSupabaseConfigured();
+
+  const searchString = searchParams.toString();
+  const urlIntent = parsePlanSelectionFromSearch(searchString ? `?${searchString}` : '');
+  const planIntent = urlIntent ?? readPlanSelectionIntent();
+
+  useEffect(() => {
+    if (urlIntent) {
+      savePlanSelectionIntent(urlIntent);
+    }
+  }, [urlIntent]);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadPlatformStatus()
+      .then((status) => {
+        if (!cancelled) {
+          setMaintenanceMode(status.maintenanceMode);
+        }
+      })
+      .catch(() => {
+        // Ne pas bloquer l'affichage si la sonde publique échoue ponctuellement ;
+        // create_salon() applique toujours maintenance_mode côté serveur.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [loadPlatformStatus]);
+
+  const planQuerySuffix = buildPlanSelectionQuery(planIntent);
+  const planDisplayName = planIntent?.planSlug
+    ? (KNOWN_PLAN_NAMES[planIntent.planSlug] ?? planIntent.planSlug)
+    : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (maintenanceMode) {
+      setError('Les nouvelles inscriptions sont temporairement suspendues (mode maintenance actif).');
+      return;
+    }
     if (!supabaseConfigured) {
       setError('La création de compte est momentanément indisponible. Supabase n’est pas configuré.');
       return;
@@ -42,11 +98,17 @@ export const SignupPage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
+      if (planIntent) {
+        savePlanSelectionIntent(planIntent);
+      }
       const result = await signUp(normalizedName, normalizedEmail, password);
       if (result.status === 'authenticated') {
-        navigate('/app');
+        navigate(planIntent ? `/app/abonnement${planQuerySuffix}` : '/app');
       } else {
-        navigate(`/verifier-email?email=${encodeURIComponent(normalizedEmail)}`);
+        const verifyParams = new URLSearchParams({ email: normalizedEmail });
+        if (planIntent?.planSlug) verifyParams.set('plan', planIntent.planSlug);
+        if (planIntent?.billingPeriod) verifyParams.set('billing', planIntent.billingPeriod);
+        navigate(`/verifier-email?${verifyParams.toString()}`);
       }
     } catch (err) {
       setError(getSupabaseAuthErrorMessage(err, 'sign-up'));
@@ -127,6 +189,19 @@ export const SignupPage: React.FC = () => {
             </p>
           </header>
 
+          {planIntent && (
+            <div
+              data-testid="signup-selected-plan-banner"
+              className="mb-4 flex items-center gap-2.5 border border-[#b4975b]/50 bg-[#ece3d1] px-4 py-2.5 text-xs font-medium text-[#3c3322]"
+            >
+              <Sparkles aria-hidden="true" className="h-4 w-4 shrink-0 text-[#8d7545]" />
+              <span>
+                Formule sélectionnée : <strong>{planDisplayName ?? 'Abonnement salon'}</strong> ·{' '}
+                <span>{formatSaasBillingPeriodLabel(planIntent.billingPeriod)}</span>
+              </span>
+            </div>
+          )}
+
           <div
             role="note"
             className="mb-5 flex items-start gap-3 border-l-2 border-[#a98a52] bg-[#e6dece] px-4 py-3 text-sm leading-5 text-[#514a3c]"
@@ -138,6 +213,16 @@ export const SignupPage: React.FC = () => {
             </p>
           </div>
 
+          {maintenanceMode && (
+            <p
+              data-testid="signup-maintenance-banner"
+              role="alert"
+              className="mb-5 border border-[#ae6258]/50 bg-[#f2e2dc] px-4 py-3 text-sm font-medium text-[#743a33]"
+            >
+              Mode maintenance actif : les nouvelles inscriptions et créations d’établissement sont
+              temporairement suspendues.
+            </p>
+          )}
           {!supabaseConfigured && (
             <p
               role="alert"
@@ -311,12 +396,12 @@ export const SignupPage: React.FC = () => {
 
             <button
               type="submit"
-              disabled={loading || !supabaseConfigured}
+              disabled={loading || !supabaseConfigured || maintenanceMode}
               aria-busy={loading}
               className="group flex w-full items-center justify-center gap-2 border border-[#24241f] bg-[#24241f] px-4 py-3.5 text-sm font-semibold text-[#f4efe5] transition hover:border-[#8f7440] hover:bg-[#39362d] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#917441] focus-visible:ring-offset-2 focus-visible:ring-offset-[#eee8dd] disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading ? 'Création du compte…' : 'Créer mon compte'}
-              {!loading && supabaseConfigured && (
+              {!loading && supabaseConfigured && !maintenanceMode && (
                 <ArrowRight
                   aria-hidden="true"
                   className="h-4 w-4 transition-transform group-hover:translate-x-1"
@@ -328,7 +413,7 @@ export const SignupPage: React.FC = () => {
           <p className="mt-6 border-t border-[#d8d0c3] pt-4 text-sm text-[#68645b]">
             Déjà un compte ?{' '}
             <Link
-              to="/connexion"
+              to={`/connexion${planQuerySuffix}`}
               className="font-semibold text-[#775d2d] underline decoration-[#ad935e]/50 underline-offset-4 hover:text-[#42351d] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#917441]"
             >
               Se connecter

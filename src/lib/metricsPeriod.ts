@@ -1,12 +1,9 @@
+import { DEFAULT_BUSINESS_TIMEZONE, shiftCalendarDays, zonedToday } from './businessTime';
+
 export type MetricsPeriodKey = 'month' | '30d' | 'year' | 'all' | 'custom';
 
-export function abidjanToday(): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Africa/Abidjan',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date());
+export function abidjanToday(now: Date = new Date()): string {
+  return zonedToday(DEFAULT_BUSINESS_TIMEZONE, now);
 }
 
 export function rangeForMetricsPeriod(
@@ -16,7 +13,5 @@ export function rangeForMetricsPeriod(
   if (period === 'all') return { from: null, to: null };
   if (period === 'month') return { from: `${today.slice(0, 8)}01`, to: today };
   if (period === 'year') return { from: `${today.slice(0, 4)}-01-01`, to: today };
-  const d = new Date(`${today}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() - 29);
-  return { from: d.toISOString().slice(0, 10), to: today };
+  return { from: shiftCalendarDays(today, -29), to: today };
 }

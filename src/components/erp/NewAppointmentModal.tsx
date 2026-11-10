@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { salonApi, ApiError } from '../../lib/api';
+import { zonedTimeString, zonedToday } from '../../lib/businessTime';
 import { PaymentMethod } from '../../types';
-import { X, Calendar, Clock, User, Scissors, CheckCircle2 } from 'lucide-react';
+import { X, Calendar, CheckCircle2 } from 'lucide-react';
 
 interface NewAppointmentModalProps {
   onClose: () => void;
@@ -17,7 +18,7 @@ export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({
   initialTime,
   initialStaffId,
 }) => {
-  const { activeSalon, services, staff, formatPrice, bookAppointment } = useApp();
+  const { activeSalon, salonTimezone, services, staff, formatPrice, bookAppointment } = useApp();
 
   const salonServices = services.filter((s) => s.salonId === activeSalon.id);
   const salonStaff = staff.filter((s) => s.salonId === activeSalon.id);
@@ -30,7 +31,7 @@ export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({
       ? initialStaffId
       : salonStaff[0]?.id || '',
   );
-  const [selectedDate, setSelectedDate] = useState(initialDate || new Date().toISOString().slice(0, 10));
+  const [selectedDate, setSelectedDate] = useState(() => initialDate || zonedToday(salonTimezone));
   const [selectedTime, setSelectedTime] = useState(initialTime || '');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [source, setSource] = useState<'direct' | 'whatsapp' | 'phone'>('phone');
@@ -45,7 +46,7 @@ export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({
     setSelectedTime('');
     setAvailabilityError(null);
 
-    void salonApi(activeSalon.id)
+    void salonApi(activeSalon.id, salonTimezone)
       .appointments.availability(selectedDate, selectedServiceId || undefined)
       .then((byStaff: Record<string, { startsAt: string; available: boolean }[]>) => {
         if (!active) return;
@@ -55,7 +56,7 @@ export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({
           ...new Set(
             staffSlots
               .filter((slot) => slot.available)
-              .map((slot) => slot.startsAt.slice(11, 16))
+              .map((slot) => zonedTimeString(slot.startsAt, salonTimezone))
               .filter(Boolean),
           ),
         ].sort();
@@ -79,7 +80,7 @@ export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({
     return () => {
       active = false;
     };
-  }, [activeSalon.id, selectedDate, selectedStaffId, selectedServiceId, initialTime]);
+  }, [activeSalon.id, salonTimezone, selectedDate, selectedStaffId, selectedServiceId, initialTime]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

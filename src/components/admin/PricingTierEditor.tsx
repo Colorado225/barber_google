@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Check, Sliders, Trash2, X } from 'lucide-react';
 import type { SaaSPlan } from '../../types';
 import { saveSaasPlanWorkflow, type SaaSPlanInput, type SaaSPlanSaveStatus } from '../../lib/saas';
+import { resolvePlanBilling } from '../../lib/saasPricing';
 import { useOptionalApp } from '../../context/AppContext';
 
 export interface PricingTierEditorProps {
@@ -94,7 +95,7 @@ export const PricingTierEditor: React.FC<PricingTierEditorProps> = ({
   onClose,
   onSaved,
 }) => {
-  const { addToast } = useOptionalApp();
+  const { addToast, formatPrice } = useOptionalApp();
   const [form, setForm] = useState<TierForm>(() => buildInitialForm(plan, pendingDraft, nextDisplayOrder));
   const [newFeatureText, setNewFeatureText] = useState('');
   const [publishNow, setPublishNow] = useState(true);
@@ -216,10 +217,32 @@ export const PricingTierEditor: React.FC<PricingTierEditorProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label
+                htmlFor="tier-billing-period"
+                className="block text-xs font-semibold text-stone-300 mb-1.5"
+              >
+                Facturation du forfait
+              </label>
+              <select
+                id="tier-billing-period"
+                value={form.billingPeriod}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    billingPeriod: e.target.value === 'yearly' ? 'yearly' : 'monthly',
+                  })
+                }
+                className="w-full px-3.5 py-2.5 rounded-xl bg-[#08080a] border border-[#202028] text-xs text-white focus:outline-none focus:border-[#C9A45C]"
+              >
+                <option value="monthly">Mensuelle (+ option annuelle -15%)</option>
+                <option value="yearly">Annuelle uniquement (12 mois)</option>
+              </select>
+            </div>
             <div>
               <label htmlFor="tier-price" className="block text-xs font-semibold text-[#E5C378] mb-1.5">
-                Prix Mensuel (FCFA) *
+                {form.billingPeriod === 'yearly' ? 'Prix Annuel (FCFA) *' : 'Prix Mensuel (FCFA) *'}
               </label>
               <input
                 id="tier-price"
@@ -231,6 +254,11 @@ export const PricingTierEditor: React.FC<PricingTierEditorProps> = ({
                 onChange={(e) => setForm({ ...form, priceXof: Number(e.target.value) })}
                 className="w-full px-3.5 py-2.5 rounded-xl bg-[#08080a] border border-[#C9A45C]/50 text-xs font-bold text-white focus:outline-none focus:border-[#C9A45C]"
               />
+              <p className="mt-1 text-[11px] text-stone-400">
+                {form.billingPeriod === 'yearly'
+                  ? `Équivalent mensuel : ${formatPrice(Math.round((Number(form.priceXof) || 0) / 12))} / mois`
+                  : `Annuel (-15%) : ${formatPrice(resolvePlanBilling({ priceXof: form.priceXof, billingPeriod: 'monthly' }, 'yearly').billedPriceXof)} / an`}
+              </p>
             </div>
             <div>
               <label htmlFor="tier-badge" className="block text-xs font-semibold text-stone-300 mb-1.5">

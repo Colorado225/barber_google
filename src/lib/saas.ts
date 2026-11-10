@@ -1,5 +1,15 @@
 import type { SaaSPlan, SaaSSubscription, PlatformMetrics } from '../types';
-import { NOTIFICATION_CHANNEL_HONEST_FEATURE, normalizeSaasPlanFeatures } from './notifications';
+import {
+  HONEST_CASH_RECONCILIATION_FEATURE,
+  HONEST_COMMISSION_FEATURE,
+  HONEST_MARKETPLACE_SHOWCASE_FEATURE,
+  HONEST_MULTI_BRANCH_FEATURE,
+  HONEST_PRESTIGE_SUPPORT_FEATURE,
+  HONEST_REPORTS_FEATURE,
+  NOTIFICATION_CHANNEL_HONEST_FEATURE,
+  normalizeSaasPlanFeatures,
+} from './notifications';
+import { normalizeSaasBillingPeriod, type SaasBillingPeriod } from './saasPricing';
 import { getSupabaseClient, isSupabaseConfigured } from './supabase';
 
 const DEFAULT_PLANS: SaaSPlan[] = [
@@ -36,7 +46,7 @@ const DEFAULT_PLANS: SaaSPlan[] = [
       'Le choix de référence pour les salons en pleine croissance cherchant à maximiser leur rentabilité.',
     features: [
       "Jusqu'à 5 barbiers",
-      "Calcul automatique des commissions d'équipe",
+      HONEST_COMMISSION_FEATURE,
       'Module Clients de passage (Walk-in en direct)',
       'Programme de fidélité et récompenses automatisé',
       'Personnalisation complète de la vitrine (3 thèmes)',
@@ -60,11 +70,11 @@ const DEFAULT_PLANS: SaaSPlan[] = [
     description: 'Conçu pour les barbershops haut de gamme et les chaînes multi-établissements.',
     features: [
       'Barbiers et fauteuils illimités',
-      'Multi-succursales & gestion de réseau centralisée',
-      'Rapports financiers et bilans comptables consolidés',
-      'Export comptable et réconciliation des caisses',
-      'Mise en avant prioritaire sur la Marketplace',
-      'Support technique VIP prioritaire 7j/7',
+      HONEST_MULTI_BRANCH_FEATURE,
+      HONEST_REPORTS_FEATURE,
+      HONEST_CASH_RECONCILIATION_FEATURE,
+      HONEST_MARKETPLACE_SHOWCASE_FEATURE,
+      HONEST_PRESTIGE_SUPPORT_FEATURE,
     ],
     maxStaff: null,
     maxBranches: 5,
@@ -306,6 +316,7 @@ export interface SaaSPaymentReviewItem {
   salonName: string;
   planId: string;
   planName: string;
+  billingPeriod?: SaasBillingPeriod;
   amountXof: number;
   method: SaaSPaymentMethod;
   reference: string;
@@ -349,8 +360,15 @@ function subscriptionFromRpc(data: Record<string, unknown>, plan: SaaSPlan | und
  * Demande la souscription d'un salon à un forfait (propriétaire uniquement).
  * La demande reste « pending_payment » : rien n'est activé tant qu'un paiement n'a pas été validé
  * par le super administrateur. Aucun repli local : sans base de données, l'opération échoue.
+ *
+ * Lorsque `billingPeriod` est fourni ('monthly' | 'yearly'), le serveur valide la période et
+ * applique la remise annuelle (-15 %) si le forfait est configuré au mois.
  */
-export async function subscribeSalonToPlan(salonId: string, planId: string): Promise<SaaSSubscription> {
+export async function subscribeSalonToPlan(
+  salonId: string,
+  planId: string,
+  billingPeriod?: SaasBillingPeriod,
+): Promise<SaaSSubscription> {
   requireSupabase();
   // Forfaits publics actifs : get_all_saas_plans est réservé au super administrateur.
   const allPlans = await getSaasPlans();
@@ -359,9 +377,15 @@ export async function subscribeSalonToPlan(salonId: string, planId: string): Pro
     throw new Error("Ce forfait d'abonnement n'existe pas ou est indisponible.");
   }
 
+  const normalizedPeriod = billingPeriod ? normalizeSaasBillingPeriod(billingPeriod) : undefined;
+  if (targetPlan.billingPeriod === 'yearly' && normalizedPeriod === 'monthly') {
+    throw new Error('Ce forfait est uniquement disponible en facturation annuelle.');
+  }
+
   const { data, error } = await getSupabaseClient().rpc('subscribe_salon_to_plan', {
     p_salon_id: salonId,
     p_plan_id: planId,
+    p_billing_period: normalizedPeriod ?? null,
   });
   if (error) throw new Error(error.message);
   if (!data || typeof data !== 'object') {
@@ -476,6 +500,10 @@ export async function getSaasPaymentsForReview(): Promise<SaaSPaymentReviewItem[
     salonName: String(row.salon_name),
     planId: String(row.plan_id),
     planName: String(row.plan_name),
+    billingPeriod:
+      row.billing_period === 'yearly' || row.billing_period === 'monthly'
+        ? (row.billing_period as SaasBillingPeriod)
+        : undefined,
     amountXof: Number(row.amount_xof),
     method: row.method as SaaSPaymentMethod,
     reference: String(row.reference),

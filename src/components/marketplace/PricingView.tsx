@@ -1,21 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  Sparkles,
-  Check,
-  Scissors,
-  ArrowRight,
-  ShieldCheck,
-  CreditCard,
-  Smartphone,
-  HelpCircle,
-  Zap,
-  Users,
-  Store,
-  Ban,
-} from 'lucide-react';
+import { Sparkles, Check, ArrowRight, ShieldCheck, Smartphone, Zap, Users, Store, Ban } from 'lucide-react';
 import type { SaaSPlan } from '../../types';
 import { getSaasPlans } from '../../lib/saas';
+import {
+  parsePlanSelectionFromSearch,
+  resolvePlanBilling,
+  savePlanSelectionIntent,
+  type SaasBillingPeriod,
+} from '../../lib/saasPricing';
 import { SMS_UNAVAILABLE_MESSAGE, SMS_UNAVAILABLE_TITLE } from '../../lib/notifications';
 import { useOptionalApp } from '../../context/AppContext';
 
@@ -23,7 +16,10 @@ export const PricingView: React.FC = () => {
   const { formatPrice } = useOptionalApp();
   const [plans, setPlans] = useState<SaaSPlan[]>([]);
   const [loading, setLoading] = useState(true);
-  const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'yearly'>('monthly');
+  const [billingPeriod, setBillingPeriod] = useState<SaasBillingPeriod>(() => {
+    if (typeof window === 'undefined') return 'monthly';
+    return parsePlanSelectionFromSearch(window.location.search)?.billingPeriod ?? 'monthly';
+  });
 
   useEffect(() => {
     let isMounted = true;
@@ -72,6 +68,8 @@ export const PricingView: React.FC = () => {
         <div className="pt-6 flex items-center justify-center">
           <div className="p-1 rounded-2xl bg-[#161619] border border-[#26262b] flex items-center gap-1">
             <button
+              type="button"
+              aria-pressed={billingPeriod === 'monthly'}
               onClick={() => setBillingPeriod('monthly')}
               className={`px-5 py-2 rounded-xl text-xs font-bold transition-all ${
                 billingPeriod === 'monthly'
@@ -82,6 +80,8 @@ export const PricingView: React.FC = () => {
               Facturation Mensuelle
             </button>
             <button
+              type="button"
+              aria-pressed={billingPeriod === 'yearly'}
               onClick={() => setBillingPeriod('yearly')}
               className={`px-5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${
                 billingPeriod === 'yearly'
@@ -105,8 +105,7 @@ export const PricingView: React.FC = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch">
             {plans.map((plan) => {
-              const adjustedPrice =
-                billingPeriod === 'yearly' ? Math.round((plan.priceXof * 12 * 0.85) / 12) : plan.priceXof;
+              const billing = resolvePlanBilling(plan, billingPeriod);
 
               return (
                 <div
@@ -133,13 +132,17 @@ export const PricingView: React.FC = () => {
                     {/* Price display */}
                     <div className="border-y border-[#202025] py-5">
                       <div className="flex items-baseline gap-1.5">
-                        <span className="text-4xl font-black text-white">{formatPrice(adjustedPrice)}</span>
+                        <span className="text-4xl font-black text-white">
+                          {formatPrice(billing.monthlyEquivalentXof)}
+                        </span>
                         <span className="text-xs text-stone-400 font-semibold">/ mois</span>
                       </div>
                       <div className="text-[11px] text-stone-400 mt-1">
-                        {billingPeriod === 'yearly'
-                          ? `Facturé annuellement (${formatPrice(adjustedPrice * 12)} / an)`
-                          : 'Sans engagement, résiliable à tout moment'}
+                        {!billing.supportsPeriodChoice
+                          ? `Forfait annuel (${formatPrice(billing.billedPriceXof)} / an · 12 mois)`
+                          : billing.billingPeriod === 'yearly'
+                            ? `Facturé annuellement (${formatPrice(billing.billedPriceXof)} / an · économisez ${formatPrice(billing.annualSavingsXof)})`
+                            : 'Sans engagement, résiliable à tout moment'}
                       </div>
                     </div>
 
@@ -181,7 +184,13 @@ export const PricingView: React.FC = () => {
                   {/* CTA Action */}
                   <div className="p-8 pt-0">
                     <Link
-                      to={`/inscription?plan=${plan.slug}`}
+                      to={`/inscription?plan=${encodeURIComponent(plan.slug)}&billing=${billing.billingPeriod}`}
+                      onClick={() =>
+                        savePlanSelectionIntent({
+                          planSlug: plan.slug,
+                          billingPeriod: billing.billingPeriod,
+                        })
+                      }
                       className={`w-full py-3.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-md ${
                         plan.isPopular
                           ? 'bg-[#C9A45C] hover:bg-[#d8b56d] text-[#101010]'
@@ -198,17 +207,22 @@ export const PricingView: React.FC = () => {
           </div>
         )}
 
-        {/* Transparence sur les canaux de notification */}
+        {/* Transparence sur les canaux de notification & périmètre fonctionnel */}
         <div
           data-testid="pricing-sms-unavailable-notice"
           className="mt-10 rounded-2xl border border-[#27272e] bg-[#141417] p-5 flex items-start gap-3 text-xs text-stone-300"
         >
           <Ban className="w-4 h-4 text-stone-400 shrink-0 mt-0.5" />
-          <div className="space-y-1">
-            <p className="font-bold text-white">{SMS_UNAVAILABLE_TITLE}</p>
+          <div className="space-y-1.5">
+            <p className="font-bold text-white">{SMS_UNAVAILABLE_TITLE} & périmètre réel</p>
             <p className="text-stone-400 leading-relaxed">
               {SMS_UNAVAILABLE_MESSAGE} La disponibilité effective des rappels automatiques dépend de
               l’activation des clés opérateur et de la validation des modèles WhatsApp.
+            </p>
+            <p className="text-stone-400 leading-relaxed">
+              Côté gestion, les fiches équipe permettent de configurer et d’afficher le taux de commission (%)
+              de chaque membre, sans calcul automatique des montants dus par période, et les exports
+              comptables de caisse ne sont pas encore disponibles.
             </p>
           </div>
         </div>
@@ -219,7 +233,8 @@ export const PricingView: React.FC = () => {
             <Smartphone className="w-6 h-6 text-[#C9A45C] mx-auto" />
             <h4 className="text-sm font-bold text-white">Règlement Mobile Money</h4>
             <p className="text-xs text-stone-400">
-              Payez votre abonnement en toute liberté via Wave, Orange Money, MTN MoMo ou Carte bancaire.
+              Déclarez votre règlement par Mobile Money (Wave, Orange Money, MTN MoMo), virement bancaire ou
+              espèces.
             </p>
           </div>
 
@@ -234,9 +249,10 @@ export const PricingView: React.FC = () => {
 
           <div className="p-6 rounded-2xl bg-[#141417] border border-[#222227] space-y-2">
             <Zap className="w-6 h-6 text-[#C9A45C] mx-auto" />
-            <h4 className="text-sm font-bold text-white">Activation Immédiate</h4>
+            <h4 className="text-sm font-bold text-white">Activation après vérification</h4>
             <p className="text-xs text-stone-400">
-              Votre espace ERP et votre fiche marketplace sont activés instantanément après validation.
+              Votre espace ERP démarre dès l’inscription ; l’abonnement payant s’active après vérification du
+              paiement déclaré.
             </p>
           </div>
         </div>

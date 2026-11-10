@@ -31,7 +31,7 @@ jobs:
 
       # Installation reproductible basée sur package-lock.json.
       - name: Installation des dépendances
-        run: npm ci --legacy-peer-deps
+        run: npm ci
 
       - name: Typecheck
         run: npm run typecheck

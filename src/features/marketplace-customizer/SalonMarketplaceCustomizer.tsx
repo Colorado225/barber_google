@@ -15,7 +15,7 @@ import { SalonMarketplaceThemeEditor } from './SalonMarketplaceThemeEditor';
 import { SalonMarketplaceContentEditor } from './SalonMarketplaceContentEditor';
 import { SalonMarketplaceSectionsEditor } from './SalonMarketplaceSectionsEditor';
 import { SalonMarketplacePreview } from './SalonMarketplacePreview';
-import { Globe, Palette, FileText, SlidersHorizontal, Loader2, AlertCircle, Sparkles } from 'lucide-react';
+import { Globe, Palette, FileText, SlidersHorizontal, Loader2, AlertCircle } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 export const SalonMarketplaceCustomizer: React.FC = () => {
@@ -38,7 +38,6 @@ export const SalonMarketplaceCustomizer: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'theme' | 'content' | 'sections'>('theme');
 
   // Succursales réelles + horaires réels pour l'aperçu (aucune donnée inventée).
-  const [salonBranches, setSalonBranches] = useState<{ id: string; name: string }[]>([]);
   const [previewBranches, setPreviewBranches] = useState<PublicSalonDetail['branches']>([]);
 
   useEffect(() => {
@@ -56,7 +55,6 @@ export const SalonMarketplaceCustomizer: React.FC = () => {
     listSalonBranches(activeSalon.id)
       .then(async (branches) => {
         if (cancelled) return;
-        setSalonBranches(branches);
         const withHours = await Promise.all(
           branches.map(async (b) => {
             try {
@@ -81,7 +79,6 @@ export const SalonMarketplaceCustomizer: React.FC = () => {
       })
       .catch(() => {
         if (!cancelled) {
-          setSalonBranches([]);
           setPreviewBranches([]);
         }
       });

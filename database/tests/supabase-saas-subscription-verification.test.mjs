@@ -213,6 +213,73 @@ test('Cycle de vie des abonnements : validation SuperAdmin, audit, annualité, q
     db.query("select public.save_saas_plan('x','x','x',1,'monthly','', '[]'::jsonb)"),
     /permission denied/,
   );
+
+  // 11. Tarification annuelle choisie à la souscription (-15 % côté serveur, paiement et durée 12 mois).
+  // Quand `pro` est encore en facturation annuelle native ('yearly'), la demande mensuelle est rejetée
+  // et une demande annuelle ne double-multiplie ni ne double-remise le tarif.
+  await asUser(ownerA);
+  await expectRejection(
+    db.query("select public.subscribe_salon_to_plan($1, 'pro', 'monthly')", [salonA]),
+    /uniquement disponible en facturation annuelle/,
+  );
+  const nativeYearlySub = (
+    await db.query("select public.subscribe_salon_to_plan($1, 'pro', 'yearly') as res", [salonA])
+  ).rows[0].res;
+  assert.equal(nativeYearlySub.billing_period, 'yearly');
+  assert.equal(Number(nativeYearlySub.price_at_subscription), 35000);
+
+  // Rétablissement du forfait `pro` mensuel à 35 000 FCFA, puis souscription annuelle explicite (-15 % -> 357 000 FCFA).
+  await db.exec('reset role');
+  await db.query("update public.saas_plans set billing_period = 'monthly' where id = 'pro'");
+
+  await asUser(ownerA);
+  await expectRejection(
+    db.query("select public.subscribe_salon_to_plan($1, 'pro', 'weekly')", [salonA]),
+    /Période de facturation invalide/,
+  );
+
+  const annualProPending = (
+    await db.query("select public.subscribe_salon_to_plan($1, 'pro', 'yearly') as res", [salonA])
+  ).rows[0].res;
+  assert.equal(annualProPending.status, 'pending_payment');
+  assert.equal(annualProPending.billing_period, 'yearly');
+  assert.equal(Number(annualProPending.price_at_subscription), 357000);
+
+  const annualPayment = (
+    await db.query("select public.declare_saas_payment($1, 'mobile_money', 'MM-PRO-YEARLY-1') as res", [
+      salonA,
+    ])
+  ).rows[0].res;
+  assert.equal(Number(annualPayment.amount_xof), 357000);
+
+  await asUser(superAdmin);
+  const reviewQueue = (await db.query('select public.list_saas_payments_for_review() as res')).rows[0].res;
+  const queuedItem = reviewQueue.find((row) => row.id === annualPayment.id);
+  assert.ok(queuedItem, 'Le paiement annuel doit figurer dans la file SuperAdmin');
+  assert.equal(queuedItem.billing_period, 'yearly');
+  assert.equal(Number(queuedItem.amount_xof), 357000);
+
+  await db.query("select public.review_saas_payment($1, 'confirm', null)", [annualPayment.id]);
+
+  await asUser(ownerA);
+  const activeAnnual = (await db.query('select public.get_salon_subscription($1) as res', [salonA])).rows[0]
+    .res;
+  assert.equal(activeAnnual.plan_id, 'pro');
+  assert.equal(activeAnnual.status, 'active');
+  assert.equal(activeAnnual.billing_period, 'yearly');
+  assert.equal(Number(activeAnnual.price_at_subscription), 357000);
+  const annualDays =
+    (new Date(activeAnnual.current_period_end) - new Date(activeAnnual.started_at)) / 86400000;
+  assert.ok(
+    annualDays > 360 && annualDays < 370,
+    `Période annuelle attendue ~365 jours, obtenu ${annualDays.toFixed(1)}`,
+  );
+
+  await asUser(superAdmin);
+  const platformMetrics = (await db.query('select public.get_platform_metrics() as res')).rows[0].res;
+  assert.equal(Number(platformMetrics.subscriptions_by_billing_period.yearly), 1);
+  assert.equal(Number(platformMetrics.yearly_mrr_xof), 29750);
+  assert.equal(Number(platformMetrics.annual_run_rate_xof), 357000);
 });
 
 after(async () => {

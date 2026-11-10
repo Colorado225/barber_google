@@ -7,6 +7,12 @@ import {
   saveBookingLink,
   setActiveBookingToken,
 } from '../../lib/bookingVault';
+import {
+  DEFAULT_BUSINESS_TIMEZONE,
+  resolveSalonTimezone,
+  shiftCalendarDays,
+  zonedDateString,
+} from '../../lib/businessTime';
 import { Salon } from '../../types';
 import {
   getMarketplaceSalonDetail,
@@ -20,7 +26,6 @@ import {
   Star,
   MapPin,
   Phone,
-  MessageCircle,
   Clock,
   CheckCircle2,
   Calendar as CalendarIcon,
@@ -57,14 +62,8 @@ interface SalonDetailModalProps {
   ) => Promise<{ success: boolean; booking?: PublicBooking; error?: string }>;
 }
 
-function abidjanDate(offsetDays: number): string {
-  const d = new Date(Date.now() + offsetDays * 86400000);
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Africa/Abidjan',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(d);
+function zonedDateOffset(offsetDays: number, timeZone: string): string {
+  return shiftCalendarDays(zonedDateString(new Date(), timeZone), offsetDays);
 }
 
 export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({
@@ -84,6 +83,10 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({
   const runCancelBooking = onCancelBooking ?? cancelPublicBooking;
 
   const [detail, setDetail] = useState<PublicSalonDetail | null>(initialDetail ?? null);
+  const salonTimezone = useMemo(
+    () => resolveSalonTimezone(detail?.salon ?? salon, detail?.branches ?? []),
+    [detail?.salon, detail?.branches, salon],
+  );
   const [loading, setLoading] = useState(!initialDetail);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'prestations' | 'equipe' | 'avis' | 'infos'>('prestations');
@@ -95,7 +98,9 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({
     initialServiceId ?? initialDetail?.services[0]?.id ?? '',
   );
   const [selectedStaffId, setSelectedStaffId] = useState<string>(initialStaffId ?? 'any');
-  const [selectedDate, setSelectedDate] = useState<string>(abidjanDate(0));
+  const [selectedDate, setSelectedDate] = useState<string>(() =>
+    zonedDateOffset(0, resolveSalonTimezone(initialDetail?.salon ?? salon, initialDetail?.branches ?? [])),
+  );
   const [slots, setSlots] = useState<PublicAvailabilitySlot[]>(initialSlots ?? []);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<PublicAvailabilitySlot | null>(null);
@@ -111,21 +116,29 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({
   const dateOptions = useMemo(
     () =>
       Array.from({ length: 7 }).map((_, i) => {
-        const dateStr = abidjanDate(i);
+        const dateStr = zonedDateOffset(i, salonTimezone);
         const label =
           i === 0
             ? 'Auj.'
             : i === 1
               ? 'Demain'
               : new Intl.DateTimeFormat('fr-FR', {
-                  timeZone: 'Africa/Abidjan',
+                  timeZone: salonTimezone,
                   weekday: 'short',
                   day: 'numeric',
                 }).format(new Date(`${dateStr}T12:00:00Z`));
         return { dateStr, label };
       }),
-    [],
+    [salonTimezone],
   );
+
+  useEffect(() => {
+    setSelectedDate((current) =>
+      dateOptions.some((opt) => opt.dateStr === current)
+        ? current
+        : (dateOptions[0]?.dateStr ?? zonedDateOffset(0, DEFAULT_BUSINESS_TIMEZONE)),
+    );
+  }, [dateOptions]);
 
   useEffect(() => {
     if (initialDetail) return;
@@ -166,6 +179,7 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({
       selectedDate,
       selectedServiceId,
       selectedStaffId === 'any' ? null : selectedStaffId,
+      detail.branches[0]?.timezone ?? detail.salon.timezone,
     )
       .then((rows) => {
         if (!cancelled) setSlots(rows);
@@ -179,7 +193,7 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [detail, selectedServiceId, selectedDate, selectedStaffId, demoFiche]);
+  }, [initialSlots, detail, selectedServiceId, selectedDate, selectedStaffId, demoFiche]);
 
   const publicSalon = detail?.salon ?? salon;
   const services = detail?.services ?? [];

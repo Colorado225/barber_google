@@ -1,6 +1,13 @@
 import { getSupabaseClient, isSupabaseConfigured } from './supabase';
 import type { NotificationProbeResult, PlatformNotificationHealthSummary } from '../types';
 import { mapNotificationProbe, mapPlatformNotificationHealth } from './notifications';
+import {
+  mapPlatformGlobalSettings,
+  type PlatformGlobalSettings,
+  type PublicPlatformStatus,
+} from './platformSettings';
+
+export type { PlatformGlobalSettings, PublicPlatformStatus };
 
 export interface AdminUser {
   id: string;
@@ -585,6 +592,32 @@ export async function getPlatformNotificationHealth(
 ): Promise<PlatformNotificationHealthSummary> {
   const data = await callAdminRpc<unknown>('platform_get_notification_health', {}, clientOverride);
   return mapPlatformNotificationHealth(data);
+}
+
+export async function getPlatformSettings(clientOverride?: AdminRpcClient): Promise<PlatformGlobalSettings> {
+  const data = await callAdminRpc<unknown>('admin_get_platform_settings', undefined, clientOverride);
+  return mapPlatformGlobalSettings(data);
+}
+
+export async function updatePlatformSettings(
+  updates: {
+    maintenanceMode: boolean;
+    autoApproveSalons: boolean;
+    reason: string;
+  },
+  clientOverride?: AdminRpcClient,
+): Promise<PlatformGlobalSettings> {
+  const validReason = validateAuditReason(updates.reason);
+  const data = await callAdminRpc<unknown>(
+    'admin_update_platform_settings',
+    {
+      p_maintenance_mode: updates.maintenanceMode,
+      p_auto_approve_salons: updates.autoApproveSalons,
+      p_reason: validReason,
+    },
+    clientOverride,
+  );
+  return mapPlatformGlobalSettings(data);
 }
 
 export async function probePlatformNotificationDispatcher(options?: {

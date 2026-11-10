@@ -19,7 +19,7 @@ function unwrap<T>(result: { data: T | null; error: { message: string; code?: st
   return result.data;
 }
 
-export function getDefaultCustomizerConfig(salonId?: string): SalonMarketplaceViewConfig {
+export function getDefaultCustomizerConfig(_salonId?: string): SalonMarketplaceViewConfig {
   return {
     layout: 'classic',
     accentColor: '#C9A45C',

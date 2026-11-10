@@ -300,7 +300,7 @@ dans `supabase_migrations.schema_migrations`. **Ne pas les réappliquer.**
 ## 10. Rejouer la validation
 
 ```bash
-npm ci --legacy-peer-deps
+npm ci
 npm run typecheck
 npm run lint
 npm run test:supabase     # 46/46

@@ -6,7 +6,6 @@ import { JSDOM } from 'jsdom';
 import { MemoryRouter } from 'react-router-dom';
 import { AuthContext, type AuthContextType, type SalonMembership } from '../src/context/AuthContext';
 import { AppProvider, type SalonApiClient } from '../src/context/AppContext';
-import { NotificationsView } from '../src/components/erp/NotificationsView';
 import { ErpLayout } from '../src/components/erp/ErpLayout';
 import { SaaSPlanView } from '../src/components/erp/SaaSPlanView';
 import { PricingView } from '../src/components/marketplace/PricingView';

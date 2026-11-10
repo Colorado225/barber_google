@@ -1,19 +1,32 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
-import { paymentSignedAmount } from '../../lib/analytics';
+import {
+  appointmentBusinessDate,
+  isBilledAppointment,
+  paymentBusinessDate,
+  paymentSignedAmount,
+} from '../../lib/analytics';
+import { zonedToday } from '../../lib/businessTime';
 import { Calendar, Users, Wallet, Clock } from 'lucide-react';
 
 export const TodayView: React.FC = () => {
-  const { activeSalon, appointments, clients, transactions, formatPrice } = useApp();
+  const { activeSalon, salonTimezone, appointments, clients, transactions, formatPrice } = useApp();
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = zonedToday(salonTimezone);
 
-  const todayAppointments = appointments
-    .filter((a) => a.salonId === activeSalon.id && a.date === todayStr)
+  const todayAllAppointments = appointments
+    .filter((a) => a.salonId === activeSalon.id && appointmentBusinessDate(a, salonTimezone) === todayStr)
     .sort((a, b) => a.time.localeCompare(b.time));
 
+  const todayAppointments = todayAllAppointments.filter(isBilledAppointment);
+
   const todayRevenue = transactions
-    .filter((t) => t.salonId === activeSalon.id && t.status === 'completed' && t.date === todayStr)
+    .filter(
+      (t) =>
+        t.salonId === activeSalon.id &&
+        t.status === 'completed' &&
+        paymentBusinessDate(t, salonTimezone) === todayStr,
+    )
     .reduce((acc, t) => acc + paymentSignedAmount(t), 0);
 
   const waiting = todayAppointments.filter((a) => a.status === 'pending' || a.status === 'confirmed').length;
@@ -22,25 +35,25 @@ export const TodayView: React.FC = () => {
 
   const cards = [
     {
-      label: 'Rendez-vous',
+      label: 'RDV actifs du jour',
       value: String(todayAppointments.length),
       icon: Calendar,
       color: 'text-[#C9A45C]',
     },
     {
-      label: 'Clients',
+      label: 'Clients (fichier)',
       value: String(salonClientsCount),
       icon: Users,
       color: 'text-[#C9A45C]',
     },
     {
-      label: 'Encaissé',
+      label: 'Encaissé net du jour',
       value: formatPrice(todayRevenue),
       icon: Wallet,
       color: 'text-emerald-400',
     },
     {
-      label: 'En attente',
+      label: 'À venir / en attente',
       value: String(waiting),
       icon: Clock,
       color: 'text-amber-400',
@@ -51,7 +64,9 @@ export const TodayView: React.FC = () => {
     <div className="p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-[#f7f6f2]">Aujourd'hui</h1>
-        <p className="text-[#a9a9a9] mt-1">Vue d'ensemble de votre journée</p>
+        <p className="text-[#a9a9a9] mt-1">
+          Journée du {todayStr} · Fuseau {salonTimezone} (hors annulés et absents)
+        </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -74,7 +89,7 @@ export const TodayView: React.FC = () => {
       <div className="bg-[#151516] rounded-xl border border-[#2a2a2b] p-6">
         <h2 className="text-lg font-semibold text-[#f7f6f2] mb-4">Planning du jour</h2>
         {todayAppointments.length === 0 ? (
-          <div className="text-center py-12 text-[#a9a9a9]">Aucun rendez-vous pour aujourd'hui</div>
+          <div className="text-center py-12 text-[#a9a9a9]">Aucun rendez-vous actif pour aujourd'hui</div>
         ) : (
           <div className="space-y-2">
             {todayAppointments.map((apt) => (

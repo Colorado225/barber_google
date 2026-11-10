@@ -15,15 +15,12 @@ import {
   CreditCard,
   Building2,
   Phone,
-  MessageCircle,
-  Mail,
-  Info,
   Trash2,
   Upload,
 } from 'lucide-react';
 
 export const SalonProfileSettingsView: React.FC = () => {
-  const { activeSalon, updateSalonDetails, setSelectedSalonForModal, formatPrice, addToast } = useApp();
+  const { activeSalon, updateSalonDetails, setSelectedSalonForModal, addToast } = useApp();
   const { isAuthenticated } = useOptionalAuth();
 
   // Basic Info
@@ -55,7 +52,6 @@ export const SalonProfileSettingsView: React.FC = () => {
 
   // Commercial & Pricing
   const [minPrice, setMinPrice] = useState(String(activeSalon.minPrice ?? ''));
-  const [currency] = useState(activeSalon.currency ?? '');
 
   // Succursales et horaires d'ouverture
   const [branches, setBranches] = useState<SalonBranch[]>([]);

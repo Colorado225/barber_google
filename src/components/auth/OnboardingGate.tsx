@@ -1,7 +1,14 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Store, ArrowRight } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import {
+  formatSaasBillingPeriodLabel,
+  parsePlanSelectionFromSearch,
+  readPlanSelectionIntent,
+  savePlanSelectionIntent,
+} from '../../lib/saasPricing';
+import { getPublicPlatformStatus } from '../../lib/platformSettings';
 
 /**
  * Garde d'accès de l'ERP (Lot 2).
@@ -14,7 +21,10 @@ import { useAuth } from '../../context/AuthContext';
  * Ce garde complète — il ne remplace pas — les contrôles serveur : chaque
  * requête est de nouveau vérifiée côté backend (permissions + RLS).
  */
-export const OnboardingGate: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const OnboardingGate: React.FC<{
+  children: React.ReactNode;
+  loadPlatformStatus?: typeof getPublicPlatformStatus;
+}> = ({ children, loadPlatformStatus = getPublicPlatformStatus }) => {
   const {
     loading,
     error: authError,
@@ -25,9 +35,38 @@ export const OnboardingGate: React.FC<{ children: React.ReactNode }> = ({ childr
     createSalon,
     refreshSession,
   } = useAuth();
+  const navigate = useNavigate();
   const [form, setForm] = useState({ organizationName: '', salonName: '', branchName: 'Principal' });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [maintenanceMode, setMaintenanceMode] = useState(false);
+
+  const planIntent = readPlanSelectionIntent();
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const urlIntent = parsePlanSelectionFromSearch(window.location.search);
+    if (urlIntent) {
+      savePlanSelectionIntent(urlIntent);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (hasWorkspace) return;
+    let cancelled = false;
+    loadPlatformStatus()
+      .then((status) => {
+        if (!cancelled) {
+          setMaintenanceMode(status.maintenanceMode);
+        }
+      })
+      .catch(() => {
+        // create_salon() applique maintenance_mode côté serveur même si l'appel initial échoue.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [hasWorkspace, loadPlatformStatus]);
 
   if (loading) {
     return (
@@ -103,10 +142,23 @@ export const OnboardingGate: React.FC<{ children: React.ReactNode }> = ({ childr
   if (!hasWorkspace) {
     const submit = async (e: React.FormEvent) => {
       e.preventDefault();
+      if (maintenanceMode) {
+        setError(
+          'Mode maintenance actif : la création de nouveaux établissements est temporairement suspendue.',
+        );
+        return;
+      }
       setError(null);
       setBusy(true);
       try {
         await createSalon(form);
+        if (
+          planIntent &&
+          typeof window !== 'undefined' &&
+          !window.location.pathname.includes('/abonnement')
+        ) {
+          navigate('/app/abonnement');
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Création impossible.');
       } finally {
@@ -127,6 +179,22 @@ export const OnboardingGate: React.FC<{ children: React.ReactNode }> = ({ childr
             Votre compte n'est rattaché à aucun salon. Créez l'établissement pour accéder à l'espace de
             gestion.
           </p>
+          {maintenanceMode && (
+            <p
+              data-testid="onboarding-maintenance-banner"
+              role="alert"
+              className="text-xs text-amber-200 bg-amber-950/40 border border-amber-700/50 rounded-lg px-3 py-2"
+            >
+              Mode maintenance actif : la création de nouveaux établissements est temporairement suspendue.
+            </p>
+          )}
+          {planIntent && (
+            <p className="text-xs text-[#E5C378] bg-[#C9A45C]/10 border border-[#C9A45C]/30 rounded-lg px-3 py-2">
+              Formule choisie : <strong>{planIntent.planSlug || 'Abonnement'}</strong> ·{' '}
+              {formatSaasBillingPeriodLabel(planIntent.billingPeriod)}. Finalisez votre souscription après
+              création du salon.
+            </p>
+          )}
           {error && (
             <p className="text-xs text-red-300 bg-red-950/50 border border-red-800/50 rounded-lg px-3 py-2">
               {error}
@@ -153,7 +221,7 @@ export const OnboardingGate: React.FC<{ children: React.ReactNode }> = ({ childr
           ))}
           <button
             type="submit"
-            disabled={busy}
+            disabled={busy || maintenanceMode}
             className="w-full py-3 rounded-lg bg-[#C9A45C] text-[#101010] font-semibold hover:bg-[#d4b26a] disabled:opacity-50"
           >
             {busy ? 'Création…' : 'Créer mon salon'}

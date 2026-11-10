@@ -6,6 +6,8 @@ import type {
   AppointmentStatus,
   CashSession,
   Client,
+  ErpBranch,
+  ErpDashboardMetrics,
   Expense,
   ExpenseEvent,
   FinancialSummary,
@@ -32,6 +34,7 @@ import type {
 } from '../types';
 import type { salonApi as salonApiFn } from '../lib/api';
 import { getApiErrorMessage } from '../lib/apiError';
+import { resolveSalonTimezone, shiftCalendarDays, zonedToday } from '../lib/businessTime';
 import { createDomainCache } from '../lib/domainCache';
 import { getActiveMemberships, upsertWorkspaceSalon } from '../lib/erpSalonSelection';
 import { mapPublicSalon, type PublicBooking, type PublicBookingInput } from '../lib/marketplace';
@@ -62,6 +65,7 @@ import {
   financeRange,
   useFinanceDomain,
   useFinanceDomainState,
+  type DashboardMetricsParams,
 } from './domains/FinanceDomainContext';
 import {
   MarketplaceDomainContext,
@@ -75,7 +79,7 @@ import {
 } from './domains/NotificationsDomainContext';
 import type { SalonApiClient } from './domains/shared';
 
-export type { AppMode, SalonApiClient, Toast };
+export type { AppMode, DashboardMetricsParams, SalonApiClient, Toast };
 export {
   useAppointmentsDomain,
   useClientsDomain,
@@ -127,12 +131,20 @@ function newIdempotencyKey(): string {
   });
 }
 
+function appointmentWindowStart(timeZone: string): string {
+  const today = zonedToday(timeZone);
+  const weekAgo = shiftCalendarDays(today, -7);
+  const monthStart = `${today.slice(0, 7)}-01`;
+  return monthStart < weekAgo ? monthStart : weekAgo;
+}
+
 export interface AppContextValue {
   mode: AppMode;
   setMode: (mode: AppMode) => void;
   activeSalonId: string;
   setActiveSalonId: (id: string) => void;
   activeSalon: Salon | null;
+  salonTimezone: string;
   salons: Salon[];
   marketplaceLoading: boolean;
   marketplaceError: string | null;
@@ -144,8 +156,12 @@ export interface AppContextValue {
   transactions: PaymentTransaction[];
   cashSession: CashSession | null;
   cashSessions: CashSession[];
-  branches: { id: string; name: string }[];
+  branches: ErpBranch[];
   financialSummary: FinancialSummary | null;
+  dashboardMetrics: ErpDashboardMetrics | null;
+  dashboardMetricsLoading: boolean;
+  loadDashboardMetrics: (params: DashboardMetricsParams) => Promise<ErpDashboardMetrics | null>;
+  loadFinancialSummary: (from: string, to: string) => Promise<FinancialSummary | null>;
   expenses: Expense[];
   expenseEvents: ExpenseEvent[];
   stocks: StockItem[];
@@ -426,6 +442,13 @@ export const AppProvider: React.FC<{
   );
   activeSalonRef.current = activeSalon;
 
+  const salonTimezone = useMemo(
+    () => resolveSalonTimezone(activeSalon, marketplaceDomain.branches),
+    [activeSalon, marketplaceDomain.branches],
+  );
+  const salonTimezoneRef = useRef(salonTimezone);
+  salonTimezoneRef.current = salonTimezone;
+
   const notificationsDomain = useNotificationsDomainState({
     resolveApi,
     domainCache,
@@ -457,6 +480,7 @@ export const AppProvider: React.FC<{
     addToast,
     remote,
     newIdempotencyKey,
+    salonTimezone,
     loadNotifications: (salonId, guard, opts) => loadNotificationsRef.current(salonId, guard, opts),
     loadLoyalty: (salonId, guard, opts) => loadLoyaltyRef.current(salonId, guard, opts),
   });
@@ -474,25 +498,61 @@ export const AppProvider: React.FC<{
     formatPrice,
     newIdempotencyKey,
     branches: marketplaceDomain.branches,
+    salonTimezone,
     loadLoyalty: (salonId, guard, opts) => loadLoyaltyRef.current(salonId, guard, opts),
     setAppointments: (updater) => setAppointmentsRef.current(updater),
   });
 
+  const {
+    resetMarketplaceDomain,
+    setSalons: setDomainSalons,
+    setBranches: setDomainBranches,
+    setReviews: setDomainReviews,
+  } = marketplaceDomain;
+  const {
+    resetAppointmentsDomain,
+    setServices: setDomainServices,
+    setStaff: setDomainStaff,
+    setAppointments: setDomainAppointments,
+  } = appointmentsDomain;
+  const {
+    resetClientsDomain,
+    setClients: setDomainClients,
+    setLoyaltyRewards: setDomainLoyaltyRewards,
+    loadLoyalty: loadDomainLoyalty,
+  } = clientsDomain;
+  const {
+    resetFinanceDomain,
+    setExpenses: setDomainExpenses,
+    setStocks: setDomainStocks,
+    setSuppliers: setDomainSuppliers,
+    setTransactions: setDomainTransactions,
+    setCashSessions: setDomainCashSessions,
+    setCashSession: setDomainCashSession,
+    setFinancialSummary: setDomainFinancialSummary,
+    loadFinance: loadDomainFinance,
+  } = financeDomain;
+  const {
+    resetNotificationsDomain,
+    loadNotifications: loadDomainNotifications,
+    setNotifications: setDomainNotifications,
+  } = notificationsDomain;
+
   const resetSalonDomainState = useCallback(() => {
     setWorkspaceLoadedSalonId(null);
-    marketplaceDomain.resetMarketplaceDomain();
-    appointmentsDomain.resetAppointmentsDomain();
-    clientsDomain.resetClientsDomain();
-    financeDomain.resetFinanceDomain();
-    notificationsDomain.resetNotificationsDomain();
+    resetMarketplaceDomain();
+    resetAppointmentsDomain();
+    resetClientsDomain();
+    resetFinanceDomain();
+    resetNotificationsDomain();
     setLastSyncedAt(null);
     setSyncError(null);
   }, [
-    marketplaceDomain.resetMarketplaceDomain,
-    appointmentsDomain.resetAppointmentsDomain,
-    clientsDomain.resetClientsDomain,
-    financeDomain.resetFinanceDomain,
-    notificationsDomain.resetNotificationsDomain,
+    resetMarketplaceDomain,
+    resetAppointmentsDomain,
+    resetClientsDomain,
+    resetFinanceDomain,
+    resetNotificationsDomain,
   ]);
 
   const setActiveSalonId = useCallback(
@@ -520,34 +580,39 @@ export const AppProvider: React.FC<{
       try {
         domainCache.invalidateSalon(salonId);
         const api = await resolveApi(salonId);
-        const from = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-        const [data, appointmentsList] = await Promise.all([
-          domainCache.getOrLoad(salonId, 'workspace', () => api.workspace(), { force: true }),
-          domainCache.getOrLoad(salonId, 'appointments', () => api.appointments.list({ from }), {
-            force: true,
-          }),
-        ]);
+        const data = await domainCache.getOrLoad(salonId, 'workspace', () => api.workspace(), {
+          force: true,
+        });
         if (!isCurrent()) return;
         const mappedSalon = mapPublicSalon(data.salon as Record<string, unknown>);
-        marketplaceDomain.setSalons((prev) =>
-          upsertWorkspaceSalon(prev, mappedSalon, membershipsRef.current),
-        );
-        marketplaceDomain.setBranches(data.branches);
-        clientsDomain.setClients(data.clients);
-        appointmentsDomain.setServices(data.services);
-        appointmentsDomain.setStaff(data.staff);
-        financeDomain.setExpenses(data.expenses);
-        financeDomain.setStocks(data.stock);
-        financeDomain.setSuppliers(data.suppliers ?? []);
-        clientsDomain.setLoyaltyRewards(data.rewards);
-        marketplaceDomain.setReviews(data.reviews);
-        appointmentsDomain.setAppointments(appointmentsList);
-        await financeDomain.loadFinance(salonId, isCurrent, { force: true });
-        await Promise.all([
-          clientsDomain.loadLoyalty(salonId, isCurrent, { force: true }),
-          notificationsDomain.loadNotifications(salonId, isCurrent, { force: true }),
+        const resolvedTz = resolveSalonTimezone(mappedSalon, data.branches);
+        if (typeof (api as { setTimeZone?: (tz?: string | null) => void }).setTimeZone === 'function') {
+          (api as { setTimeZone: (tz?: string | null) => void }).setTimeZone(resolvedTz);
+        }
+        setDomainSalons((prev) => upsertWorkspaceSalon(prev, mappedSalon, membershipsRef.current));
+        setDomainBranches(data.branches);
+        setDomainClients(data.clients);
+        setDomainServices(data.services);
+        setDomainStaff(data.staff);
+        setDomainExpenses(data.expenses);
+        setDomainStocks(data.stock);
+        setDomainSuppliers(data.suppliers ?? []);
+        setDomainLoyaltyRewards(data.rewards);
+        setDomainReviews(data.reviews);
+        const from = appointmentWindowStart(resolvedTz);
+        const [appointmentsList] = await Promise.all([
+          domainCache.getOrLoad(
+            salonId,
+            'appointments',
+            () => api.appointments.list({ from, timeZone: resolvedTz }),
+            { force: true },
+          ),
+          loadDomainFinance(salonId, isCurrent, { force: true, timeZone: resolvedTz }),
+          loadDomainLoyalty(salonId, isCurrent, { force: true }),
+          loadDomainNotifications(salonId, isCurrent, { force: true }),
         ]);
         if (!isCurrent()) return;
+        setDomainAppointments(appointmentsList);
         setWorkspaceLoadedSalonId(salonId);
         setLastSyncedAt(new Date().toISOString());
       } catch (error) {
@@ -563,20 +628,20 @@ export const AppProvider: React.FC<{
     [
       domainCache,
       resolveApi,
-      marketplaceDomain.setSalons,
-      marketplaceDomain.setBranches,
-      marketplaceDomain.setReviews,
-      clientsDomain.setClients,
-      clientsDomain.setLoyaltyRewards,
-      clientsDomain.loadLoyalty,
-      appointmentsDomain.setServices,
-      appointmentsDomain.setStaff,
-      appointmentsDomain.setAppointments,
-      financeDomain.setExpenses,
-      financeDomain.setStocks,
-      financeDomain.setSuppliers,
-      financeDomain.loadFinance,
-      notificationsDomain.loadNotifications,
+      setDomainSalons,
+      setDomainBranches,
+      setDomainReviews,
+      setDomainClients,
+      setDomainLoyaltyRewards,
+      loadDomainLoyalty,
+      setDomainServices,
+      setDomainStaff,
+      setDomainAppointments,
+      setDomainExpenses,
+      setDomainStocks,
+      setDomainSuppliers,
+      loadDomainFinance,
+      loadDomainNotifications,
     ],
   );
   reloadWorkspaceRef.current = reloadWorkspace;
@@ -586,28 +651,34 @@ export const AppProvider: React.FC<{
       const epoch = syncEpochRef.current;
       const guardActive = () => syncEpochRef.current === epoch && activeSalonIdRef.current === salonId;
       const api = await resolveApi(salonId);
+      const tz = salonTimezoneRef.current;
+      if (typeof (api as { setTimeZone?: (tz?: string | null) => void }).setTimeZone === 'function') {
+        (api as { setTimeZone: (tz?: string | null) => void }).setTimeZone(tz);
+      }
       const perm = hasPermissionRef.current;
       const tasks: Promise<void>[] = [];
 
       if (domains.has('appointments') && perm('appointments.read', salonId)) {
         domainCache.invalidate(salonId, 'appointments');
-        const from = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+        domainCache.invalidate(salonId, 'dashboard');
+        const from = appointmentWindowStart(tz);
         tasks.push(
-          api.appointments.list({ from }).then((list) => {
+          api.appointments.list({ from, timeZone: tz }).then((list) => {
             if (!guardActive()) return;
-            appointmentsDomain.setAppointments(list);
+            setDomainAppointments(list);
           }),
         );
       }
 
       if (domains.has('notifications') && perm('appointments.read', salonId)) {
         domainCache.invalidate(salonId, 'notifications');
-        tasks.push(notificationsDomain.loadNotifications(salonId, guardActive, { force: true }));
+        tasks.push(loadDomainNotifications(salonId, guardActive, { force: true }));
       }
 
       if (domains.has('finance')) {
         domainCache.invalidate(salonId, 'finance');
-        const { from, to, monthStart } = financeRange();
+        domainCache.invalidate(salonId, 'dashboard');
+        const { from, to, monthStart } = financeRange(tz);
         tasks.push(
           Promise.all([
             perm('payments.read', salonId)
@@ -619,15 +690,15 @@ export const AppProvider: React.FC<{
               : Promise.resolve(null as FinancialSummary | null),
           ]).then(([payments, sessions, summary]) => {
             if (!guardActive()) return;
-            financeDomain.setTransactions(payments);
-            financeDomain.setCashSessions(sessions);
-            financeDomain.setCashSession(sessions.find((s) => s.status === 'open') ?? null);
-            financeDomain.setFinancialSummary(summary);
+            setDomainTransactions(payments);
+            setDomainCashSessions(sessions);
+            setDomainCashSession(sessions.find((s) => s.status === 'open') ?? null);
+            setDomainFinancialSummary(summary);
           }),
         );
         if (perm('loyalty.read', salonId)) {
           domainCache.invalidate(salonId, 'loyalty');
-          tasks.push(clientsDomain.loadLoyalty(salonId, guardActive, { force: true }));
+          tasks.push(loadDomainLoyalty(salonId, guardActive, { force: true }));
         }
       }
 
@@ -640,13 +711,13 @@ export const AppProvider: React.FC<{
     [
       resolveApi,
       domainCache,
-      appointmentsDomain.setAppointments,
-      notificationsDomain.loadNotifications,
-      financeDomain.setTransactions,
-      financeDomain.setCashSessions,
-      financeDomain.setCashSession,
-      financeDomain.setFinancialSummary,
-      clientsDomain.loadLoyalty,
+      setDomainAppointments,
+      loadDomainNotifications,
+      setDomainTransactions,
+      setDomainCashSessions,
+      setDomainCashSession,
+      setDomainFinancialSummary,
+      loadDomainLoyalty,
     ],
   );
 
@@ -740,13 +811,14 @@ export const AppProvider: React.FC<{
         },
         onAppointmentEvent: (eventType, row) => {
           domainCache.invalidate(activeSalonId, 'appointments');
-          appointmentsDomain.setAppointments((prev) =>
-            rt.applyAppointmentRealtimeChange(prev, eventType, row, activeSalonId),
+          domainCache.invalidate(activeSalonId, 'dashboard');
+          setDomainAppointments((prev) =>
+            rt.applyAppointmentRealtimeChange(prev, eventType, row, activeSalonId, salonTimezoneRef.current),
           );
         },
         onNotificationEvent: (eventType, row) => {
           domainCache.invalidate(activeSalonId, 'notifications');
-          notificationsDomain.setNotifications((prev) =>
+          setDomainNotifications((prev) =>
             rt.applyNotificationRealtimeChange(prev, eventType, row, activeSalonId),
           );
         },
@@ -782,8 +854,8 @@ export const AppProvider: React.FC<{
     canReadCash,
     realtimeClient,
     domainCache,
-    appointmentsDomain.setAppointments,
-    notificationsDomain.setNotifications,
+    setDomainAppointments,
+    setDomainNotifications,
   ]);
 
   const marketplaceValue = useMemo(
@@ -907,6 +979,10 @@ export const AppProvider: React.FC<{
       cashSession: financeDomain.cashSession,
       cashSessions: financeDomain.cashSessions,
       financialSummary: financeDomain.financialSummary,
+      dashboardMetrics: financeDomain.dashboardMetrics,
+      dashboardMetricsLoading: financeDomain.dashboardMetricsLoading,
+      loadDashboardMetrics: financeDomain.loadDashboardMetrics,
+      loadFinancialSummary: financeDomain.loadFinancialSummary,
       expenses: financeDomain.expenses,
       expenseEvents: financeDomain.expenseEvents,
       stocks: financeDomain.stocks,
@@ -937,6 +1013,10 @@ export const AppProvider: React.FC<{
       financeDomain.cashSession,
       financeDomain.cashSessions,
       financeDomain.financialSummary,
+      financeDomain.dashboardMetrics,
+      financeDomain.dashboardMetricsLoading,
+      financeDomain.loadDashboardMetrics,
+      financeDomain.loadFinancialSummary,
       financeDomain.expenses,
       financeDomain.expenseEvents,
       financeDomain.stocks,
@@ -992,6 +1072,7 @@ export const AppProvider: React.FC<{
       activeSalonId,
       setActiveSalonId,
       activeSalon,
+      salonTimezone,
       ...marketplaceValue,
       ...appointmentsValue,
       ...clientsValue,
@@ -1017,6 +1098,7 @@ export const AppProvider: React.FC<{
       activeSalonId,
       setActiveSalonId,
       activeSalon,
+      salonTimezone,
       marketplaceValue,
       appointmentsValue,
       clientsValue,
@@ -1054,6 +1136,8 @@ export const AppProvider: React.FC<{
     </UIContext.Provider>
   );
 };
+
+export const useAppContextOrNull = () => useContext(AppContext) ?? null;
 
 export const useOptionalApp = () => {
   const context = useContext(AppContext);

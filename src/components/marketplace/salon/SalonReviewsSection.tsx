@@ -2,7 +2,7 @@ import React from 'react';
 import { Review, SalonCardStyle } from '../../../types';
 import { Card } from '../../ui/card';
 import { cn } from '../../../lib/utils';
-import { Star, MessageSquare, CheckCircle, ShieldCheck } from 'lucide-react';
+import { Star, MessageSquare, CheckCircle } from 'lucide-react';
 
 interface SalonReviewsSectionProps {
   reviews: Review[];

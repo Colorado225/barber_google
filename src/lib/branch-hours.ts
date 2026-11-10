@@ -4,6 +4,7 @@ import { getSupabaseClient } from './supabase';
 export interface SalonBranch {
   id: string;
   name: string;
+  timezone?: string;
 }
 
 interface BranchHourRecord {
@@ -21,7 +22,7 @@ const dayByWeekday = new Map([...weekdayByDay].map(([day, weekday]) => [weekday,
 export async function listSalonBranches(salonId: string): Promise<SalonBranch[]> {
   const { data, error } = await getSupabaseClient()
     .from('branches')
-    .select('id, name')
+    .select('id, name, timezone')
     .eq('salon_id', salonId)
     .order('created_at');
 

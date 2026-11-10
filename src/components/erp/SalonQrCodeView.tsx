@@ -26,10 +26,7 @@ export const SalonQrCodeView: React.FC = () => {
   const [qrSize, setQrSize] = useState(260);
   const qrWrapperRef = useRef<HTMLDivElement>(null);
 
-  const bookingUrl = useMemo(
-    () => buildSalonBookingUrl(activeSalon),
-    [activeSalon.id, activeSalon.slug, activeSalon.name],
-  );
+  const bookingUrl = useMemo(() => buildSalonBookingUrl(activeSalon), [activeSalon]);
   const publicPath = buildSalonBookingPath(activeSalon);
 
   // Vitrine state is independent from the ERP activation (§3.3). Only a

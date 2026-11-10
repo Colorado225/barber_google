@@ -11,7 +11,7 @@
     "perf:report": "node scripts/measure-bundles.mjs --throttle-check --report reports/bundle-metrics.json",
     "clean": "rm -rf dist",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings 0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "node --test database/tests/*.test.mjs tests/*.test.mjs && node --import tsx --test tests/*.test.tsx",
@@ -58,6 +58,7 @@
     "prettier": "3.9.10",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.21.0",
-    "typescript": "^7.0.2"
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.72.2"
   }
 }

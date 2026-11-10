@@ -1,8 +1,10 @@
-import { createContext, useCallback, useContext, useState } from 'react';
+import { createContext, useCallback, useContext, useRef, useState } from 'react';
 import type {
   Appointment,
   AppointmentBalance,
   CashSession,
+  ErpBranch,
+  ErpDashboardMetrics,
   Expense,
   ExpenseEvent,
   FinancialSummary,
@@ -15,13 +17,30 @@ import type {
   Supplier,
 } from '../../types';
 import { getApiErrorMessage } from '../../lib/apiError';
+import {
+  DEFAULT_BUSINESS_TIMEZONE,
+  normalizeTimeZone,
+  shiftCalendarMonths,
+  zonedToday,
+} from '../../lib/businessTime';
 import type { DomainSharedDeps } from './shared';
+
+export interface DashboardMetricsParams {
+  from: string;
+  to: string;
+  dayFilter?: 'all' | 'saturday' | 'friday' | 'weekday';
+  force?: boolean;
+}
 
 export interface FinanceDomainValue {
   transactions: PaymentTransaction[];
   cashSession: CashSession | null;
   cashSessions: CashSession[];
   financialSummary: FinancialSummary | null;
+  dashboardMetrics: ErpDashboardMetrics | null;
+  dashboardMetricsLoading: boolean;
+  loadDashboardMetrics: (params: DashboardMetricsParams) => Promise<ErpDashboardMetrics | null>;
+  loadFinancialSummary: (from: string, to: string) => Promise<FinancialSummary | null>;
   expenses: Expense[];
   expenseEvents: ExpenseEvent[];
   stocks: StockItem[];
@@ -119,11 +138,16 @@ export function useFinanceDomain(): FinanceDomainValue {
   return ctx;
 }
 
-export function financeRange() {
-  const now = new Date();
-  const to = now.toISOString().slice(0, 10);
-  const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 11, 1)).toISOString().slice(0, 10);
-  return { from, to, monthStart: `${to.slice(0, 8)}01` };
+export function financeRange(timeZone: string = DEFAULT_BUSINESS_TIMEZONE) {
+  const tz = normalizeTimeZone(timeZone);
+  const to = zonedToday(tz);
+  const startMonth = shiftCalendarMonths(to.slice(0, 7), -11);
+  return {
+    from: `${startMonth}-01`,
+    to,
+    monthStart: `${to.slice(0, 7)}-01`,
+    timeZone: tz,
+  };
 }
 
 function paymentStatusFromBalance(balance: AppointmentBalance, billed: number): Appointment['paymentStatus'] {
@@ -147,7 +171,8 @@ export function useFinanceDomainState(
     | 'formatPrice'
     | 'newIdempotencyKey'
   > & {
-    branches: { id: string; name: string }[];
+    branches: ErpBranch[];
+    salonTimezone?: string;
     loadLoyalty: (
       salonId: string,
       isGuardActive?: () => boolean,
@@ -168,6 +193,7 @@ export function useFinanceDomainState(
     formatPrice,
     newIdempotencyKey,
     branches,
+    salonTimezone = DEFAULT_BUSINESS_TIMEZONE,
     loadLoyalty,
     setAppointments,
   } = deps;
@@ -176,41 +202,133 @@ export function useFinanceDomainState(
   const [cashSession, setCashSession] = useState<CashSession | null>(null);
   const [cashSessions, setCashSessions] = useState<CashSession[]>([]);
   const [financialSummary, setFinancialSummary] = useState<FinancialSummary | null>(null);
+  const [dashboardMetrics, setDashboardMetrics] = useState<ErpDashboardMetrics | null>(null);
+  const [dashboardMetricsLoading, setDashboardMetricsLoading] = useState(false);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [expenseEvents, setExpenseEvents] = useState<ExpenseEvent[]>([]);
   const [stocks, setStocks] = useState<StockItem[]>([]);
   const [stockMovements, setStockMovements] = useState<StockMovement[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const lastDashboardQueryRef = useRef<{
+    salonId: string;
+    from: string;
+    to: string;
+    dayFilter: 'all' | 'saturday' | 'friday' | 'weekday';
+  } | null>(null);
+
+  const loadDashboardMetrics = useCallback(
+    async (params: DashboardMetricsParams): Promise<ErpDashboardMetrics | null> => {
+      if (!activeSalonId) return null;
+      const perm = hasPermissionRef.current;
+      if (!perm('dashboard.read', activeSalonId)) return null;
+      const dayFilter = params.dayFilter ?? 'all';
+      const qualifier = `${params.from}:${params.to}:${dayFilter}`;
+      lastDashboardQueryRef.current = {
+        salonId: activeSalonId,
+        from: params.from,
+        to: params.to,
+        dayFilter,
+      };
+      setDashboardMetricsLoading(true);
+      try {
+        const metrics = await domainCache.getOrLoad(
+          activeSalonId,
+          'dashboard',
+          async () => {
+            const api = await resolveApi(activeSalonId);
+            if (typeof api.reports?.dashboard !== 'function') return null;
+            return api.reports.dashboard({ from: params.from, to: params.to, dayFilter });
+          },
+          { qualifier, force: params.force ?? false },
+        );
+        if (metrics !== undefined) {
+          setDashboardMetrics(metrics);
+        }
+        return metrics;
+      } catch {
+        return null;
+      } finally {
+        setDashboardMetricsLoading(false);
+      }
+    },
+    [activeSalonId, domainCache, resolveApi, hasPermissionRef],
+  );
+
+  const loadFinancialSummary = useCallback(
+    async (from: string, to: string): Promise<FinancialSummary | null> => {
+      if (!activeSalonId) return null;
+      const perm = hasPermissionRef.current;
+      if (!perm('reports.read', activeSalonId)) return null;
+      try {
+        const api = await resolveApi(activeSalonId);
+        if (typeof api.reports?.summary !== 'function') return null;
+        const summary = await api.reports.summary(from, to);
+        setFinancialSummary(summary);
+        return summary;
+      } catch {
+        return null;
+      }
+    },
+    [activeSalonId, resolveApi, hasPermissionRef],
+  );
 
   const loadFinance = useCallback(
-    async (salonId: string, isGuardActive?: () => boolean, options?: { force?: boolean }) => {
+    async (
+      salonId: string,
+      isGuardActive?: () => boolean,
+      options?: { force?: boolean; timeZone?: string },
+    ) => {
       const perm = hasPermissionRef.current;
+      const tz = options?.timeZone ?? salonTimezone;
       const data = await domainCache.getOrLoad(
         salonId,
         'finance',
         async () => {
           const api = await resolveApi(salonId);
-          const { from, to, monthStart } = financeRange();
-          const [payments, sessions, summary, movements, suppliersList, expEvents] = await Promise.all([
-            perm('payments.read', salonId)
-              ? api.payments.list({ from, to, limit: 500 })
-              : Promise.resolve([] as PaymentTransaction[]),
-            perm('cash.read', salonId) ? api.cash.sessions(50) : Promise.resolve([] as CashSession[]),
-            perm('reports.read', salonId)
-              ? api.reports.summary(monthStart, to)
-              : Promise.resolve(null as FinancialSummary | null),
-            perm('stock.read', salonId) && typeof api.stock?.movements === 'function'
-              ? api.stock.movements(null, 200)
-              : Promise.resolve([] as StockMovement[]),
-            (perm('stock.write', salonId) || perm('expenses.read', salonId)) &&
-            typeof api.suppliers?.list === 'function'
-              ? api.suppliers.list(true)
-              : Promise.resolve([] as Supplier[]),
-            perm('expenses.read', salonId) && typeof api.expenses?.events === 'function'
-              ? api.expenses.events(null, 200)
-              : Promise.resolve([] as ExpenseEvent[]),
-          ]);
-          return { payments, sessions, summary, movements, suppliersList, expEvents };
+          const { from, to, monthStart } = financeRange(tz);
+          const activeQuery =
+            lastDashboardQueryRef.current && lastDashboardQueryRef.current.salonId === salonId
+              ? lastDashboardQueryRef.current
+              : { salonId, from: monthStart, to, dayFilter: 'all' as const };
+          const [payments, sessions, summary, dashboard, movements, suppliersList, expEvents] =
+            await Promise.all([
+              perm('payments.read', salonId)
+                ? api.payments.list({ from, to, limit: 500 })
+                : Promise.resolve([] as PaymentTransaction[]),
+              perm('cash.read', salonId) ? api.cash.sessions(50) : Promise.resolve([] as CashSession[]),
+              perm('reports.read', salonId)
+                ? api.reports.summary(monthStart, to)
+                : Promise.resolve(null as FinancialSummary | null),
+              perm('dashboard.read', salonId) && typeof api.reports?.dashboard === 'function'
+                ? api.reports
+                    .dashboard({
+                      from: activeQuery.from,
+                      to: activeQuery.to,
+                      dayFilter: activeQuery.dayFilter,
+                    })
+                    .catch(() => null)
+                : Promise.resolve(null as ErpDashboardMetrics | null),
+              perm('stock.read', salonId) && typeof api.stock?.movements === 'function'
+                ? api.stock.movements(null, 200)
+                : Promise.resolve([] as StockMovement[]),
+              (perm('stock.write', salonId) || perm('expenses.read', salonId)) &&
+              typeof api.suppliers?.list === 'function'
+                ? api.suppliers.list(true)
+                : Promise.resolve([] as Supplier[]),
+              perm('expenses.read', salonId) && typeof api.expenses?.events === 'function'
+                ? api.expenses.events(null, 200)
+                : Promise.resolve([] as ExpenseEvent[]),
+            ]);
+          if (dashboard) {
+            domainCache.set(
+              salonId,
+              'dashboard',
+              dashboard,
+              undefined,
+              `${activeQuery.from}:${activeQuery.to}:${activeQuery.dayFilter}`,
+            );
+          }
+          return { payments, sessions, summary, dashboard, movements, suppliersList, expEvents };
         },
         { force: options?.force ?? true },
       );
@@ -220,17 +338,19 @@ export function useFinanceDomainState(
       setCashSessions(data.sessions);
       setCashSession(data.sessions.find((s) => s.status === 'open') ?? null);
       setFinancialSummary(data.summary);
+      if (data.dashboard !== undefined) setDashboardMetrics(data.dashboard);
       setStockMovements(data.movements);
       setSuppliers(data.suppliersList);
       setExpenseEvents(data.expEvents);
     },
-    [resolveApi, domainCache, hasPermissionRef],
+    [resolveApi, domainCache, hasPermissionRef, salonTimezone],
   );
 
   const syncAfterFinance = useCallback(
     async (appointmentId?: string) => {
       const salonId = requireActiveSalon().id;
       domainCache.invalidate(salonId, 'finance');
+      domainCache.invalidate(salonId, 'dashboard');
       domainCache.invalidate(salonId, 'loyalty');
       await loadFinance(salonId, undefined, { force: true });
       await loadLoyalty(salonId, undefined, { force: true });
@@ -433,6 +553,7 @@ export function useFinanceDomainState(
         });
         setExpenses((prev) => [created, ...prev]);
         domainCache.invalidate(salonId, 'finance');
+        domainCache.invalidate(salonId, 'dashboard');
         domainCache.invalidate(salonId, 'workspace');
         await loadFinance(salonId, undefined, { force: true });
         addToast(`Dépense de ${formatPrice(created.amount)} enregistrée`, 'success');
@@ -481,6 +602,7 @@ export function useFinanceDomainState(
         const refreshed = await api.expenses.list();
         setExpenses(refreshed);
         domainCache.invalidate(salonId, 'finance');
+        domainCache.invalidate(salonId, 'dashboard');
         domainCache.invalidate(salonId, 'workspace');
         await loadFinance(salonId, undefined, { force: true });
         addToast('Dépense annulée par contrepassation (historique conservé).', 'info');
@@ -516,6 +638,7 @@ export function useFinanceDomainState(
         const refreshed = await api.expenses.list();
         setExpenses(refreshed);
         domainCache.invalidate(salonId, 'finance');
+        domainCache.invalidate(salonId, 'dashboard');
         domainCache.invalidate(salonId, 'workspace');
         await loadFinance(salonId, undefined, { force: true });
         addToast('Dépense corrigée par écriture liée (historique conservé).', 'success');
@@ -706,6 +829,9 @@ export function useFinanceDomainState(
     setCashSession(null);
     setCashSessions([]);
     setFinancialSummary(null);
+    setDashboardMetrics(null);
+    setDashboardMetricsLoading(false);
+    lastDashboardQueryRef.current = null;
     setExpenses([]);
     setExpenseEvents([]);
     setStocks([]);
@@ -722,6 +848,11 @@ export function useFinanceDomainState(
     setCashSessions,
     financialSummary,
     setFinancialSummary,
+    dashboardMetrics,
+    setDashboardMetrics,
+    dashboardMetricsLoading,
+    loadDashboardMetrics,
+    loadFinancialSummary,
     expenses,
     setExpenses,
     expenseEvents,

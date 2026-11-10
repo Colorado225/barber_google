@@ -5,18 +5,23 @@ import { Loader2 } from 'lucide-react';
  * Helper typé pour charger paresseusement un export nommé avec React.lazy(),
  * tout en préservant les types exacts des props du composant.
  */
+// React.lazy exige la contrainte ComponentType<any> dans @types/react (contravariance des props).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function lazyNamed<TModule extends Record<string, any>, K extends keyof TModule>(
   loader: () => Promise<TModule>,
   exportName: K,
 ): React.LazyExoticComponent<
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   TModule[K] extends React.ComponentType<any> ? TModule[K] : React.ComponentType<any>
 > {
   return lazy(async () => {
     const mod = await loader();
     return {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       default: mod[exportName] as TModule[K] extends React.ComponentType<any>
         ? TModule[K]
-        : React.ComponentType<any>,
+        : // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          React.ComponentType<any>,
     };
   });
 }

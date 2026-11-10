@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Sparkles,
@@ -26,6 +26,12 @@ import {
   type PendingSaaSSubscription,
   type SaaSPaymentMethod,
 } from '../../lib/saas';
+import {
+  clearPlanSelectionIntent,
+  readPlanSelectionIntent,
+  resolvePlanBilling,
+  type SaasBillingPeriod,
+} from '../../lib/saasPricing';
 
 const PAYMENT_METHODS: Array<{ value: SaaSPaymentMethod; label: string }> = [
   { value: 'mobile_money', label: 'Mobile Money' },
@@ -37,13 +43,36 @@ const PAYMENT_METHODS: Array<{ value: SaaSPaymentMethod; label: string }> = [
 const dateLabel = (iso: string) =>
   new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
 
-export const SaaSPlanView: React.FC = () => {
+export interface SaaSPlanViewProps {
+  loadPlans?: typeof getSaasPlans;
+  loadSubscription?: typeof getSalonSubscription;
+  loadPending?: typeof getPendingSalonSubscription;
+  subscribeToPlan?: typeof subscribeSalonToPlan;
+  declarePayment?: typeof declareSaasPayment;
+}
+
+export const SaaSPlanView: React.FC<SaaSPlanViewProps> = ({
+  loadPlans = getSaasPlans,
+  loadSubscription = getSalonSubscription,
+  loadPending = getPendingSalonSubscription,
+  subscribeToPlan = subscribeSalonToPlan,
+  declarePayment = declareSaasPayment,
+}) => {
   const { activeSalon, formatPrice, addToast } = useOptionalApp();
   const { memberships } = useOptionalAuth();
+
+  const initialIntentRef = useRef(readPlanSelectionIntent());
+  const billingTouchedRef = useRef(false);
 
   const [plans, setPlans] = useState<SaaSPlan[]>([]);
   const [subscription, setSubscription] = useState<SaaSSubscription | null>(null);
   const [pending, setPending] = useState<PendingSaaSSubscription | null>(null);
+  const [billingPeriod, setBillingPeriod] = useState<SaasBillingPeriod>(
+    () => initialIntentRef.current?.billingPeriod ?? 'monthly',
+  );
+  const [preferredPlanSlug, setPreferredPlanSlug] = useState<string | null>(
+    () => initialIntentRef.current?.planSlug || null,
+  );
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [switchingTo, setSwitchingTo] = useState<string | null>(null);
@@ -60,19 +89,25 @@ export const SaaSPlanView: React.FC = () => {
     setLoadError(null);
     try {
       const [publicPlans, sub, waiting] = await Promise.all([
-        getSaasPlans(),
-        getSalonSubscription(activeSalon.id),
-        getPendingSalonSubscription(activeSalon.id),
+        loadPlans(),
+        loadSubscription(activeSalon.id),
+        loadPending(activeSalon.id),
       ]);
       setPlans(publicPlans.filter((p) => p.isActive));
       setSubscription(sub);
       setPending(waiting);
+      if (!initialIntentRef.current && !billingTouchedRef.current) {
+        const inferred = waiting?.billingPeriod ?? sub?.billingPeriod;
+        if (inferred) {
+          setBillingPeriod(inferred);
+        }
+      }
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : 'Impossible de charger votre abonnement.');
     } finally {
       setLoading(false);
     }
-  }, [activeSalon]);
+  }, [activeSalon, loadPlans, loadSubscription, loadPending]);
 
   useEffect(() => {
     loadSubscriptionData();
@@ -94,17 +129,27 @@ export const SaaSPlanView: React.FC = () => {
     };
   }, [activeSalon?.id, loadSubscriptionData]);
 
+  const handleSelectBillingPeriod = (period: SaasBillingPeriod) => {
+    billingTouchedRef.current = true;
+    setBillingPeriod(period);
+  };
+
   const handleSubscribe = async (plan: SaaSPlan) => {
     if (!activeSalon) return;
-    if (subscription?.planId === plan.id) {
+    const billing = resolvePlanBilling(plan, billingPeriod);
+    if (subscription?.planId === plan.id && subscription?.billingPeriod === billing.billingPeriod) {
       addToast('Cette formule est déjà active sur votre établissement.', 'info');
       return;
     }
     setSwitchingTo(plan.id);
     try {
-      await subscribeSalonToPlan(activeSalon.id, plan.id);
+      await subscribeToPlan(activeSalon.id, plan.id, billing.billingPeriod);
+      clearPlanSelectionIntent();
+      setPreferredPlanSlug(null);
       addToast(
-        'Demande enregistrée. Déclarez votre paiement : l’activation intervient après validation.',
+        billing.billingPeriod === 'yearly'
+          ? `Demande annuelle enregistrée (${formatPrice(billing.billedPriceXof)} / an). Déclarez votre paiement : l’activation (12 mois) intervient après validation.`
+          : 'Demande enregistrée. Déclarez votre paiement : l’activation intervient après validation.',
         'info',
       );
       await loadSubscriptionData();
@@ -124,7 +169,7 @@ export const SaaSPlanView: React.FC = () => {
     }
     setDeclaring(true);
     try {
-      await declareSaasPayment(activeSalon.id, method, reference.trim());
+      await declarePayment(activeSalon.id, method, reference.trim());
       setReference('');
       addToast('Paiement déclaré. Notre équipe vérifie la réception avant activation.', 'success');
       await loadSubscriptionData();
@@ -191,7 +236,7 @@ export const SaaSPlanView: React.FC = () => {
                 <CheckCircle2 className="w-3.5 h-3.5" />
                 Abonnement actif
               </span>
-              <div className="flex items-baseline gap-3">
+              <div className="flex flex-wrap items-baseline gap-3">
                 <h2 className="text-3xl sm:text-4xl font-black text-white">{planName}</h2>
                 <span className="text-lg sm:text-xl font-bold text-[#E5C378]">
                   {formatPrice(subscription.priceAtSubscription)}
@@ -199,6 +244,12 @@ export const SaaSPlanView: React.FC = () => {
                     {subscription.billingPeriod === 'yearly' ? ' / an' : ' / mois'}
                   </span>
                 </span>
+                {subscription.billingPeriod === 'yearly' && (
+                  <span className="text-xs text-stone-400">
+                    (soit {formatPrice(Math.round(subscription.priceAtSubscription / 12))} / mois · cycle 12
+                    mois)
+                  </span>
+                )}
               </div>
               <div className="flex flex-wrap items-center gap-4 text-xs text-stone-400 pt-1">
                 <div className="flex items-center gap-1.5">
@@ -328,19 +379,70 @@ export const SaaSPlanView: React.FC = () => {
 
       {/* Forfaits */}
       <div className="space-y-4">
-        <div>
-          <h2 className="text-xl font-bold text-white">Choisir ou changer de formule</h2>
-          <p className="text-xs text-stone-400">
-            {isOwner
-              ? 'Une nouvelle demande remplace la précédente. Votre formule actuelle reste en place jusqu’à validation.'
-              : 'Seul le propriétaire de l’établissement peut demander une souscription.'}
-          </p>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-bold text-white">Choisir ou changer de formule</h2>
+            <p className="text-xs text-stone-400">
+              {isOwner
+                ? 'Une nouvelle demande remplace la précédente. Votre formule actuelle reste en place jusqu’à validation.'
+                : 'Seul le propriétaire de l’établissement peut demander une souscription.'}
+            </p>
+          </div>
+
+          {/* Sélecteur de période mensuelle / annuelle (-15 %) */}
+          <div
+            data-testid="saas-billing-toggle"
+            className="p-1 rounded-2xl bg-[#161619] border border-[#26262b] flex items-center gap-1 self-start md:self-auto"
+          >
+            <button
+              type="button"
+              aria-pressed={billingPeriod === 'monthly'}
+              onClick={() => handleSelectBillingPeriod('monthly')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                billingPeriod === 'monthly'
+                  ? 'bg-[#C9A45C] text-[#101010] shadow-sm'
+                  : 'text-stone-400 hover:text-white'
+              }`}
+            >
+              Facturation Mensuelle
+            </button>
+            <button
+              type="button"
+              aria-pressed={billingPeriod === 'yearly'}
+              onClick={() => handleSelectBillingPeriod('yearly')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                billingPeriod === 'yearly'
+                  ? 'bg-[#C9A45C] text-[#101010] shadow-sm'
+                  : 'text-stone-400 hover:text-white'
+              }`}
+            >
+              <span>Facturation Annuelle</span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                -15% Économies
+              </span>
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {plans.map((plan) => {
-            const isCurrent = hasActive && subscription?.planId === plan.id;
-            const isPendingPlan = !isCurrent && pending?.planId === plan.id;
+            const billing = resolvePlanBilling(plan, billingPeriod);
+            const isCurrent =
+              hasActive &&
+              subscription?.planId === plan.id &&
+              subscription?.billingPeriod === billing.billingPeriod;
+            const isPendingPlan =
+              !isCurrent && pending?.planId === plan.id && pending?.billingPeriod === billing.billingPeriod;
+            const isPreferred =
+              !isCurrent &&
+              !isPendingPlan &&
+              Boolean(
+                preferredPlanSlug && (plan.slug === preferredPlanSlug || plan.id === preferredPlanSlug),
+              );
+            const isSamePlanDifferentCycle =
+              hasActive &&
+              subscription?.planId === plan.id &&
+              subscription?.billingPeriod !== billing.billingPeriod;
 
             return (
               <div
@@ -348,12 +450,22 @@ export const SaaSPlanView: React.FC = () => {
                 className={`rounded-3xl bg-[#141416] border flex flex-col justify-between p-6 sm:p-7 relative transition-all ${
                   isCurrent
                     ? 'border-[#C9A45C] bg-[#171612]/30 shadow-lg'
-                    : 'border-[#242429] hover:border-[#383842]'
+                    : isPreferred
+                      ? 'border-[#C9A45C]/70 bg-[#171612]/20 shadow-md'
+                      : 'border-[#242429] hover:border-[#383842]'
                 }`}
               >
                 {isCurrent ? (
                   <div className="absolute top-0 right-0 bg-[#C9A45C] text-[#101010] text-[10px] font-black uppercase px-3 py-1 rounded-bl-xl tracking-wider">
                     Formule active
+                  </div>
+                ) : isPendingPlan ? (
+                  <div className="absolute top-0 right-0 bg-amber-500/20 text-amber-300 border-b border-l border-amber-500/30 text-[10px] font-black uppercase px-3 py-1 rounded-bl-xl tracking-wider">
+                    En attente
+                  </div>
+                ) : isPreferred ? (
+                  <div className="absolute top-0 right-0 bg-[#C9A45C]/20 text-[#E5C378] border-b border-l border-[#C9A45C]/40 text-[10px] font-black uppercase px-3 py-1 rounded-bl-xl tracking-wider">
+                    Sélectionnée
                   </div>
                 ) : plan.badgeText ? (
                   <div className="absolute top-0 right-0 bg-[#25252c] text-[#E5C378] text-[10px] font-bold uppercase px-3 py-1 rounded-bl-xl tracking-wider">
@@ -367,13 +479,22 @@ export const SaaSPlanView: React.FC = () => {
                     <p className="text-xs text-stone-400 mt-1 min-h-[32px]">{plan.description}</p>
                   </div>
 
-                  <div className="border-y border-[#202025] py-4">
+                  <div className="border-y border-[#202025] py-4 space-y-1">
                     <div className="flex items-baseline gap-1">
-                      <span className="text-3xl font-black text-[#E5C378]">{formatPrice(plan.priceXof)}</span>
+                      <span className="text-3xl font-black text-[#E5C378]">
+                        {formatPrice(billing.billedPriceXof)}
+                      </span>
                       <span className="text-xs text-stone-400">
-                        {plan.billingPeriod === 'yearly' ? '/ an' : '/ mois'}
+                        {billing.billingPeriod === 'yearly' ? '/ an' : '/ mois'}
                       </span>
                     </div>
+                    {billing.billingPeriod === 'yearly' && (
+                      <div className="text-[11px] text-stone-400">
+                        {billing.discountPercent > 0
+                          ? `Soit ${formatPrice(billing.monthlyEquivalentXof)} / mois · -${billing.discountPercent}% (économisez ${formatPrice(billing.annualSavingsXof)})`
+                          : `Soit ${formatPrice(billing.monthlyEquivalentXof)} / mois · engagement 12 mois`}
+                      </div>
+                    )}
                   </div>
 
                   <div className="text-xs text-stone-300 font-semibold flex items-center gap-2">
@@ -424,7 +545,13 @@ export const SaaSPlanView: React.FC = () => {
                       ) : (
                         <ArrowUpRight className="w-4 h-4" />
                       )}
-                      <span>Choisir cette formule</span>
+                      <span>
+                        {isSamePlanDifferentCycle
+                          ? billing.billingPeriod === 'yearly'
+                            ? 'Passer à l’annuel (-15%)'
+                            : 'Passer au mensuel'
+                          : 'Choisir cette formule'}
+                      </span>
                     </button>
                   )}
                 </div>
@@ -439,8 +566,12 @@ export const SaaSPlanView: React.FC = () => {
         >
           <Ban className="w-4 h-4 text-stone-400 shrink-0 mt-0.5" />
           <div className="space-y-1">
-            <p className="font-bold text-white">{SMS_UNAVAILABLE_TITLE}</p>
-            <p className="text-stone-400 leading-relaxed">{SMS_UNAVAILABLE_MESSAGE}</p>
+            <p className="font-bold text-white">{SMS_UNAVAILABLE_TITLE} & périmètre fonctionnel</p>
+            <p className="text-stone-400 leading-relaxed">
+              {SMS_UNAVAILABLE_MESSAGE} La disponibilité effective des rappels automatiques dépend de
+              l’activation des clés opérateur et des modèles WhatsApp approuvés. Le suivi d’équipe affiche les
+              taux de commission configurés sans calcul automatique des montants dus.
+            </p>
           </div>
         </div>
       </div>
