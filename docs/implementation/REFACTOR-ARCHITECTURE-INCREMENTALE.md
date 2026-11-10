@@ -66,6 +66,11 @@ refusée avant l'envoi, avec un message. Auparavant, elle partait vers la base.
 2. **À faire** : fidélité (chargement, échanges, points, notifications) ; rendez-vous ; finances (caisse).
    Les finances dépendent des rendez-vous (`syncAfterFinance`) : elles viennent après. Pour les clients, sortir
    `loyaltyTransactions` du contexte permettra de déplacer aussi l'état.
-3. **À faire** : découper `lib/api.ts` en services par domaine, avec un barrel de compatibilité.
+3. **Fait (partiel)** : `lib/api.ts` (1 289 lignes) : les helpers, les mappers ligne → domaine et les types d'entrée
+   sont déplacés dans `src/services/api/shared.ts` (529 lignes, sans accès réseau). `lib/api.ts` (824 lignes) garde
+   `salonApi` et réexporte `ApiError` et les types d'entrée, pour que les imports existants restent valides.
+   Tests des mappers et des erreurs : `tests/api-mappers.test.tsx` (9).
+   **Reste** : découper `salonApi` en modules par domaine (clients, prestations, personnel, rendez-vous, caisse,
+   stock, fidélité…) qui reçoivent `supabase` et `salonId`.
 4. **À faire** : fonction serveur d'ajustement atomique du stock avant toute interface d'ajustement.
 5. **À faire** : découper les composants de plus de 650 lignes lorsqu'on touche à leur domaine.
