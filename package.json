@@ -15,7 +15,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "node --test database/tests/*.test.mjs tests/*.test.mjs && node --import tsx --test tests/*.test.tsx",
-    "test:supabase": "node --test database/tests/supabase-core.test.mjs database/tests/supabase-branch-hours.test.mjs database/tests/supabase-operations.test.mjs database/tests/supabase-finance.test.mjs database/tests/supabase-marketplace.test.mjs database/tests/supabase-walk-in.test.mjs database/tests/supabase-client-journey.test.mjs database/tests/supabase-marketplace-customizer.test.mjs database/tests/supabase-platform-marketplace-content.test.mjs database/tests/supabase-security.test.mjs",
+    "test:supabase": "node --test database/tests/supabase-core.test.mjs database/tests/supabase-branch-hours.test.mjs database/tests/supabase-operations.test.mjs database/tests/supabase-finance.test.mjs database/tests/supabase-marketplace.test.mjs database/tests/supabase-walk-in.test.mjs database/tests/supabase-client-journey.test.mjs database/tests/supabase-e2e-seed.test.mjs database/tests/supabase-marketplace-customizer.test.mjs database/tests/supabase-platform-marketplace-content.test.mjs database/tests/supabase-security.test.mjs",
     "test:walk-in": "node --test database/tests/supabase-walk-in.test.mjs",
     "test:finance": "node --test database/tests/supabase-finance.test.mjs",
     "test:marketplace": "node --import tsx --test tests/marketplace-navigation.test.tsx",
@@ -25,7 +25,8 @@
     "supabase:db:linked:preview": "supabase db push --linked --dry-run",
     "supabase:db:linked:push": "supabase db push --linked",
     "test:journey": "node --test database/tests/supabase-client-journey.test.mjs",
-    "test:security": "node --test database/tests/supabase-security.test.mjs && node --import tsx --test tests/permissions-parity.test.tsx tests/permissions.test.tsx"
+    "test:security": "node --test database/tests/supabase-security.test.mjs && node --import tsx --test tests/permissions-parity.test.tsx tests/permissions.test.tsx",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",
@@ -42,6 +43,7 @@
   "devDependencies": {
     "@electric-sql/pglite": "0.5.14",
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.65.0",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.3.3",
     "@types/jsdom": "^30.0.0",

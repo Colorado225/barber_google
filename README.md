@@ -124,10 +124,31 @@ npm run test:journey      # Parcours client complet + fidélité + portail jeton
 npm run test:security     # Isolation multi-tenant & parité RBAC/RLS
 ```
 
+### Tests E2E navigateur (Playwright)
+
+```bash
+npm run e2e            # Scénarios navigateur réels sur les parcours client & salon
+```
+
+Prérequis : une stack Supabase locale seedée (le seed E2E est chargé
+automatiquement par `supabase db reset` depuis `supabase/e2e-seed.sql`) :
+
+```bash
+supabase start && supabase db reset   # migrations + seed E2E
+export $(supabase status -o env | grep -E '^(API_URL|ANON_KEY|SERVICE_ROLE_KEY)=')
+npm run e2e
+```
+
+Les scénarios couvrent : réservation marketplace → file de notifications →
+confirmation salon (ERP) → annulation via le portail client, avis vérifié
+déposé depuis le portail et visible sur la vitrine, et caisse (paiement Wave
+en attente → vérification manuelle → remboursement). Le workflow
+`.github/workflows/e2e.yml` rejoue cette suite en CI.
+
 ### Supabase local & liaison distante
 
 ```bash
-npm run supabase:db:reset          # Recrée la base locale depuis supabase/migrations/
+npm run supabase:db:reset          # Recrée la base locale depuis supabase/migrations/ + seed E2E
 npm run supabase:db:linked:status  # Compare migrations locales et projet distant lié
 npm run supabase:db:linked:preview # Aperçu dry-run des migrations à appliquer
 npm run supabase:db:linked:push    # Applique les migrations sur le projet lié

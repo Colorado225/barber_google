@@ -3,6 +3,8 @@ build/
 dist/
 coverage/
 reports/
+playwright-report/
+test-results/
 .DS_Store
 *.log
 .env*
