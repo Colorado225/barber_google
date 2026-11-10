@@ -1,7 +1,6 @@
 import React from 'react';
 import {
   Save,
-  Globe,
   UploadCloud,
   EyeOff,
   RotateCcw,
@@ -11,7 +10,6 @@ import {
   Smartphone,
   CheckCircle2,
   Clock,
-  AlertCircle,
   Loader2,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -38,7 +36,7 @@ export const SalonMarketplaceToolbar: React.FC<SalonMarketplaceToolbarProps> = (
   onViewportChange,
   isDirty,
   isPublished,
-  publishedAt,
+  publishedAt: _publishedAt,
   saving,
   publishing,
   onSaveDraft,

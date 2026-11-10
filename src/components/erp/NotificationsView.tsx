@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { useOptionalAuth } from '../../context/AuthContext';
+import { DEFAULT_BUSINESS_TIMEZONE } from '../../lib/businessTime';
 import { AppointmentNotification } from '../../types';
 import {
   evaluateNotificationAlerts,
@@ -46,11 +47,11 @@ function channelIcon(channel: AppointmentNotification['channel']) {
   return Smartphone;
 }
 
-function formatWhen(iso: string): string {
+function formatWhen(iso: string, timeZone: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return new Intl.DateTimeFormat('fr-FR', {
-    timeZone: 'Africa/Abidjan',
+    timeZone,
     day: '2-digit',
     month: '2-digit',
     hour: '2-digit',
@@ -63,6 +64,7 @@ function formatWhen(iso: string): string {
 export const NotificationsView: React.FC = () => {
   const {
     activeSalon,
+    salonTimezone = DEFAULT_BUSINESS_TIMEZONE,
     notifications,
     notificationHealth,
     notificationProbe,
@@ -317,9 +319,9 @@ export const NotificationsView: React.FC = () => {
           </div>
           <p className="text-[11px] text-stone-400">
             {notificationHealth?.scheduler.lastRunAt
-              ? `Dernier cron : ${formatWhen(notificationHealth.scheduler.lastRunAt)} (${notificationHealth.scheduler.lastRunStatus ?? 'ok'}${notificationHealth.scheduler.lastHttpStatus ? ` · HTTP ${notificationHealth.scheduler.lastHttpStatus}` : ''})`
+              ? `Dernier cron : ${formatWhen(notificationHealth.scheduler.lastRunAt, salonTimezone)} (${notificationHealth.scheduler.lastRunStatus ?? 'ok'}${notificationHealth.scheduler.lastHttpStatus ? ` · HTTP ${notificationHealth.scheduler.lastHttpStatus}` : ''})`
               : notificationHealth?.lastRun
-                ? `Dernier passage : ${formatWhen(notificationHealth.lastRun.createdAt)} (${notificationHealth.lastRun.triggerSource})`
+                ? `Dernier passage : ${formatWhen(notificationHealth.lastRun.createdAt, salonTimezone)} (${notificationHealth.lastRun.triggerSource})`
                 : 'Aucune exécution enregistrée'}
           </p>
         </div>
@@ -386,8 +388,8 @@ export const NotificationsView: React.FC = () => {
                       <span className="inline-flex items-center gap-1">
                         <Clock className="h-3 w-3" />
                         {n.status === 'sent' && n.sentAt
-                          ? `envoyé le ${formatWhen(n.sentAt)}`
-                          : `prévu ${formatWhen(n.scheduledAt)}`}
+                          ? `envoyé le ${formatWhen(n.sentAt, salonTimezone)}`
+                          : `prévu ${formatWhen(n.scheduledAt, salonTimezone)}`}
                       </span>
                       {n.attempts > 0 && <span>· {n.attempts} tentative(s)</span>}
                       {totalFailures > 0 && n.status !== 'sent' && (

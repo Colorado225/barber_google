@@ -2,6 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { CheckCircle2, MailWarning, Loader2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import {
+  buildPlanSelectionQuery,
+  parsePlanSelectionFromSearch,
+  readPlanSelectionIntent,
+  savePlanSelectionIntent,
+} from '../../lib/saasPricing';
 
 /**
  * Écran de vérification d'adresse e-mail.
@@ -13,12 +19,21 @@ export const VerifyEmailPage: React.FC = () => {
   const tokenHash = params.get('token_hash');
   const callbackError = params.get('error_description');
   const email = params.get('email') ?? '';
+  const rawSearch = params.toString();
+  const urlIntent = parsePlanSelectionFromSearch(rawSearch ? `?${rawSearch}` : '');
+  const planIntent = urlIntent ?? readPlanSelectionIntent();
   const [state, setState] = useState<'idle' | 'loading' | 'done' | 'error'>(
     tokenHash ? 'loading' : callbackError ? 'error' : 'idle',
   );
   const [message, setMessage] = useState<string | null>(callbackError);
   const [resendEmail, setResendEmail] = useState(email);
   const { verifyEmail, resendVerification } = useAuth();
+
+  useEffect(() => {
+    if (urlIntent) {
+      savePlanSelectionIntent(urlIntent);
+    }
+  }, [urlIntent]);
 
   useEffect(() => {
     if (!tokenHash) return;
@@ -101,7 +116,10 @@ export const VerifyEmailPage: React.FC = () => {
         )}
 
         <div className="text-center text-sm">
-          <Link to="/connexion" className="text-[#C9A45C] hover:underline">
+          <Link
+            to={`/connexion${buildPlanSelectionQuery(planIntent)}`}
+            className="text-[#C9A45C] hover:underline"
+          >
             Aller à la connexion
           </Link>
         </div>

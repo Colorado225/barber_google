@@ -1,16 +1,16 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Appointment, AppointmentStatus, StaffMember } from '../../types';
+import { Appointment, AppointmentStatus } from '../../types';
 import { APPOINTMENT_TRANSITIONS, canTransition } from '../../lib/appointment-workflow';
+import { isBilledAppointment } from '../../lib/analytics';
+import { calendarWeekStart, calendarWeekday, shiftCalendarDays, zonedToday } from '../../lib/businessTime';
 import {
   Calendar as CalendarIcon,
   Clock,
   User,
   Plus,
-  Filter,
   Search,
   CheckCircle2,
-  AlertCircle,
   Scissors,
   ChevronLeft,
   ChevronRight,
@@ -19,8 +19,6 @@ import {
   CreditCard,
   X,
   UserCheck,
-  Sparkles,
-  Info,
 } from 'lucide-react';
 
 interface AppointmentsCalendarViewProps {
@@ -34,6 +32,7 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
 }) => {
   const {
     activeSalon,
+    salonTimezone,
     appointments,
     staff,
     formatPrice,
@@ -43,7 +42,7 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
   } = useApp();
 
   const [viewType, setViewType] = useState<'day' | 'week' | 'list'>('week');
-  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [selectedDate, setSelectedDate] = useState<string>(() => zonedToday(salonTimezone));
   const [filterStaffId, setFilterStaffId] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -104,44 +103,40 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
 
   // Compute 7 days of the currently selected week (Monday to Sunday)
   const weekDays = useMemo(() => {
-    const ref = new Date(selectedDate);
-    const day = ref.getDay();
-    const diff = ref.getDate() - day + (day === 0 ? -6 : 1);
-    const monday = new Date(ref.setDate(diff));
+    const mondayIso = calendarWeekStart(selectedDate);
+    const todayIso = zonedToday(salonTimezone);
+    const dayNames = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+    const dayFull = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+    const monthNames = [
+      'janv',
+      'févr',
+      'mars',
+      'avr',
+      'mai',
+      'juin',
+      'juil',
+      'août',
+      'sept',
+      'oct',
+      'nov',
+      'déc',
+    ];
 
     return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(monday);
-      d.setDate(monday.getDate() + i);
-      const iso = d.toISOString().slice(0, 10);
-      const dayNames = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
-      const dayFull = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
-      const monthNames = [
-        'janv',
-        'févr',
-        'mars',
-        'avr',
-        'mai',
-        'juin',
-        'juil',
-        'août',
-        'sept',
-        'oct',
-        'nov',
-        'déc',
-      ];
-      const todayIso = new Date().toISOString().slice(0, 10);
-
+      const iso = shiftCalendarDays(mondayIso, i);
+      const weekday = calendarWeekday(iso);
+      const [, monthStr, dayStr] = iso.split('-');
       return {
         iso,
-        shortName: dayNames[d.getDay()],
-        fullName: dayFull[d.getDay()],
-        dayNum: d.getDate(),
-        month: monthNames[d.getMonth()],
+        shortName: dayNames[weekday],
+        fullName: dayFull[weekday],
+        dayNum: Number(dayStr),
+        month: monthNames[Number(monthStr) - 1] ?? '',
         isToday: iso === todayIso,
         isSelected: iso === selectedDate,
       };
     });
-  }, [selectedDate]);
+  }, [selectedDate, salonTimezone]);
 
   // Hourly slots from 08:30 to 20:00
   const calendarHours = [
@@ -173,31 +168,23 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
 
   // Navigation handlers
   const handlePrevDay = () => {
-    const d = new Date(selectedDate);
-    d.setDate(d.getDate() - 1);
-    setSelectedDate(d.toISOString().slice(0, 10));
+    setSelectedDate(shiftCalendarDays(selectedDate, -1));
   };
 
   const handleNextDay = () => {
-    const d = new Date(selectedDate);
-    d.setDate(d.getDate() + 1);
-    setSelectedDate(d.toISOString().slice(0, 10));
+    setSelectedDate(shiftCalendarDays(selectedDate, 1));
   };
 
   const handlePrevWeek = () => {
-    const d = new Date(selectedDate);
-    d.setDate(d.getDate() - 7);
-    setSelectedDate(d.toISOString().slice(0, 10));
+    setSelectedDate(shiftCalendarDays(selectedDate, -7));
   };
 
   const handleNextWeek = () => {
-    const d = new Date(selectedDate);
-    d.setDate(d.getDate() + 7);
-    setSelectedDate(d.toISOString().slice(0, 10));
+    setSelectedDate(shiftCalendarDays(selectedDate, 7));
   };
 
   const handleSetToday = () => {
-    setSelectedDate(new Date().toISOString().slice(0, 10));
+    setSelectedDate(zonedToday(salonTimezone));
   };
 
   // Filtered Appointments
@@ -236,12 +223,11 @@ export const AppointmentsCalendarView: React.FC<AppointmentsCalendarViewProps> =
         ? salonAppointments.filter((a) => a.date === selectedDate)
         : salonAppointments.filter((a) => weekDays.some((w) => w.iso === a.date));
 
-    const totalCount = relevantApts.filter((a) => a.status !== 'cancelled').length;
-    const inProgressCount = relevantApts.filter((a) => a.status === 'in_progress').length;
-    const checkedInCount = relevantApts.filter((a) => a.status === 'checked_in').length;
-    const estimatedRevenue = relevantApts
-      .filter((a) => a.status !== 'cancelled')
-      .reduce((acc, curr) => acc + curr.price, 0);
+    const activeApts = relevantApts.filter(isBilledAppointment);
+    const totalCount = activeApts.length;
+    const inProgressCount = activeApts.filter((a) => a.status === 'in_progress').length;
+    const checkedInCount = activeApts.filter((a) => a.status === 'checked_in').length;
+    const estimatedRevenue = activeApts.reduce((acc, curr) => acc + curr.price, 0);
 
     return { totalCount, inProgressCount, checkedInCount, estimatedRevenue };
   }, [salonAppointments, viewType, selectedDate, weekDays]);

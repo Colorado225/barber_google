@@ -12,6 +12,7 @@ import {
   useNotificationsDomain,
   useOptionalApp,
   useUI,
+  type SalonApiClient,
 } from '../src/context/AppContext';
 import { AuthContext, type AuthContextType, type SalonMembership } from '../src/context/AuthContext';
 import { createDomainCache } from '../src/lib/domainCache';
@@ -275,7 +276,7 @@ test('ErpLayout avec vues lazy() + Suspense résout et affiche correctement le t
         list: async () => [],
         health: async () => null,
       },
-    }) as any;
+    }) as unknown as SalonApiClient;
 
   render(
     <AuthContext.Provider value={authValue}>

@@ -1,11 +1,12 @@
 export type CacheDomainKey =
-  'marketplace' | 'workspace' | 'appointments' | 'finance' | 'loyalty' | 'notifications';
+  'marketplace' | 'workspace' | 'appointments' | 'finance' | 'dashboard' | 'loyalty' | 'notifications';
 
 export const DEFAULT_DOMAIN_TTL_MS: Record<CacheDomainKey, number> = {
   marketplace: 60_000,
   workspace: 30_000,
   appointments: 20_000,
   finance: 20_000,
+  dashboard: 20_000,
   loyalty: 30_000,
   notifications: 15_000,
 };

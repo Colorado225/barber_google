@@ -91,7 +91,7 @@ function createMockRealtimeClient() {
       return ch;
     },
     async removeChannel(channel) {
-      const found = channels.find((c) => channel && typeof channel === 'object');
+      const found = channel && typeof channel === 'object' ? channels[0] : undefined;
       if (found) removedTopics.push(found.topic);
     },
   };

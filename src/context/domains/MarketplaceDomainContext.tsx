@@ -1,5 +1,5 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import type { Review, Salon } from '../../types';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import type { ErpBranch, Review, Salon } from '../../types';
 import {
   bookMarketplaceAppointment,
   cancelMarketplaceBooking,
@@ -15,7 +15,7 @@ import type { DomainSharedDeps } from './shared';
 
 export interface MarketplaceDomainValue {
   salons: Salon[];
-  branches: { id: string; name: string }[];
+  branches: ErpBranch[];
   reviews: Review[];
   marketplaceLoading: boolean;
   marketplaceError: string | null;
@@ -49,7 +49,7 @@ export function useMarketplaceDomainState(
 ) {
   const { resolveApi, domainCache, addToast, remote, newIdempotencyKey, mode } = deps;
   const [salons, setSalons] = useState<Salon[]>([]);
-  const [branches, setBranches] = useState<{ id: string; name: string }[]>([]);
+  const [branches, setBranches] = useState<ErpBranch[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [marketplaceLoading, setMarketplaceLoading] = useState(false);
   const [marketplaceError, setMarketplaceError] = useState<string | null>(null);

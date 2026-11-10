@@ -1,5 +1,4 @@
 import React, { Suspense, useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useOptionalApp } from '../../context/AppContext';
 import { useOptionalAuth } from '../../context/AuthContext';
 import {
@@ -9,6 +8,8 @@ import {
   readErpSalonFromSearch,
 } from '../../lib/erpSalonSelection';
 import { isRepeatedNotificationFailure } from '../../lib/notifications';
+import { DEFAULT_BUSINESS_TIMEZONE } from '../../lib/businessTime';
+import { parsePlanSelectionFromSearch, savePlanSelectionIntent } from '../../lib/saasPricing';
 import { Appointment } from '../../types';
 import { SectionLoadingFallback, lazyNamed } from '../common/ViewLoader';
 
@@ -49,13 +50,8 @@ import {
   Package,
   Store,
   Sparkles,
-  Building2,
   ChevronDown,
-  Plus,
   ArrowLeft,
-  Lock,
-  Unlock,
-  Bell,
   Globe,
   QrCode,
   BarChart3,
@@ -63,7 +59,6 @@ import {
   UserPlus,
   Inbox,
   Send,
-  ShieldCheck,
   RefreshCw,
   Wifi,
   WifiOff,
@@ -130,6 +125,7 @@ export const ErpLayout: React.FC = () => {
     syncError,
     realtimeStatus,
     lastSyncedAt,
+    salonTimezone = DEFAULT_BUSINESS_TIMEZONE,
     workspaceLoadedSalonId,
     reloadWorkspace,
     syncNow,
@@ -222,6 +218,12 @@ export const ErpLayout: React.FC = () => {
 
   // Applique le paramètre ?salon= d'arrivée (lien direct) s'il correspond à une adhésion active.
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const planIntent = parsePlanSelectionFromSearch(window.location.search);
+      if (planIntent) {
+        savePlanSelectionIntent(planIntent);
+      }
+    }
     const requested = initialUrlSalonRef.current;
     if (!requested || activeMemberships.length === 0) return;
     initialUrlSalonRef.current = null;
@@ -324,7 +326,7 @@ export const ErpLayout: React.FC = () => {
 
   const syncTimeLabel = lastSyncedAt
     ? new Intl.DateTimeFormat('fr-FR', {
-        timeZone: 'Africa/Abidjan',
+        timeZone: salonTimezone,
         hour: '2-digit',
         minute: '2-digit',
         hour12: false,

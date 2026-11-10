@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useInRouterContext } from 'react-router-dom';
-import { Building2, Menu, Scissors, Store, X, ShieldCheck, Sparkles } from 'lucide-react';
+import { Building2, Menu, Scissors, Store, X, Sparkles } from 'lucide-react';
 import { useOptionalApp } from '../../context/AppContext';
 import { useMarketplaceContent } from '../../lib/marketplace-content';
 

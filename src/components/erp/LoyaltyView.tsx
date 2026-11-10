@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { useOptionalAuth } from '../../context/AuthContext';
+import { DEFAULT_BUSINESS_TIMEZONE } from '../../lib/businessTime';
 import { Heart, Gift, Settings2, TrendingUp, TrendingDown, RefreshCw, Award } from 'lucide-react';
 
 const TIER_LABEL: Record<string, string> = { bronze: 'Bronze', silver: 'Argent', gold: 'Or', vip: 'VIP' };
@@ -19,11 +20,11 @@ const KIND_LABEL: Record<string, string> = {
   reversal: 'Reprise (remboursement)',
 };
 
-function formatDate(iso: string): string {
+function formatDate(iso: string, timeZone: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return new Intl.DateTimeFormat('fr-FR', {
-    timeZone: 'Africa/Abidjan',
+    timeZone,
     day: '2-digit',
     month: '2-digit',
     year: '2-digit',
@@ -36,6 +37,7 @@ function formatDate(iso: string): string {
 export const LoyaltyView: React.FC = () => {
   const {
     activeSalon,
+    salonTimezone = DEFAULT_BUSINESS_TIMEZONE,
     clients,
     loyaltyRewards,
     loyaltyAccounts,
@@ -378,7 +380,7 @@ export const LoyaltyView: React.FC = () => {
                   <p className="truncate text-xs font-semibold text-white">{entry.clientName}</p>
                   <p className="truncate text-[11px] text-stone-500">
                     {KIND_LABEL[entry.type] ?? entry.type} · {entry.description} ·{' '}
-                    {formatDate(entry.createdAt)}
+                    {formatDate(entry.createdAt, salonTimezone)}
                   </p>
                 </div>
                 <span

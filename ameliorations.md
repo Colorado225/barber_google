@@ -1,3 +1,5 @@
+> **Note (10 novembre 2026)** : ce fichier conserve les notes initiales de cadrage. L'état des lieux et le backlog réconciliés avec le code actuel se trouvent dans [`docs/AMELIORATIONS.md`](docs/AMELIORATIONS.md) et [`README.md`](README.md).
+
  Ce qui est Partiel ou Reste à Implémenter (Chantiers Prioritaires)
 Pour passer d'un excellent logiciel à un SaaS commercialisable à grande échelle, voici les briques manquantes :
 Domaine	État Actuel	Ce qui manque pour la Production	Priorité

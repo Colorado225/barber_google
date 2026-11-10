@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import { JSDOM } from 'jsdom';
 import { MemoryRouter } from 'react-router-dom';
-import { AppProvider, useOptionalApp } from '../src/context/AppContext';
+import { AppProvider, useOptionalApp, type SalonApiClient } from '../src/context/AppContext';
 import { AuthContext, type AuthContextType, type SalonMembership } from '../src/context/AuthContext';
 import { InventoryView } from '../src/components/erp/InventoryView';
 import { FinanceExpensesView } from '../src/components/erp/FinanceExpensesView';
@@ -299,7 +299,7 @@ test('InventoryView : enregistre un mouvement historisé sans écrasement silenc
         },
       },
       expenses: { list: async () => [], events: async () => [] },
-    }) as any;
+    }) as unknown as SalonApiClient;
 
   const view = render(
     <AuthContext.Provider value={buildAuth()}>
@@ -437,7 +437,7 @@ test('FinanceExpensesView : contrepassation et correction auditée sans suppress
           return corr;
         },
       },
-    }) as any;
+    }) as unknown as SalonApiClient;
 
   const view = render(
     <AuthContext.Provider value={buildAuth()}>
@@ -546,7 +546,7 @@ test('FinanceExpensesView : correction auditée conserve l’écriture initiale 
           return repl;
         },
       },
-    }) as any;
+    }) as unknown as SalonApiClient;
 
   const view = render(
     <AuthContext.Provider value={buildAuth()}>
@@ -622,7 +622,7 @@ test('SalonProfileSettingsView : enregistre la galerie et les visuels via update
           };
         },
       },
-    }) as any;
+    }) as unknown as SalonApiClient;
 
   const view = render(
     <AuthContext.Provider value={buildAuth()}>

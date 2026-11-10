@@ -102,8 +102,14 @@ export const SaasPaymentReviewPanel: React.FC<SaasPaymentReviewPanelProps> = ({
               <div className="text-xs text-stone-300 space-y-0.5">
                 <div className="font-bold text-white">{item.salonName}</div>
                 <div>
-                  Forfait : <strong className="text-white">{item.planName}</strong> · Montant :{' '}
-                  <strong className="text-[#E5C378]">{formatPrice(item.amountXof)}</strong>
+                  Forfait : <strong className="text-white">{item.planName}</strong>
+                  {item.billingPeriod && (
+                    <span className="text-stone-400">
+                      {' '}
+                      ({item.billingPeriod === 'yearly' ? 'Annuel · 12 mois' : 'Mensuel'})
+                    </span>
+                  )}{' '}
+                  · Montant : <strong className="text-[#E5C378]">{formatPrice(item.amountXof)}</strong>
                 </div>
                 <div>
                   {METHOD_LABELS[item.method] ?? item.method} · Référence :{' '}

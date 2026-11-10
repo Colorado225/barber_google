@@ -15,7 +15,7 @@ interface SalonTrustCardProps {
 export const SalonTrustCard: React.FC<SalonTrustCardProps> = ({
   rating,
   reviewCount = 0,
-  salonName,
+  salonName: _salonName,
   cardStyle = 'rounded-3xl',
   accentColor = '#C9A45C',
 }) => {

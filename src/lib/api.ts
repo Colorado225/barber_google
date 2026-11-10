@@ -2,6 +2,8 @@ import type {
   Appointment,
   AppointmentBalance,
   AppointmentNotification,
+  ErpBranch,
+  ErpDashboardMetrics,
   LoyaltyAccount,
   LoyaltyLedgerEntry,
   LoyaltySettings,
@@ -26,6 +28,14 @@ import type {
   StockMovementType,
   Supplier,
 } from '../types';
+import {
+  DEFAULT_BUSINESS_TIMEZONE,
+  normalizeTimeZone,
+  resolveSalonTimezone,
+  shiftCalendarDays,
+  zonedDateTime,
+  zonedDateTimeToIso,
+} from './businessTime';
 import { mapCapabilities, mapNotificationProbe, mapSalonNotificationHealth } from './notifications';
 import { getSupabaseClient } from './supabase';
 import { ApiError } from './apiError';
@@ -78,23 +88,11 @@ function booleanValue(row: DbRow, key: string): boolean {
   return row[key] === true;
 }
 
-const ABIDJAN_DATE = new Intl.DateTimeFormat('en-CA', {
-  timeZone: 'Africa/Abidjan',
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-});
-const ABIDJAN_TIME = new Intl.DateTimeFormat('fr-FR', {
-  timeZone: 'Africa/Abidjan',
-  hour: '2-digit',
-  minute: '2-digit',
-  hour12: false,
-});
-
-function abidjanDateTime(iso: string): { date: string; time: string } {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return { date: iso.slice(0, 10), time: iso.slice(11, 16) };
-  return { date: ABIDJAN_DATE.format(d), time: ABIDJAN_TIME.format(d) };
+function mapDateTimeInZone(
+  iso: string,
+  timeZone: string = DEFAULT_BUSINESS_TIMEZONE,
+): { date: string; time: string } {
+  return zonedDateTime(iso, timeZone);
 }
 
 function firstRow<T>(data: T | T[] | null): T | null {
@@ -157,13 +155,13 @@ function mapStaff(row: DbRow): StaffMember {
   };
 }
 
-export function mapAppointmentRow(row: DbRow): Appointment {
-  return mapAppointment(row);
+export function mapAppointmentRow(row: DbRow, timeZone: string = DEFAULT_BUSINESS_TIMEZONE): Appointment {
+  return mapAppointment(row, timeZone);
 }
 
-function mapAppointment(row: DbRow): Appointment {
+function mapAppointment(row: DbRow, timeZone: string = DEFAULT_BUSINESS_TIMEZONE): Appointment {
   const startsAt = stringValue(row, 'starts_at');
-  const { date, time } = abidjanDateTime(startsAt);
+  const { date, time } = mapDateTimeInZone(startsAt, timeZone);
   return {
     id: stringValue(row, 'id'),
     salonId: stringValue(row, 'salon_id'),
@@ -194,9 +192,9 @@ function mapAppointment(row: DbRow): Appointment {
   };
 }
 
-function mapPayment(row: DbRow): PaymentTransaction {
+function mapPayment(row: DbRow, timeZone: string = DEFAULT_BUSINESS_TIMEZONE): PaymentTransaction {
   const createdAt = stringValue(row, 'created_at');
-  const { date, time } = abidjanDateTime(createdAt);
+  const { date, time } = mapDateTimeInZone(createdAt, timeZone);
   const kind = stringValue(row, 'kind', 'payment') as PaymentEntryKind;
   const status = stringValue(row, 'status');
   const amount = numberValue(row, 'amount');
@@ -285,6 +283,124 @@ function mapFinancialSummary(row: DbRow): FinancialSummary {
     pendingAmount: numberValue(row, 'pending_amount'),
     paymentCount: numberValue(row, 'payment_count'),
     byMethod,
+  };
+}
+
+function nullableNumber(row: DbRow, key: string): number | null {
+  const value = row[key];
+  return value === null || value === undefined ? null : Number(value);
+}
+
+export function mapErpDashboardMetrics(row: DbRow): ErpDashboardMetrics {
+  const perms = (row.permissions ?? {}) as DbRow;
+  const kpis = (row.kpis ?? {}) as DbRow;
+  const byMethodRaw = (row.by_method ?? {}) as Record<string, unknown>;
+  const byMethod: Record<string, number> = {};
+  for (const [k, v] of Object.entries(byMethodRaw)) {
+    byMethod[k] = Number(v ?? 0);
+  }
+  const monthlyRaw = Array.isArray(row.monthly_series) ? (row.monthly_series as DbRow[]) : [];
+  const weeklyRaw = Array.isArray(row.weekly_series) ? (row.weekly_series as DbRow[]) : [];
+  const serviceRaw = Array.isArray(row.service_performance) ? (row.service_performance as DbRow[]) : [];
+  const staffRaw = Array.isArray(row.staff_activity) ? (row.staff_activity as DbRow[]) : [];
+  const hourlyRaw = Array.isArray(row.hourly_occupancy) ? (row.hourly_occupancy as DbRow[]) : [];
+
+  return {
+    periodFrom: stringValue(row, 'period_from'),
+    periodTo: stringValue(row, 'period_to'),
+    timezone: stringValue(row, 'timezone', DEFAULT_BUSINESS_TIMEZONE),
+    today: stringValue(row, 'today'),
+    dayFilter: stringValue(row, 'day_filter', 'all') as ErpDashboardMetrics['dayFilter'],
+    configuredStaffCount: numberValue(row, 'configured_staff_count'),
+    permissions: {
+      canViewFinance: perms.can_view_finance === true,
+      canViewExpenses: perms.can_view_expenses === true,
+      canViewAppointments: perms.can_view_appointments === true,
+    },
+    kpis: {
+      revenueCollectedNet: nullableNumber(kpis, 'revenue_collected_net'),
+      revenueCollectedGross: nullableNumber(kpis, 'revenue_collected_gross'),
+      refunds: nullableNumber(kpis, 'refunds'),
+      paymentReversals: nullableNumber(kpis, 'payment_reversals'),
+      refundReversals: nullableNumber(kpis, 'refund_reversals'),
+      pendingPaymentsAmount: nullableNumber(kpis, 'pending_payments_amount'),
+      confirmedPaymentCount: nullableNumber(kpis, 'confirmed_payment_count'),
+      averageBasket: nullableNumber(kpis, 'average_basket'),
+      revenueBilled: nullableNumber(kpis, 'revenue_billed'),
+      revenueRealized: nullableNumber(kpis, 'revenue_realized'),
+      outstanding: nullableNumber(kpis, 'outstanding'),
+      expensesNet: nullableNumber(kpis, 'expenses_net'),
+      netMargin: nullableNumber(kpis, 'net_margin'),
+      appointmentsTotal: numberValue(kpis, 'appointments_total'),
+      appointmentsActive: numberValue(kpis, 'appointments_active'),
+      appointmentsCompleted: numberValue(kpis, 'appointments_completed'),
+      appointmentsCancelled: numberValue(kpis, 'appointments_cancelled'),
+      appointmentsNoShow: numberValue(kpis, 'appointments_no_show'),
+      todayAppointmentsActive: numberValue(kpis, 'today_appointments_active'),
+      todayAppointmentsCompleted: numberValue(kpis, 'today_appointments_completed'),
+      todayAppointmentsInProgress: numberValue(kpis, 'today_appointments_in_progress'),
+      todayAppointmentsCancelled: numberValue(kpis, 'today_appointments_cancelled'),
+      todayAppointmentsNoShow: numberValue(kpis, 'today_appointments_no_show'),
+    },
+    byMethod,
+    monthlySeries: monthlyRaw.map((m) => ({
+      month: stringValue(m, 'month'),
+      fromDate: stringValue(m, 'from_date'),
+      toDate: stringValue(m, 'to_date'),
+      revenueCollected: nullableNumber(m, 'revenue_collected'),
+      revenueBilled: nullableNumber(m, 'revenue_billed'),
+      revenueRealized: nullableNumber(m, 'revenue_realized'),
+      expenses: nullableNumber(m, 'expenses'),
+      margin: nullableNumber(m, 'margin'),
+      completedAppointments: numberValue(m, 'completed_appointments'),
+      activeAppointments: numberValue(m, 'active_appointments'),
+      cancelledAppointments: numberValue(m, 'cancelled_appointments'),
+    })),
+    weeklySeries: weeklyRaw.map((w) => ({
+      label: stringValue(w, 'label'),
+      shortLabel: stringValue(w, 'short_label'),
+      fromDate: stringValue(w, 'from_date'),
+      toDate: stringValue(w, 'to_date'),
+      revenueCollected: nullableNumber(w, 'revenue_collected'),
+      revenueBilled: nullableNumber(w, 'revenue_billed'),
+      revenueRealized: nullableNumber(w, 'revenue_realized'),
+      expenses: nullableNumber(w, 'expenses'),
+      margin: nullableNumber(w, 'margin'),
+      completedAppointments: numberValue(w, 'completed_appointments'),
+      activeAppointments: numberValue(w, 'active_appointments'),
+    })),
+    servicePerformance: serviceRaw.map((s) => ({
+      serviceId: stringValue(s, 'service_id'),
+      name: stringValue(s, 'name'),
+      category: stringValue(s, 'category') as Service['category'],
+      price: numberValue(s, 'price'),
+      durationMinutes: numberValue(s, 'duration_minutes'),
+      completedVolume: numberValue(s, 'completed_volume'),
+      completedRevenue: numberValue(s, 'completed_revenue'),
+      billedVolume: numberValue(s, 'billed_volume'),
+      billedRevenue: numberValue(s, 'billed_revenue'),
+      cancelledVolume: numberValue(s, 'cancelled_volume'),
+      noShowVolume: numberValue(s, 'no_show_volume'),
+    })),
+    staffActivity: staffRaw.map((st) => ({
+      staffId: stringValue(st, 'staff_id'),
+      name: stringValue(st, 'name'),
+      commissionRate: numberValue(st, 'commission_rate'),
+      completedAppointments: numberValue(st, 'completed_appointments'),
+      completedRevenue: numberValue(st, 'completed_revenue'),
+      billedAppointments: numberValue(st, 'billed_appointments'),
+      billedRevenue: numberValue(st, 'billed_revenue'),
+      cancelledAppointments: numberValue(st, 'cancelled_appointments'),
+      noShowAppointments: numberValue(st, 'no_show_appointments'),
+    })),
+    hourlyOccupancy: hourlyRaw.map((h) => ({
+      hour: stringValue(h, 'hour'),
+      occupiedMinutes: numberValue(h, 'occupied_minutes'),
+      availableMinutes: numberValue(h, 'available_minutes'),
+      occupancyRate: numberValue(h, 'occupancy_rate'),
+      activeAppointments: numberValue(h, 'active_appointments'),
+      completedAppointments: numberValue(h, 'completed_appointments'),
+    })),
   };
 }
 
@@ -661,8 +777,9 @@ interface StaffAbsence {
 
 type Availability = Record<string, { startsAt: string; available: boolean }[]>;
 
-export function salonApi(salonId: string) {
+export function salonApi(salonId: string, initialTimeZone: string = DEFAULT_BUSINESS_TIMEZONE) {
   const supabase = getSupabaseClient();
+  let activeTimeZone = normalizeTimeZone(initialTimeZone);
   const listClients = async () => {
     const result = await supabase.from('clients').select('*').eq('salon_id', salonId).order('name');
     return (unwrap(result) ?? []).map((row) => mapClient(row as DbRow));
@@ -708,6 +825,12 @@ export function salonApi(salonId: string) {
   };
 
   return {
+    setTimeZone(timeZone?: string | null) {
+      activeTimeZone = normalizeTimeZone(timeZone);
+    },
+    getTimeZone() {
+      return activeTimeZone;
+    },
     async workspace() {
       const [
         salonResult,
@@ -722,7 +845,7 @@ export function salonApi(salonId: string) {
         reviews,
       ] = await Promise.all([
         supabase.from('salons').select('*').eq('id', salonId).single(),
-        supabase.from('branches').select('id, name').eq('salon_id', salonId).order('created_at'),
+        supabase.from('branches').select('id, name, timezone').eq('salon_id', salonId).order('created_at'),
         listClients(),
         listServices(true),
         listStaff(),
@@ -733,7 +856,8 @@ export function salonApi(salonId: string) {
         listReviews(),
       ]);
       const salon = unwrap(salonResult);
-      const branches = (unwrap(branchesResult) ?? []) as { id: string; name: string }[];
+      const branches = (unwrap(branchesResult) ?? []) as ErpBranch[];
+      activeTimeZone = resolveSalonTimezone(salon as { timezone?: string | null }, branches);
       return { salon, branches, clients, services, staff, expenses, stock, suppliers, rewards, reviews };
     },
     clients: {
@@ -832,10 +956,10 @@ export function salonApi(salonId: string) {
       async list() {
         const result = await supabase
           .from('branches')
-          .select('id, name')
+          .select('id, name, timezone')
           .eq('salon_id', salonId)
           .order('created_at');
-        return unwrap(result) ?? [];
+        return (unwrap(result) ?? []) as ErpBranch[];
       },
     },
     staff: {
@@ -952,13 +1076,16 @@ export function salonApi(salonId: string) {
       },
     },
     appointments: {
-      async list(params: { from?: string; to?: string; staffId?: string } = {}) {
+      async list(params: { from?: string; to?: string; staffId?: string; timeZone?: string } = {}) {
+        const tz = normalizeTimeZone(params.timeZone ?? activeTimeZone);
         let query = supabase.from('appointments').select('*').eq('salon_id', salonId);
-        if (params.from) query = query.gte('starts_at', `${params.from}T00:00:00.000Z`);
-        if (params.to) query = query.lte('starts_at', `${params.to}T23:59:59.999Z`);
+        if (params.from) query = query.gte('starts_at', zonedDateTimeToIso(params.from, '00:00', tz));
+        if (params.to) {
+          query = query.lt('starts_at', zonedDateTimeToIso(shiftCalendarDays(params.to, 1), '00:00', tz));
+        }
         if (params.staffId) query = query.eq('staff_id', params.staffId);
         const result = await query.order('starts_at');
-        return (unwrap(result) ?? []).map((row) => mapAppointment(row as DbRow));
+        return (unwrap(result) ?? []).map((row) => mapAppointment(row as DbRow, tz));
       },
       async create(data: AppointmentInput): Promise<Appointment> {
         const result = await supabase.rpc('create_appointment', {
@@ -973,7 +1100,7 @@ export function salonApi(salonId: string) {
           p_source: data.source ?? 'direct',
           p_notes: data.notes ?? '',
         });
-        return mapAppointment(unwrap(result) as DbRow);
+        return mapAppointment(unwrap(result) as DbRow, activeTimeZone);
       },
       async registerWalkIn(data: WalkInInput): Promise<Appointment> {
         const result = await supabase.rpc('register_walk_in', {
@@ -988,7 +1115,7 @@ export function salonApi(salonId: string) {
           p_start_immediately: data.startImmediately ?? false,
           p_notes: data.notes ?? '',
         });
-        return mapAppointment(unwrap(result) as DbRow);
+        return mapAppointment(unwrap(result) as DbRow, activeTimeZone);
       },
       async startWalkIn(id: string, staffId?: string | null): Promise<Appointment> {
         const result = await supabase.rpc('start_walk_in', {
@@ -996,14 +1123,14 @@ export function salonApi(salonId: string) {
           p_appointment_id: id,
           p_staff_id: staffId ?? null,
         });
-        return mapAppointment(unwrap(result) as DbRow);
+        return mapAppointment(unwrap(result) as DbRow, activeTimeZone);
       },
       async completeWalkIn(id: string): Promise<Appointment> {
         const result = await supabase.rpc('complete_walk_in', {
           p_salon_id: salonId,
           p_appointment_id: id,
         });
-        return mapAppointment(unwrap(result) as DbRow);
+        return mapAppointment(unwrap(result) as DbRow, activeTimeZone);
       },
       async reschedule(id: string, data: RescheduleInput): Promise<Appointment> {
         const result = await supabase.rpc('reschedule_appointment', {
@@ -1014,7 +1141,7 @@ export function salonApi(salonId: string) {
           p_starts_at: data.startsAt ?? null,
           p_notes: data.notes ?? null,
         });
-        return mapAppointment(unwrap(result) as DbRow);
+        return mapAppointment(unwrap(result) as DbRow, activeTimeZone);
       },
       async transition(id: string, status: string, reason?: string): Promise<Appointment> {
         const result = await supabase.rpc('transition_appointment', {
@@ -1023,7 +1150,7 @@ export function salonApi(salonId: string) {
           p_status: status,
           p_reason: reason ?? null,
         });
-        return mapAppointment(unwrap(result) as DbRow);
+        return mapAppointment(unwrap(result) as DbRow, activeTimeZone);
       },
       async cancel(id: string, reason: string): Promise<Appointment> {
         const result = await supabase.rpc('cancel_appointment', {
@@ -1031,7 +1158,7 @@ export function salonApi(salonId: string) {
           p_appointment_id: id,
           p_reason: reason,
         });
-        return mapAppointment(unwrap(result) as DbRow);
+        return mapAppointment(unwrap(result) as DbRow, activeTimeZone);
       },
       async events(id: string): Promise<unknown[]> {
         const result = await supabase
@@ -1139,7 +1266,7 @@ export function salonApi(salonId: string) {
           p_limit: params.limit ?? 200,
         });
         const data = unwrap(result);
-        return (Array.isArray(data) ? data : []).map((row) => mapPayment(row as DbRow));
+        return (Array.isArray(data) ? data : []).map((row) => mapPayment(row as DbRow, activeTimeZone));
       },
       async record(data: RecordPaymentInput) {
         const result = await supabase.rpc('record_payment', {
@@ -1151,7 +1278,7 @@ export function salonApi(salonId: string) {
           p_provider_reference: data.providerReference ?? null,
           p_reason: data.reason ?? '',
         });
-        return mapPayment(unwrap(result) as DbRow);
+        return mapPayment(unwrap(result) as DbRow, activeTimeZone);
       },
       async correct(data: PaymentCorrectionInput) {
         const result = await supabase.rpc('record_payment_correction', {
@@ -1164,7 +1291,7 @@ export function salonApi(salonId: string) {
           p_provider_reference: data.providerReference ?? null,
           p_settlement_note: data.settlementNote ?? '',
         });
-        return mapPayment(unwrap(result) as DbRow);
+        return mapPayment(unwrap(result) as DbRow, activeTimeZone);
       },
       async confirm(paymentId: string, providerReference: string, settlementNote: string) {
         const result = await supabase.rpc('confirm_pending_payment', {
@@ -1173,7 +1300,7 @@ export function salonApi(salonId: string) {
           p_provider_reference: providerReference,
           p_settlement_note: settlementNote,
         });
-        return mapPayment(unwrap(result) as DbRow);
+        return mapPayment(unwrap(result) as DbRow, activeTimeZone);
       },
       async reject(paymentId: string, reason: string) {
         const result = await supabase.rpc('reject_pending_payment', {
@@ -1181,7 +1308,7 @@ export function salonApi(salonId: string) {
           p_payment_id: paymentId,
           p_reason: reason,
         });
-        return mapPayment(unwrap(result) as DbRow);
+        return mapPayment(unwrap(result) as DbRow, activeTimeZone);
       },
       async balance(appointmentId: string) {
         const result = await supabase.rpc('get_appointment_balance', {
@@ -1272,6 +1399,21 @@ export function salonApi(salonId: string) {
         const row = firstRow(unwrap(result) as DbRow | DbRow[]);
         if (!row) throw new ApiError('Supabase n’a retourné aucun rapport.');
         return mapFinancialSummary(row);
+      },
+      async dashboard(params: {
+        from: string;
+        to: string;
+        dayFilter?: 'all' | 'saturday' | 'friday' | 'weekday';
+      }): Promise<ErpDashboardMetrics> {
+        const result = await supabase.rpc('erp_dashboard_metrics', {
+          p_salon_id: salonId,
+          p_from: params.from,
+          p_to: params.to,
+          p_day_filter: params.dayFilter ?? 'all',
+        });
+        const row = firstRow(unwrap(result) as DbRow | DbRow[]);
+        if (!row) throw new ApiError('Supabase n’a retourné aucun indicateur.');
+        return mapErpDashboardMetrics(row);
       },
     },
     suppliers: {

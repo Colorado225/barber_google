@@ -1,8 +1,14 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowRight, Eye, EyeOff, Lock, Mail, Scissors } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { getSupabaseAuthErrorCode, getSupabaseAuthErrorMessage } from '../../lib/auth-errors';
+import {
+  buildPlanSelectionQuery,
+  parsePlanSelectionFromSearch,
+  readPlanSelectionIntent,
+  savePlanSelectionIntent,
+} from '../../lib/saasPricing';
 import { isSupabaseConfigured } from '../../lib/supabase';
 
 export const LoginPage: React.FC = () => {
@@ -13,7 +19,19 @@ export const LoginPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const { signIn } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const supabaseConfigured = isSupabaseConfigured();
+
+  const rawSearch = searchParams.toString();
+  const urlIntent = parsePlanSelectionFromSearch(rawSearch ? `?${rawSearch}` : '');
+  const planIntent = urlIntent ?? readPlanSelectionIntent();
+  const planQuerySuffix = buildPlanSelectionQuery(planIntent);
+
+  useEffect(() => {
+    if (urlIntent) {
+      savePlanSelectionIntent(urlIntent);
+    }
+  }, [urlIntent]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,12 +44,18 @@ export const LoginPage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
+      if (planIntent) {
+        savePlanSelectionIntent(planIntent);
+      }
       await signIn(normalizedEmail, password);
-      navigate('/app');
+      navigate(planIntent ? `/app/abonnement${planQuerySuffix}` : '/app');
     } catch (err) {
       const errorCode = getSupabaseAuthErrorCode(err);
       if (errorCode === 'email_not_confirmed' || errorCode === 'user_not_confirmed') {
-        navigate(`/verifier-email?email=${encodeURIComponent(normalizedEmail)}`);
+        const verifyParams = new URLSearchParams({ email: normalizedEmail });
+        if (planIntent?.planSlug) verifyParams.set('plan', planIntent.planSlug);
+        if (planIntent?.billingPeriod) verifyParams.set('billing', planIntent.billingPeriod);
+        navigate(`/verifier-email?${verifyParams.toString()}`);
         return;
       }
       setError(getSupabaseAuthErrorMessage(err, 'sign-in'));
@@ -228,7 +252,7 @@ export const LoginPage: React.FC = () => {
           <p className="mt-7 border-t border-[#d8d0c3] pt-5 text-sm text-[#68645b]">
             Pas encore de compte ?{' '}
             <Link
-              to="/inscription"
+              to={`/inscription${planQuerySuffix}`}
               className="font-semibold text-[#775d2d] underline decoration-[#ad935e]/50 underline-offset-4 hover:text-[#42351d] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#917441]"
             >
               Créer un compte

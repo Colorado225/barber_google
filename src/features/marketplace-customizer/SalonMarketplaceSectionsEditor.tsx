@@ -1,8 +1,8 @@
 import React from 'react';
-import { SalonMarketplaceSection, SalonMarketplaceSectionId, SalonMarketplaceViewConfig } from '../../types';
+import { SalonMarketplaceSectionId, SalonMarketplaceViewConfig } from '../../types';
 import { Switch } from '../../components/ui/switch';
 import { cn } from '../../lib/utils';
-import { SlidersHorizontal, ChevronUp, ChevronDown, Eye, EyeOff, GripVertical } from 'lucide-react';
+import { SlidersHorizontal, ChevronUp, ChevronDown } from 'lucide-react';
 
 interface SalonMarketplaceSectionsEditorProps {
   config: SalonMarketplaceViewConfig;

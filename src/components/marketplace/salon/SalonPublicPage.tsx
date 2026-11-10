@@ -9,7 +9,7 @@ import { ClassicSalonLayout } from './layouts/ClassicSalonLayout';
 import { ElegantSalonLayout } from './layouts/ElegantSalonLayout';
 import { EditorialSalonLayout } from './layouts/EditorialSalonLayout';
 import { SalonDetailModal } from '../SalonDetailModal';
-import { Loader2, ArrowLeft, Store, AlertCircle } from 'lucide-react';
+import { Loader2, ArrowLeft, AlertCircle } from 'lucide-react';
 
 interface SalonPublicPageProps {
   initialDetail?: PublicSalonDetail | null;

@@ -1,25 +1,19 @@
 import js from '@eslint/js';
 import globals from 'globals';
+import tseslint from 'typescript-eslint';
 import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
 
-// Configuration ESLint volontairement minimale (Lot 1) :
-// on fait respecter les erreurs réelles (hooks React, variables inutilisées,
-// code mort) sans inonder le dépôt de règles de style. Le typage des fichiers
-// TypeScript est vérifié séparément par `npm run typecheck` (tsc --noEmit).
-//
-// Limite documentée : TypeScript 7 n'expose pas d'API de parsing publique et
-// `typescript-eslint` n'est pas encore compatible avec cette version. Les
-// fichiers .ts/.tsx sont donc ignorés par ESLint pour l'instant (ils restent
-// analysés par `tsc` et Prettier). À réactiver avec `typescript-eslint` dès
-// qu'une version compatible TS 7 sera publiée.
-export default [
+// ESLint couvre l'ensemble des fichiers JS et TypeScript/TSX du projet
+// (règles JS/TS recommandées, React Hooks, variables inutilisées et code mort).
+export default tseslint.config(
   {
-    ignores: ['dist/**', 'node_modules/**', 'coverage/**', 'supabase/functions/**', '**/*.ts', '**/*.tsx'],
+    ignores: ['dist/**', 'node_modules/**', 'coverage/**', 'supabase/functions/**', 'public/**'],
   },
   js.configs.recommended,
+  ...tseslint.configs.recommended,
   {
-    files: ['**/*.{js,mjs,cjs,jsx}'],
+    files: ['**/*.{js,mjs,cjs,jsx,ts,tsx}'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'module',
@@ -28,11 +22,15 @@ export default [
       },
     },
     rules: {
-      'no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      'no-unused-vars': 'off',
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
+      ],
     },
   },
   {
-    files: ['src/**/*.{js,jsx,mjs}'],
+    files: ['src/**/*.{js,jsx,mjs,ts,tsx}'],
     languageOptions: {
       globals: {
         ...globals.browser,
@@ -40,7 +38,16 @@ export default [
     },
   },
   {
-    files: ['**/*.{jsx,tsx}'],
+    files: ['tests/**/*.{ts,tsx,js,mjs}'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+        ...globals.browser,
+      },
+    },
+  },
+  {
+    files: ['src/**/*.{ts,tsx,js,jsx}', 'tests/**/*.{tsx,jsx}'],
     plugins: {
       'react-hooks': reactHooks,
       'react-refresh': reactRefresh,
@@ -51,4 +58,4 @@ export default [
       'react-refresh/only-export-components': 'off',
     },
   },
-];
+);

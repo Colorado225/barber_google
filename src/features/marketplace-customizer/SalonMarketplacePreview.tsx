@@ -5,7 +5,7 @@ import { ElegantSalonLayout } from '../../components/marketplace/salon/layouts/E
 import { EditorialSalonLayout } from '../../components/marketplace/salon/layouts/EditorialSalonLayout';
 import { ViewportMode } from './SalonMarketplaceToolbar';
 import { cn } from '../../lib/utils';
-import { Sparkles, Eye } from 'lucide-react';
+import { Eye } from 'lucide-react';
 
 interface SalonMarketplacePreviewProps {
   detail: PublicSalonDetail;
@@ -20,8 +20,6 @@ export const SalonMarketplacePreview: React.FC<SalonMarketplacePreviewProps> = (
   viewport,
   formatPrice,
 }) => {
-  const isConstrained = viewport !== 'desktop';
-
   return (
     <div className="flex-1 flex flex-col items-center justify-start overflow-x-auto min-h-[600px] bg-[#09090b] rounded-2xl border border-stone-800/80 p-3 sm:p-6 shadow-inner">
       {/* Live Preview Label Banner */}

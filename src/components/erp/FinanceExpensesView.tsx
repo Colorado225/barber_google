@@ -1,7 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { useOptionalAuth } from '../../context/AuthContext';
-import { expenseSignedAmount, paymentSignedAmount } from '../../lib/analytics';
+import { expenseSignedAmount, paymentBusinessDate, paymentSignedAmount } from '../../lib/analytics';
+import { resolveErpPeriodRange, zonedToday } from '../../lib/businessTime';
+import { financeRange } from '../../context/domains/FinanceDomainContext';
 import {
   createExpenseAttachmentSignedUrl,
   uploadExpenseAttachment,
@@ -35,6 +37,8 @@ const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
 export const FinanceExpensesView: React.FC = () => {
   const {
     activeSalon,
+    salonTimezone,
+    financialSummary,
     expenses,
     expenseEvents,
     suppliers,
@@ -48,6 +52,16 @@ export const FinanceExpensesView: React.FC = () => {
   } = useApp();
   const { hasPermission } = useOptionalAuth();
   const canManage = hasPermission('expenses.manage', activeSalon?.id);
+  const [kpiScope, setKpiScope] = useState<'month' | '12m'>('12m');
+
+  const kpiWindow = useMemo(() => {
+    if (kpiScope === 'month') {
+      const r = resolveErpPeriodRange('month', salonTimezone);
+      return { from: r.from, to: r.to, label: `Mois en cours (${r.from} → ${r.to})` };
+    }
+    const r = financeRange(salonTimezone);
+    return { from: r.from, to: r.to, label: `12 mois glissants (${r.from} → ${r.to})` };
+  }, [kpiScope, salonTimezone]);
 
   const salonExpenses = useMemo(
     () => (activeSalon ? expenses.filter((e) => e.salonId === activeSalon.id) : []),
@@ -73,15 +87,33 @@ export const FinanceExpensesView: React.FC = () => {
     return map;
   }, [suppliers, activeSalon]);
 
-  const totalRevenue = useMemo(
-    () => salonTransactions.reduce((acc, t) => acc + paymentSignedAmount(t), 0),
-    [salonTransactions],
+  const scopedTransactions = useMemo(
+    () =>
+      salonTransactions.filter((t) => {
+        const d = paymentBusinessDate(t, salonTimezone);
+        return d >= kpiWindow.from && d <= kpiWindow.to;
+      }),
+    [salonTransactions, salonTimezone, kpiWindow],
   );
 
-  const totalExpenses = useMemo(
-    () => salonExpenses.reduce((acc, e) => acc + expenseSignedAmount(e), 0),
-    [salonExpenses],
+  const scopedExpenses = useMemo(
+    () => salonExpenses.filter((e) => e.date >= kpiWindow.from && e.date <= kpiWindow.to),
+    [salonExpenses, kpiWindow],
   );
+
+  const totalRevenue = useMemo(() => {
+    if (kpiScope === 'month' && financialSummary) {
+      return financialSummary.revenueCollected;
+    }
+    return scopedTransactions.reduce((acc, t) => acc + paymentSignedAmount(t), 0);
+  }, [kpiScope, financialSummary, scopedTransactions]);
+
+  const totalExpenses = useMemo(() => {
+    if (kpiScope === 'month' && financialSummary) {
+      return financialSummary.expenses;
+    }
+    return scopedExpenses.reduce((acc, e) => acc + expenseSignedAmount(e), 0);
+  }, [kpiScope, financialSummary, scopedExpenses]);
 
   const netBalance = totalRevenue - totalExpenses;
 
@@ -90,7 +122,7 @@ export const FinanceExpensesView: React.FC = () => {
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<ExpenseCategory>('products');
   const [amount, setAmount] = useState<number>(10000);
-  const [spentOn, setSpentOn] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [spentOn, setSpentOn] = useState<string>(() => zonedToday(salonTimezone));
   const [supplierId, setSupplierId] = useState<string>('');
   const [receiptRef, setReceiptRef] = useState('');
   const [notes, setNotes] = useState('');
@@ -233,16 +265,51 @@ export const FinanceExpensesView: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Période & Fuseau des indicateurs financiers */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-[#161619] border border-[#27272c] rounded-2xl px-4 py-3 text-xs">
+        <div className="text-stone-300">
+          <span className="font-semibold text-white">Périmètre comparé :</span> {kpiWindow.label} · Fuseau{' '}
+          <span className="text-[#E5C378] font-mono">{salonTimezone}</span>
+          {kpiScope === '12m' && scopedTransactions.length >= 500 && (
+            <span className="ml-2 text-amber-300">
+              (fenêtre plafonnée à 500 paiements chargés ; passez sur « Mois en cours » pour le total serveur)
+            </span>
+          )}
+        </div>
+        <div className="flex bg-[#111113] p-1 rounded-xl border border-[#27272c]">
+          <button
+            type="button"
+            onClick={() => setKpiScope('month')}
+            className={`px-3 py-1 rounded-lg font-semibold ${
+              kpiScope === 'month' ? 'bg-[#C9A45C] text-[#101010]' : 'text-stone-400 hover:text-white'
+            }`}
+          >
+            Mois en cours
+          </button>
+          <button
+            type="button"
+            onClick={() => setKpiScope('12m')}
+            className={`px-3 py-1 rounded-lg font-semibold ${
+              kpiScope === '12m' ? 'bg-[#C9A45C] text-[#101010]' : 'text-stone-400 hover:text-white'
+            }`}
+          >
+            12 mois glissants
+          </button>
+        </div>
+      </div>
+
       {/* Financial Overview Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="p-5 rounded-2xl bg-[#161619] border border-[#27272c]">
-          <span className="text-xs font-semibold text-stone-400">Recettes Totales Encaissées</span>
+          <span className="text-xs font-semibold text-stone-400">Encaissements Nets Confirmés</span>
           <div className="text-2xl font-extrabold text-emerald-400 mt-1 flex items-center gap-1.5">
             <TrendingUp className="w-5 h-5 text-emerald-400" />
             <span>+{formatPrice(totalRevenue)}</span>
           </div>
           <span className="text-[11px] text-stone-500">
-            {salonTransactions.length} transactions vérifiées
+            {kpiScope === 'month' && financialSummary
+              ? `${financialSummary.paymentCount} paiement(s) confirmé(s) · remboursements déduits`
+              : `${scopedTransactions.length} écritures confirmées sur la période`}
           </span>
         </div>
 
@@ -253,19 +320,21 @@ export const FinanceExpensesView: React.FC = () => {
             <span>-{formatPrice(totalExpenses)}</span>
           </div>
           <span className="text-[11px] text-stone-500">
-            {salonExpenses.filter((e) => e.entryKind !== 'expense_reversal' && e.status === 'active').length}{' '}
-            écritures actives · historique conservé
+            {scopedExpenses.filter((e) => e.entryKind !== 'expense_reversal' && e.status === 'active').length}{' '}
+            écritures actives sur la période · contrepassations déduites
           </span>
         </div>
 
         <div className="p-5 rounded-2xl bg-[#161619] border border-[#27272c]">
-          <span className="text-xs font-semibold text-stone-400">Résultat d'Exploitation Estimé</span>
+          <span className="text-xs font-semibold text-stone-400">Résultat d'Exploitation</span>
           <div
             className={`text-2xl font-extrabold mt-1 ${netBalance >= 0 ? 'text-[#E5C378]' : 'text-red-400'}`}
           >
             {formatPrice(netBalance)}
           </div>
-          <span className="text-[11px] text-stone-500">Marge nette des contrepassations</span>
+          <span className="text-[11px] text-stone-500">
+            Encaissements nets − Dépenses nettes ({kpiWindow.from} → {kpiWindow.to})
+          </span>
         </div>
       </div>
 

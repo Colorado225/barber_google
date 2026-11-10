@@ -3,6 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { Appointment, AppointmentStatus } from '../../types';
 import { FormModal, Field, inputClass, ConfirmDelete } from './FormModal';
 import { forwardStatus } from '../../lib/appointment-workflow';
+import { zonedToday } from '../../lib/businessTime';
 import { Calendar as CalendarIcon, Plus, Pencil, Check, Ban } from 'lucide-react';
 
 const STATUS_LABELS: Record<AppointmentStatus, string> = {
@@ -35,8 +36,6 @@ type FormState = {
   notes: string;
 };
 
-const todayStr = () => new Date().toISOString().slice(0, 10);
-
 interface PlanningViewProps {
   onOpenWalkIn?: () => void;
 }
@@ -44,6 +43,7 @@ interface PlanningViewProps {
 export const PlanningView: React.FC<PlanningViewProps> = ({ onOpenWalkIn }) => {
   const {
     activeSalon,
+    salonTimezone,
     appointments,
     services,
     staff,
@@ -71,7 +71,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({ onOpenWalkIn }) => {
     // Employé choisi explicitement : le serveur refuse un identifiant inconnu
     // et vérifie lui-même la disponibilité et la maîtrise de la prestation.
     staffId: '',
-    date: todayStr(),
+    date: zonedToday(salonTimezone),
     time: '',
     notes: '',
   });

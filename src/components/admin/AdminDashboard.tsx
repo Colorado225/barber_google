@@ -10,7 +10,6 @@ import {
   Check,
   DollarSign,
   AlertCircle,
-  CheckCircle2,
   RefreshCw,
   Eye,
   Sliders,
@@ -38,6 +37,7 @@ import {
   type SaaSPlanDraft,
   type SaaSPlanInput,
 } from '../../lib/saas';
+import { resolvePlanBilling } from '../../lib/saasPricing';
 import {
   verifySuperAdminAccess,
   logoutSuperAdmin,
@@ -47,11 +47,14 @@ import {
   getPlatformAuditLogs,
   getPlatformNotificationHealth,
   probePlatformNotificationDispatcher,
+  getPlatformSettings,
+  updatePlatformSettings,
   validateAuditReason,
   type AdminUser,
   type SalonAdminDetail,
   type MarketplaceReviewItem,
   type AuditLogEntry,
+  type PlatformGlobalSettings,
 } from '../../lib/superadmin';
 import { rangeForMetricsPeriod, type MetricsPeriodKey } from '../../lib/metricsPeriod';
 import { resolvePageMetadata } from '../../lib/seo';
@@ -88,6 +91,10 @@ const MarketplaceConfigManager = lazyNamed(
 );
 const PricingTierEditor = lazyNamed(() => import('./PricingTierEditor'), 'PricingTierEditor');
 const SaasPaymentReviewPanel = lazyNamed(() => import('./SaasPaymentReviewPanel'), 'SaasPaymentReviewPanel');
+const AdminPlatformSettingsPanel = lazyNamed(
+  () => import('./AdminPlatformSettingsPanel'),
+  'AdminPlatformSettingsPanel',
+);
 
 export type AdminDashboardTab =
   | 'overview'
@@ -100,30 +107,6 @@ export type AdminDashboardTab =
   | 'pricing'
   | 'subscriptions'
   | 'settings';
-
-interface PlatformSettings {
-  commissionRate: number;
-  defaultCurrency: string;
-  maintenanceMode: boolean;
-  autoApproveSalons: boolean;
-}
-
-const DEFAULT_PLATFORM_SETTINGS: PlatformSettings = {
-  commissionRate: 3.5,
-  defaultCurrency: 'XOF (FCFA)',
-  maintenanceMode: false,
-  autoApproveSalons: false,
-};
-
-function loadPlatformSettings(): PlatformSettings {
-  if (typeof window === 'undefined') return DEFAULT_PLATFORM_SETTINGS;
-  try {
-    const saved = localStorage.getItem('barbercuts_platform_settings');
-    return saved ? { ...DEFAULT_PLATFORM_SETTINGS, ...JSON.parse(saved) } : DEFAULT_PLATFORM_SETTINGS;
-  } catch {
-    return DEFAULT_PLATFORM_SETTINGS;
-  }
-}
 
 export const AdminDashboard: React.FC = () => {
   usePageSeo(ADMIN_SEO);
@@ -183,13 +166,16 @@ export const AdminDashboard: React.FC = () => {
   const [statusError, setStatusError] = useState<string | null>(null);
   const [statusBusy, setStatusBusy] = useState(false);
 
-  const [platformSettings, setPlatformSettings] = useState<PlatformSettings>(() => loadPlatformSettings());
+  const [platformSettings, setPlatformSettings] = useState<PlatformGlobalSettings | null>(null);
+  const [platformSettingsError, setPlatformSettingsError] = useState<string | null>(null);
 
   const loadAllData = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
+    setPlatformSettingsError(null);
     try {
       const activeRange = metricsRangeRef.current;
+      let settingsErrorMessage: string | null = null;
       const [
         fetchedPlans,
         fetchedMetrics,
@@ -198,6 +184,7 @@ export const AdminDashboard: React.FC = () => {
         fetchedReviews,
         fetchedAuditLogs,
         fetchedNotifHealth,
+        fetchedPlatformSettings,
       ] = await Promise.all([
         getAllSaasPlans(),
         getPlatformMetrics({ from: activeRange.from, to: activeRange.to }),
@@ -206,6 +193,11 @@ export const AdminDashboard: React.FC = () => {
         getAdminReviews(),
         getPlatformAuditLogs({ limit: 150 }),
         getPlatformNotificationHealth().catch(() => null),
+        getPlatformSettings().catch((err: unknown) => {
+          settingsErrorMessage =
+            err instanceof Error ? err.message : 'Erreur lors du chargement des paramètres plateforme.';
+          return null;
+        }),
       ]);
       setPlans(fetchedPlans);
       setMetrics(fetchedMetrics);
@@ -213,6 +205,8 @@ export const AdminDashboard: React.FC = () => {
       setSalons(fetchedSalons);
       setReviews(fetchedReviews);
       setAuditLogs(fetchedAuditLogs);
+      setPlatformSettings(fetchedPlatformSettings);
+      setPlatformSettingsError(settingsErrorMessage);
       if (fetchedNotifHealth) {
         setNotificationHealth(fetchedNotifHealth);
       }
@@ -370,14 +364,17 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleSavePlatformSettings = (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      localStorage.setItem('barbercuts_platform_settings', JSON.stringify(platformSettings));
-      addToast('Paramètres globaux de la plateforme enregistrés.', 'success');
-    } catch {
-      addToast('Erreur lors de la sauvegarde des paramètres', 'error');
-    }
+  const handleSavePlatformSettings = async (updates: {
+    maintenanceMode: boolean;
+    autoApproveSalons: boolean;
+    reason: string;
+  }) => {
+    const saved = await updatePlatformSettings(updates);
+    setPlatformSettings(saved);
+    setPlatformSettingsError(null);
+    addToast('Paramètres globaux enregistrés côté serveur.', 'success');
+    await refreshAllAndMarketplace();
+    return saved;
   };
 
   const handleProbeNotifications = async () => {
@@ -660,13 +657,21 @@ export const AdminDashboard: React.FC = () => {
                           </p>
                         </div>
 
-                        <div className="border-y border-[#181820] py-4">
+                        <div className="border-y border-[#181820] py-4 space-y-1">
                           <div className="flex items-baseline gap-1">
                             <span className="text-3xl font-black text-[#E5C378]">
                               {formatPrice(plan.priceXof)}
                             </span>
-                            <span className="text-xs text-stone-400">/ mois</span>
+                            <span className="text-xs text-stone-400">
+                              {plan.billingPeriod === 'yearly' ? '/ an' : '/ mois'}
+                            </span>
                           </div>
+                          {plan.billingPeriod === 'monthly' && (
+                            <p className="text-[11px] text-stone-400">
+                              Annuel (-15%) : {formatPrice(resolvePlanBilling(plan, 'yearly').billedPriceXof)}{' '}
+                              / an
+                            </p>
+                          )}
                         </div>
 
                         <div className="grid grid-cols-2 gap-2 text-xs">
@@ -703,7 +708,8 @@ export const AdminDashboard: React.FC = () => {
                         <div className="mx-6 mb-4 rounded-xl border border-amber-500/30 bg-amber-950/20 p-3 text-xs text-amber-200 space-y-2">
                           <div className="font-semibold">Brouillon en attente · non publié</div>
                           <div>
-                            {draft.plan.name} — {formatPrice(draft.plan.priceXof)} / mois
+                            {draft.plan.name} — {formatPrice(draft.plan.priceXof)}{' '}
+                            {draft.plan.billingPeriod === 'yearly' ? '/ an' : '/ mois'}
                           </div>
                           <div className="flex flex-wrap gap-2 pt-1">
                             <button
@@ -814,110 +820,14 @@ export const AdminDashboard: React.FC = () => {
 
             {/* TAB: PLATFORM-WIDE SETTINGS */}
             {activeTab === 'settings' && (
-              <div className="space-y-6 max-w-3xl">
-                <div>
-                  <h1 className="text-2xl font-black text-white tracking-tight">
-                    Paramètres Globaux de la Plateforme
-                  </h1>
-                  <p className="text-xs text-stone-400 mt-1">
-                    Configurez les règles financières, bannières d’annonce et alertes pour l’ensemble du SaaS.
-                  </p>
-                </div>
-
-                <form
-                  onSubmit={handleSavePlatformSettings}
-                  className="space-y-5 bg-[#0c0c10] border border-[#1a1a22] rounded-3xl p-6 sm:p-8"
-                >
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-xs font-semibold text-stone-300 mb-1.5">
-                        Devise Officielle de la Plateforme
-                      </label>
-                      <input
-                        type="text"
-                        disabled
-                        value={platformSettings.defaultCurrency}
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-[#08080a] border border-[#202028] text-xs text-stone-400 disabled:opacity-60"
-                      />
-                      <span className="text-[10px] text-stone-500">
-                        Standardisé en Franc CFA (XOF) sans arrondis flottants.
-                      </span>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-stone-300 mb-1.5">
-                        Frais de Service / Commission Marketplace (%)
-                      </label>
-                      <div className="relative">
-                        <input
-                          type="number"
-                          step={0.5}
-                          min={0}
-                          max={20}
-                          value={platformSettings.commissionRate}
-                          onChange={(e) =>
-                            setPlatformSettings({
-                              ...platformSettings,
-                              commissionRate: Number(e.target.value),
-                            })
-                          }
-                          className="w-full px-3.5 py-2.5 rounded-xl bg-[#08080a] border border-[#202028] text-xs text-white focus:outline-none focus:border-[#C9A45C]"
-                        />
-                        <span className="absolute right-3.5 top-2.5 text-xs text-stone-500 font-bold">%</span>
-                      </div>
-                    </div>
-
-                    <div className="rounded-xl border border-[#2a2a36] bg-[#08080a] p-3.5 text-xs text-stone-400">
-                      La bannière d’annonce globale, les sections à la une et les métadonnées du site se
-                      gèrent désormais dans{' '}
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab('marketplace-config')}
-                        className="text-[#C9A45C] font-bold hover:underline cursor-pointer"
-                      >
-                        Bannières & Métadonnées
-                      </button>
-                      .
-                    </div>
-
-                    <div className="pt-2 space-y-3">
-                      <label className="flex items-center gap-2.5 text-xs font-semibold text-stone-300 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={platformSettings.autoApproveSalons}
-                          onChange={(e) =>
-                            setPlatformSettings({ ...platformSettings, autoApproveSalons: e.target.checked })
-                          }
-                          className="w-4 h-4 rounded text-[#C9A45C] bg-[#08080a] border-[#2e2e38] focus:ring-0"
-                        />
-                        <span>Publication automatique des salons après inscription</span>
-                      </label>
-
-                      <label className="flex items-center gap-2.5 text-xs font-semibold text-red-300 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={platformSettings.maintenanceMode}
-                          onChange={(e) =>
-                            setPlatformSettings({ ...platformSettings, maintenanceMode: e.target.checked })
-                          }
-                          className="w-4 h-4 rounded text-red-500 bg-[#08080a] border-[#2e2e38] focus:ring-0"
-                        />
-                        <span>Mode Maintenance Global (Verrouiller les nouvelles inscriptions)</span>
-                      </label>
-                    </div>
-                  </div>
-
-                  <div className="pt-4 border-t border-[#1a1a22] flex justify-end">
-                    <button
-                      type="submit"
-                      className="px-5 py-2.5 rounded-xl bg-[#C9A45C] hover:bg-[#d8b56d] text-[#101010] font-bold text-xs flex items-center gap-2 transition-all shadow-md cursor-pointer"
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>Enregistrer les Paramètres</span>
-                    </button>
-                  </div>
-                </form>
-              </div>
+              <AdminPlatformSettingsPanel
+                settings={platformSettings}
+                loading={loading}
+                error={platformSettingsError}
+                onRefresh={refreshAllAndMarketplace}
+                onSave={handleSavePlatformSettings}
+                onOpenMarketplaceConfig={() => setActiveTab('marketplace-config')}
+              />
             )}
           </Suspense>
         </main>

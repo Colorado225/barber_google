@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useState } from 'react';
 import type { Appointment, AppointmentStatus, PaymentMethod, Service, StaffMember } from '../../types';
 import { getApiErrorMessage } from '../../lib/apiError';
 import { upsertAppointmentInList } from '../../lib/appointmentList';
+import { DEFAULT_BUSINESS_TIMEZONE, zonedDateTimeToIso } from '../../lib/businessTime';
 import type { DomainSharedDeps } from './shared';
 
 export interface AppointmentsDomainValue {
@@ -62,8 +63,6 @@ export function useAppointmentsDomain(): AppointmentsDomainValue {
   return ctx;
 }
 
-const toIso = (date: string, time: string) => `${date}T${time.slice(0, 5)}:00.000Z`;
-
 export function useAppointmentsDomainState(
   deps: Pick<
     DomainSharedDeps,
@@ -76,6 +75,7 @@ export function useAppointmentsDomainState(
     | 'remote'
     | 'newIdempotencyKey'
   > & {
+    salonTimezone?: string;
     loadNotifications: (
       salonId: string,
       isGuardActive?: () => boolean,
@@ -97,6 +97,7 @@ export function useAppointmentsDomainState(
     addToast,
     remote,
     newIdempotencyKey,
+    salonTimezone = DEFAULT_BUSINESS_TIMEZONE,
     loadNotifications,
     loadLoyalty,
   } = deps;
@@ -145,7 +146,7 @@ export function useAppointmentsDomainState(
         const api = await resolveApi(salonId);
         const created = await api.appointments.create({
           serviceId,
-          startsAt: toIso(date, time),
+          startsAt: zonedDateTimeToIso(date, time, salonTimezone),
           clientName,
           clientPhone,
           clientId: clientId ?? null,
@@ -155,6 +156,7 @@ export function useAppointmentsDomainState(
         });
         setAppointments((prev) => upsertAppointmentInList(prev, created));
         domainCache.invalidate(salonId, 'appointments');
+        domainCache.invalidate(salonId, 'dashboard');
         addToast('Rendez-vous enregistré au planning.', 'success');
         return { success: true, appointment: created };
       } catch (error) {
@@ -163,7 +165,7 @@ export function useAppointmentsDomainState(
         return { success: false, error: message };
       }
     },
-    [services, memberships, resolveApi, domainCache, addToast],
+    [services, memberships, resolveApi, domainCache, addToast, salonTimezone],
   );
 
   const updateAppointmentStatus = useCallback(
@@ -183,6 +185,7 @@ export function useAppointmentsDomainState(
         );
         setAppointments((prev) => upsertAppointmentInList(prev, saved));
         domainCache.invalidate(salonId, 'appointments');
+        domainCache.invalidate(salonId, 'dashboard');
         domainCache.invalidate(salonId, 'notifications');
         domainCache.invalidate(salonId, 'loyalty');
         await Promise.all([
@@ -215,7 +218,7 @@ export function useAppointmentsDomainState(
         return;
       }
 
-      const startsAt = toIso(merged.date, merged.time);
+      const startsAt = zonedDateTimeToIso(merged.date, merged.time, salonTimezone);
 
       void remote(async () => {
         const salonId = requireActiveSalon().id;
@@ -228,10 +231,20 @@ export function useAppointmentsDomainState(
         });
         setAppointments((prev) => upsertAppointmentInList(prev, saved));
         domainCache.invalidate(salonId, 'appointments');
+        domainCache.invalidate(salonId, 'dashboard');
         addToast('Rendez-vous modifié.', 'success');
       }, 'Modification du rendez-vous impossible (créneau indisponible ?)');
     },
-    [appointments, hasActiveMembership, addToast, remote, requireActiveSalon, resolveApi, domainCache],
+    [
+      appointments,
+      hasActiveMembership,
+      addToast,
+      remote,
+      requireActiveSalon,
+      resolveApi,
+      domainCache,
+      salonTimezone,
+    ],
   );
 
   const updateAppointmentDetails = useCallback(
@@ -249,6 +262,7 @@ export function useAppointmentsDomainState(
         const saved = await api.appointments.cancel(appointmentId, 'Annulé par un membre du salon');
         setAppointments((prev) => upsertAppointmentInList(prev, saved));
         domainCache.invalidate(salonId, 'appointments');
+        domainCache.invalidate(salonId, 'dashboard');
         domainCache.invalidate(salonId, 'notifications');
         await loadNotifications(salonId, undefined, { force: true });
         addToast('Rendez-vous annulé.', 'info');
@@ -266,6 +280,7 @@ export function useAppointmentsDomainState(
         const saved = await api.appointments.cancel(appointmentId, 'Annulé depuis le planning');
         setAppointments((prev) => upsertAppointmentInList(prev, saved));
         domainCache.invalidate(salonId, 'appointments');
+        domainCache.invalidate(salonId, 'dashboard');
         addToast('Rendez-vous annulé, historique conservé.', 'info');
       }, 'Annulation du rendez-vous impossible');
     },
@@ -303,6 +318,7 @@ export function useAppointmentsDomainState(
         });
         setAppointments((prev) => upsertAppointmentInList(prev, created));
         domainCache.invalidate(salonId, 'appointments');
+        domainCache.invalidate(salonId, 'dashboard');
         addToast(
           created.status === 'in_progress'
             ? 'Client de passage installé : prestation démarrée.'
@@ -327,6 +343,7 @@ export function useAppointmentsDomainState(
         const saved = await api.appointments.startWalkIn(appointmentId, staffId ?? null);
         setAppointments((prev) => upsertAppointmentInList(prev, saved));
         domainCache.invalidate(salonId, 'appointments');
+        domainCache.invalidate(salonId, 'dashboard');
         addToast('Prestation démarrée.', 'success');
         return { success: true, appointment: saved };
       } catch (error) {
@@ -346,6 +363,7 @@ export function useAppointmentsDomainState(
         const saved = await api.appointments.completeWalkIn(appointmentId);
         setAppointments((prev) => upsertAppointmentInList(prev, saved));
         domainCache.invalidate(salonId, 'appointments');
+        domainCache.invalidate(salonId, 'dashboard');
         domainCache.invalidate(salonId, 'notifications');
         await loadNotifications(salonId, undefined, { force: true });
         addToast('Prestation terminée. Vous pouvez encaisser.', 'success');

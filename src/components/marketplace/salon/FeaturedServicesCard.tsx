@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Service, SalonCardStyle } from '../../../types';
 import { Card } from '../../ui/card';
 import { cn } from '../../../lib/utils';
-import { Scissors, Sparkles, Clock, ChevronRight, Check } from 'lucide-react';
+import { Scissors, Sparkles, Clock, ChevronRight } from 'lucide-react';
 
 interface FeaturedServicesCardProps {
   services: Service[];
@@ -30,7 +30,7 @@ export const FeaturedServicesCard: React.FC<FeaturedServicesCardProps> = ({
 
   const displayList = featured.length > 0 ? featured : availableServices.slice(0, 4);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded] = useState(true);
 
   const activeService = displayList[selectedIndex] || displayList[0];
 

@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Link, useInRouterContext } from 'react-router-dom';
 import { useOptionalApp } from '../../context/AppContext';
-import type { Salon } from '../../types';
 import type { MarketplaceDemoData } from '../../lib/marketplace-demo';
 import { listSavedBookings, setActiveBookingToken, type SavedBooking } from '../../lib/bookingVault';
 import { SalonCard } from './SalonCard';
@@ -16,8 +15,6 @@ import {
   Clock,
   Sparkles,
   Star,
-  SlidersHorizontal,
-  Flame,
   Quote,
   Scissors,
   Smartphone,
@@ -28,8 +25,6 @@ import {
   CheckCircle2,
   Tag,
   HelpCircle,
-  Layers,
-  ChevronRight,
 } from 'lucide-react';
 
 const HERO_VIDEO_SRC = `/assets/video/${encodeURI(

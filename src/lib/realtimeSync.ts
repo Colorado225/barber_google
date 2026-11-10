@@ -160,6 +160,7 @@ export function applyAppointmentRealtimeChange(
   eventType: string,
   row: Record<string, unknown>,
   activeSalonId: string,
+  timeZone?: string,
 ): Appointment[] {
   const id = readRowId(row);
   if (!id) return prev;
@@ -169,7 +170,7 @@ export function applyAppointmentRealtimeChange(
     const next = prev.filter((item) => item.id !== id);
     return next.length === prev.length ? prev : next;
   }
-  const mapped = mapAppointmentRow(row);
+  const mapped = mapAppointmentRow(row, timeZone);
   if (mapped.salonId !== activeSalonId) return prev;
   return upsertAppointmentInList(prev, mapped);
 }

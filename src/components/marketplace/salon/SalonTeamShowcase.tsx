@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import { StaffMember, SalonCardStyle } from '../../../types';
-import { Card, CardContent } from '../../ui/card';
-import { Badge } from '../../../components/ui/badge';
+import { Card } from '../../ui/card';
 import { cn } from '../../../lib/utils';
-import { UserCheck, Star, Users, CheckCircle2 } from 'lucide-react';
+import { UserCheck } from 'lucide-react';
 
 interface SalonTeamShowcaseProps {
   staff: Pick<StaffMember, 'id' | 'name' | 'role' | 'specialties' | 'avatar'>[];
@@ -43,7 +42,6 @@ export const SalonTeamShowcase: React.FC<SalonTeamShowcaseProps> = ({
   const visibleList =
     visibleStaffIds.length > 0 ? staff.filter((m) => visibleStaffIds.includes(m.id)) : staff;
 
-  const [expanded, setExpanded] = useState(false);
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
 
   const displayStaff = visibleList.slice(0, 3);
@@ -63,7 +61,6 @@ export const SalonTeamShowcase: React.FC<SalonTeamShowcaseProps> = ({
 
   return (
     <Card
-      onClick={() => setExpanded((prev) => !prev)}
       className={cn(
         'relative bg-[#161619] border border-stone-800 p-4 cursor-pointer overflow-hidden shadow-lg flex flex-col justify-between group transition-all duration-300',
         cardStyle,

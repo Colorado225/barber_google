@@ -11,6 +11,7 @@ import type {
 import { getSupabaseClient } from './supabase';
 import { ApiError } from './apiError';
 import { redactBookingSecrets } from './bookingVault';
+import { DEFAULT_BUSINESS_TIMEZONE, zonedTimeString } from './businessTime';
 
 type DbRow = Record<string, unknown>;
 
@@ -215,6 +216,7 @@ export async function getMarketplaceAvailability(
   date: string,
   serviceId?: string | null,
   staffId?: string | null,
+  timeZone: string = DEFAULT_BUSINESS_TIMEZONE,
 ): Promise<PublicAvailabilitySlot[]> {
   const supabase = getSupabaseClient();
   const result = await supabase.rpc('marketplace_day_availability', {
@@ -230,7 +232,7 @@ export async function getMarketplaceAvailability(
     return {
       staffId: str(r, 'staff_id'),
       startsAt,
-      time: startsAt.slice(11, 16),
+      time: zonedTimeString(startsAt, timeZone),
       available: r.available === true,
     };
   });

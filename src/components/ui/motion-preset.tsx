@@ -34,11 +34,13 @@ export interface MotionPresetProps {
         scale?: number;
       }
     | boolean;
-  motionProps?: Omit<HTMLMotionProps<any>, 'children' | 'className' | 'ref' | 'transition'>;
-  ref?: React.Ref<any>;
+  motionProps?: Omit<HTMLMotionProps<'div'>, 'children' | 'className' | 'ref' | 'transition'>;
+  ref?: React.Ref<HTMLDivElement | null>;
 }
 
-const motionComponents = motion as any;
+type MotionHtmlComponent = React.ComponentType<
+  HTMLMotionProps<'div'> & { ref?: React.Ref<HTMLDivElement | null> }
+>;
 
 export function MotionPreset({
   ref,
@@ -56,9 +58,9 @@ export function MotionPreset({
   zoom = false,
   motionProps = {},
 }: MotionPresetProps) {
-  const localRef = React.useRef<any>(null);
+  const localRef = React.useRef<HTMLDivElement | null>(null);
 
-  React.useImperativeHandle(ref, () => localRef.current);
+  React.useImperativeHandle<HTMLDivElement | null, HTMLDivElement | null>(ref, () => localRef.current);
 
   const inViewResult = useInView(localRef, {
     once: inViewOnce,
@@ -94,7 +96,8 @@ export function MotionPreset({
     visibleVariant.scale = zoom === true ? 1 : (zoom.scale ?? 1);
   }
 
-  const MotionComponent = motionComponents[component] || motion.div;
+  const motionMap = motion as unknown as Record<string, MotionHtmlComponent | undefined>;
+  const MotionComponent = motionMap[String(component)] ?? (motion.div as MotionHtmlComponent);
 
   return (
     <AnimatePresence>

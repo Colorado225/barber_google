@@ -12,7 +12,6 @@ import {
   type PostgresChangePayload,
   type RealtimeChannelLike,
   type RealtimeClientLike,
-  type RealtimeDomain,
 } from '../src/lib/realtimeSync';
 import type { Appointment, AppointmentNotification, RealtimeSyncStatus } from '../src/types';
 

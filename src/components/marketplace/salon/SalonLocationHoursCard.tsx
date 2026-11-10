@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { SalonCardStyle } from '../../../types';
+import { calendarWeekday, DEFAULT_BUSINESS_TIMEZONE, zonedDateString } from '../../../lib/businessTime';
 import { Card } from '../../ui/card';
 import { cn } from '../../../lib/utils';
-import { MapPin, Clock, Phone, MessageCircle, ExternalLink, ChevronDown, Check } from 'lucide-react';
+import { MapPin, Clock, Phone, MessageCircle, ExternalLink, ChevronDown } from 'lucide-react';
 
 interface BranchInfo {
   id: string;
@@ -55,8 +56,9 @@ export const SalonLocationHoursCard: React.FC<SalonLocationHoursCardProps> = ({
   const activeBranch = branches[selectedBranchIndex] || branches[0];
   const fullAddress = [address, quarter, commune, city].filter(Boolean).join(', ');
 
-  // Determine current weekday in Africa/Abidjan (UTC)
-  const currentWeekday = new Date().getUTCDay();
+  // Determine current weekday in the active branch timezone
+  const branchTz = activeBranch?.timezone?.trim() || DEFAULT_BUSINESS_TIMEZONE;
+  const currentWeekday = calendarWeekday(zonedDateString(new Date(), branchTz));
   const currentBranchHour = activeBranch?.hours?.find((h) => h.weekday === currentWeekday);
   const isOpenToday = currentBranchHour ? currentBranchHour.isOpen : true;
 

@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { DEFAULT_BUSINESS_TIMEZONE, zonedDateString } from '../../lib/businessTime';
 import { Appointment } from '../../types';
 import { DoorOpen, Play, CheckCircle2, CreditCard, Ban, UserPlus, Clock } from 'lucide-react';
 
@@ -7,14 +8,6 @@ interface WalkInViewProps {
   onOpenNewWalkIn: () => void;
   onOpenPayment: (appointment: Appointment) => void;
 }
-
-const todayAbidjan = () =>
-  new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Africa/Abidjan',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date());
 
 function minutesSince(iso?: string): number | null {
   if (!iso) return null;
@@ -24,13 +17,21 @@ function minutesSince(iso?: string): number | null {
 
 /** File d'attente et prestations des clients arrivés sans rendez-vous. */
 export const WalkInView: React.FC<WalkInViewProps> = ({ onOpenNewWalkIn, onOpenPayment }) => {
-  const { activeSalon, appointments, staff, formatPrice, startWalkIn, completeWalkIn, cancelAppointment } =
-    useApp();
+  const {
+    activeSalon,
+    salonTimezone = DEFAULT_BUSINESS_TIMEZONE,
+    appointments,
+    staff,
+    formatPrice,
+    startWalkIn,
+    completeWalkIn,
+    cancelAppointment,
+  } = useApp();
 
   const [staffChoice, setStaffChoice] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const today = todayAbidjan();
+  const today = zonedDateString(new Date(), salonTimezone);
   const walkIns = useMemo(
     () =>
       appointments
