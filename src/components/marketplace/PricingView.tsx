@@ -21,6 +21,12 @@ export const PricingView: React.FC = () => {
     return parsePlanSelectionFromSearch(window.location.search)?.billingPeriod ?? 'monthly';
   });
 
+  // La bascule n'a de sens que si au moins un forfait actif propose le choix de période
+  // (forfait configuré au mois). Un catalogue 100 % annuel natif ne permet aucune remise :
+  // la bascule est masquée plutôt que d'afficher une promesse « -15 % » non enregistrable.
+  const catalogSupportsPeriodChoice = plans.some((p) => p.billingPeriod !== 'yearly');
+  const showBillingSwitcher = loading || plans.length === 0 || catalogSupportsPeriodChoice;
+
   useEffect(() => {
     let isMounted = true;
     const fetchPlans = async () => {
@@ -64,8 +70,10 @@ export const PricingView: React.FC = () => {
           Marketplace de référence. Choisissez la formule adaptée à votre rythme.
         </p>
 
-        {/* Billing Switcher */}
-        <div className="pt-6 flex items-center justify-center">
+        {/* Billing Switcher ; masqué si aucun forfait actif ne propose le choix de période
+            (catalogue 100 % annuel natif, sans remise possible) */}
+        {showBillingSwitcher && (
+        <div data-testid="pricing-billing-toggle" className="pt-6 flex items-center justify-center">
           <div className="p-1 rounded-2xl bg-[#161619] border border-[#26262b] flex items-center gap-1">
             <button
               type="button"
@@ -96,6 +104,7 @@ export const PricingView: React.FC = () => {
             </button>
           </div>
         </div>
+        )}
       </section>
 
       {/* Plans Pricing Grid */}

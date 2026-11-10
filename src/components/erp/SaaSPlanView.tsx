@@ -83,6 +83,12 @@ export const SaaSPlanView: React.FC<SaaSPlanViewProps> = ({
   const isOwner =
     memberships.length === 0 || memberships.some((m) => m.salonId === activeSalon?.id && m.role === 'owner');
 
+  // La bascule n'a de sens que si au moins un forfait actif propose le choix de période
+  // (forfait configuré au mois). Un catalogue 100 % annuel natif ne permet aucune remise :
+  // la bascule est masquée plutôt que d'afficher une promesse « -15 % » non enregistrable.
+  const catalogSupportsPeriodChoice = plans.some((p) => p.billingPeriod !== 'yearly');
+  const showBillingToggle = loading || plans.length === 0 || catalogSupportsPeriodChoice;
+
   const loadSubscriptionData = useCallback(async () => {
     if (!activeSalon) return;
     setLoading(true);
@@ -389,11 +395,13 @@ export const SaaSPlanView: React.FC<SaaSPlanViewProps> = ({
             </p>
           </div>
 
-          {/* Sélecteur de période mensuelle / annuelle (-15 %) */}
-          <div
-            data-testid="saas-billing-toggle"
-            className="p-1 rounded-2xl bg-[#161619] border border-[#26262b] flex items-center gap-1 self-start md:self-auto"
-          >
+          {/* Sélecteur de période mensuelle / annuelle (-15 %) ; masqué si aucun forfait actif
+              ne propose le choix de période (catalogue 100 % annuel natif, sans remise possible) */}
+          {showBillingToggle && (
+            <div
+              data-testid="saas-billing-toggle"
+              className="p-1 rounded-2xl bg-[#161619] border border-[#26262b] flex items-center gap-1 self-start md:self-auto"
+            >
             <button
               type="button"
               aria-pressed={billingPeriod === 'monthly'}
@@ -421,7 +429,8 @@ export const SaaSPlanView: React.FC<SaaSPlanViewProps> = ({
                 -15% Économies
               </span>
             </button>
-          </div>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
