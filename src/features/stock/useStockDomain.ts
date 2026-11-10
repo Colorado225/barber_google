@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { salonApi } from '../../lib/api';
 import type { Salon, StockItem } from '../../types';
-import { planStockAdjustment } from './stockRules';
+import { planStockAdjustment, planStockQuantity } from './stockRules';
 
 export interface StockDomainDeps {
   requireActiveSalon: () => Salon;
@@ -18,6 +18,14 @@ export function useStockDomain({ requireActiveSalon, remote, addToast }: StockDo
   const [stocks, setStocks] = useState<StockItem[]>([]);
 
   const addStockItem = (data: Omit<StockItem, 'id'>) => {
+    // Décision D11 : quantités entières, contrôlées avant l'envoi (la base refait le même contrôle).
+    const invalid = [planStockQuantity(data.quantity), planStockQuantity(data.minThreshold)].find(
+      (p) => !p.ok,
+    );
+    if (invalid && !invalid.ok) {
+      addToast(invalid.error, 'error');
+      return;
+    }
     void remote(async () => {
       const created = await salonApi(requireActiveSalon().id).stock.create({
         name: data.name,

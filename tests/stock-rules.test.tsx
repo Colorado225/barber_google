@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { StockItem } from '../src/types';
-import { planStockAdjustment, toStockPayload } from '../src/features/stock/stockRules';
+import {
+  MAX_STOCK_QUANTITY,
+  planStockAdjustment,
+  planStockQuantity,
+  toStockPayload,
+} from '../src/features/stock/stockRules';
 
 test('ajustement : hausse et baisse jusqu’à zéro acceptées', () => {
   assert.deepEqual(planStockAdjustment({ quantity: 4 }, 1), { ok: true, value: 5 });
@@ -20,8 +25,25 @@ test('ajustement : delta non fini refusé', () => {
   assert.equal(planStockAdjustment({ quantity: 1 }, Number.POSITIVE_INFINITY).ok, false);
 });
 
-test('ajustement : quantités fractionnaires conservées (kg, litres)', () => {
-  assert.deepEqual(planStockAdjustment({ quantity: 1.5 }, 0.25), { ok: true, value: 1.75 });
+test('ajustement : delta fractionnaire refusé (D11 : quantités entières)', () => {
+  const plan = planStockAdjustment({ quantity: 1 }, 0.25);
+  assert.equal(plan.ok, false);
+});
+
+test('ajustement : borne haute de la base respectée', () => {
+  assert.deepEqual(planStockAdjustment({ quantity: MAX_STOCK_QUANTITY - 1 }, 1), {
+    ok: true,
+    value: MAX_STOCK_QUANTITY,
+  });
+  assert.equal(planStockAdjustment({ quantity: MAX_STOCK_QUANTITY }, 1).ok, false);
+});
+
+test('quantité absolue : entiers entre 0 et 1 000 000 uniquement', () => {
+  assert.deepEqual(planStockQuantity(0), { ok: true, value: 0 });
+  assert.deepEqual(planStockQuantity(MAX_STOCK_QUANTITY), { ok: true, value: MAX_STOCK_QUANTITY });
+  for (const bad of [1.5, -1, MAX_STOCK_QUANTITY + 1, Number.NaN, Number.POSITIVE_INFINITY]) {
+    assert.equal(planStockQuantity(bad).ok, false, `refusé : ${bad}`);
+  }
 });
 
 test('charge utile : seuls les six champs éditables sont envoyés', () => {

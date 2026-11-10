@@ -95,11 +95,14 @@ refusée avant l'envoi, avec un message. Auparavant, elle partait vers la base.
    quantité dans la même transaction. Le client n'envoie que le delta. 9 tests PGlite
    (`database/tests/supabase-stock-adjustment.test.mjs`) et 3 tests du client (`tests/stock-adjustment-api.test.tsx`).
    Non testé : la concurrence réelle (PGlite est mono-connexion) ; le verrou est une garantie de PostgreSQL.
-   **Décision à prendre (D11)** : `stock_items.quantity` est un entier, mais la règle client accepte les quantités
-   fractionnaires (kg, litres). Le serveur refuse les fractions. Options : (a) unités entières (recommandé, le
-   schéma reste inchangé) ; (b) colonne `numeric` par migration dédiée, avec revue des totaux et alertes.
-   **Reste** : `stock.update` envoie encore la quantité complète. Non utilisé par l'interface aujourd'hui ; à
-   retirer ou à restreindre aux champs non quantitatifs lors du prochain travail sur le stock.
+   **Décision D11 (prise par l'utilisateur : quantités entières)** : `stock_items.quantity` reste un `integer`
+   (schéma inchangé, bornes 0 à 1 000 000). La règle client `planStockAdjustment` refuse désormais tout delta
+   non entier et toute quantité hors bornes ; `planStockQuantity` contrôle la création (quantité et seuil).
+   Les unités fractionnaires (kg, litres) ne sont pas gérées. Une colonne `numeric` reste possible plus tard, par
+   migration dédiée, si un besoin métier apparaît.
+   **Reste** : `stock.update` envoie encore la quantité complète, ce qui contourne le verrou de l'ajustement
+   atomique (risque d'écrasement d'un ajustement concurrent). Non utilisé par l'interface aujourd'hui ; à retirer
+   ou à restreindre aux champs non quantitatifs lors du prochain travail sur le stock.
 3. **Fait (partiel)** : `lib/api.ts` (1 289 lignes) découpé en deux temps.
    - Étape 1 (commit `9302222`) : helpers, mappers ligne → domaine et types d'entrée dans
      `src/services/api/shared.ts` (sans accès réseau). Tests des mappers et des erreurs : `tests/api-mappers.test.tsx` (9).
