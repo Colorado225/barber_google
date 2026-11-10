@@ -5,6 +5,8 @@ import { useClientCommands } from '../features/clients/useClientCommands';
 import { useLoyaltyRewardsDomain } from '../features/loyalty/useLoyaltyRewardsDomain';
 import { useLoyaltyProgramDomain } from '../features/loyalty/useLoyaltyProgramDomain';
 import { useNotificationsDomain } from '../features/notifications/useNotificationsDomain';
+import { useAppointmentsDomain } from '../features/appointments/useAppointmentsDomain';
+import { newIdempotencyKey } from '../features/shared/idempotency';
 import { useExpensesDomain } from '../features/expenses/useExpensesDomain';
 import { useStockDomain } from '../features/stock/useStockDomain';
 import {
@@ -253,7 +255,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [salons, setSalons] = useState<Salon[]>(INITIAL_SALONS);
   const [marketplaceLoading, setMarketplaceLoading] = useState(false);
   const [marketplaceError, setMarketplaceError] = useState<string | null>(null);
-  const [appointments, setAppointments] = useState<Appointment[]>(INITIAL_APPOINTMENTS);
   const [clients, setClients] = useState<Client[]>(INITIAL_CLIENTS);
   const [transactions, setTransactions] = useState<PaymentTransaction[]>(INITIAL_TRANSACTIONS);
   const [cashSession, setCashSession] = useState<CashSession | null>(null);
@@ -419,176 +420,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return new Intl.NumberFormat('fr-FR').format(amount) + ' FCFA';
   };
 
-  const bookAppointment = async ({
-    salonId,
-    clientName,
-    clientPhone,
-    clientId,
-    serviceId,
-    staffId,
-    date,
-    time,
-    source,
-    notes,
-  }: {
-    salonId: string;
-    clientName: string;
-    clientPhone: string;
-    clientEmail?: string;
-    clientId?: string | null;
-    serviceId: string;
-    staffId: string;
-    date: string;
-    time: string;
-    paymentMethod: PaymentMethod;
-    source?: 'direct' | 'whatsapp' | 'phone';
-    notes?: string;
-  }): Promise<{ success: boolean; error?: string; appointment?: Appointment }> => {
-    const selectedService = services.find((s) => s.id === serviceId);
-    if (!selectedService) {
-      return { success: false, error: 'Prestation introuvable' };
-    }
-    if (!memberships.some((membership) => membership.salonId === salonId)) {
-      const error = 'La réservation nécessite une session Supabase et une adhésion active à ce salon.';
-      addToast(error, 'error');
-      return { success: false, error };
-    }
-
-    try {
-      // La disponibilité, la durée, le montant et l'affectation sont vérifiés
-      // côté serveur (RPC create_appointment). « any » laisse le serveur choisir.
-      // Le règlement sera enregistré en caisse (lot 6) : paymentMethod n'est pas
-      // persisté à la réservation.
-      const created = await salonApi(salonId).appointments.create({
-        serviceId,
-        startsAt: toIso(date, time),
-        clientName,
-        clientPhone,
-        clientId: clientId ?? null,
-        staffId: staffId === 'any' || !staffId ? null : staffId,
-        source: source ?? 'direct',
-        notes: notes ?? '',
-      });
-      setAppointments((prev) => [created, ...prev]);
-      addToast('Rendez-vous enregistré au planning.', 'success');
-      return { success: true, appointment: created };
-    } catch (error) {
-      const message = error instanceof ApiError ? error.message : 'Erreur lors de la réservation.';
-      addToast(message, 'error');
-      return { success: false, error: message };
-    }
-  };
-
-  const updateAppointmentStatus = (appointmentId: string, status: AppointmentStatus, reason?: string) => {
-    if (!hasActiveMembership) {
-      addToast('Modification indisponible sans adhésion active à ce salon.', 'error');
-      return;
-    }
-
-    void remote(async () => {
-      const saved = await salonApi(requireActiveSalon().id).appointments.transition(
-        appointmentId,
-        status,
-        status === 'cancelled' || status === 'no_show' ? reason || 'Motif non précisé' : undefined,
-      );
-      setAppointments((prev) => prev.map((a) => (a.id === appointmentId ? { ...a, ...saved } : a)));
-      await Promise.all([loadNotifications(requireActiveSalon().id), loadLoyalty(requireActiveSalon().id)]);
-      addToast(`Statut mis à jour : ${saved.status}`, 'info');
-    }, 'Transition de statut refusée par Supabase.');
-  };
-
-  const updateAppointmentDetails = (appointmentId: string, updates: Partial<Appointment>) => {
-    // Réaffectation de barbier, changement de prestation/horaire : même chemin
-    // sécurisé que l'édition du planning (RPC reschedule_appointment).
-    updateAppointment(appointmentId, updates);
-  };
-
-  const cancelAppointment = (appointmentId: string) => {
-    void remote(async () => {
-      const saved = await salonApi(requireActiveSalon().id).appointments.cancel(
-        appointmentId,
-        'Annulé par un membre du salon',
-      );
-      setAppointments((prev) => prev.map((a) => (a.id === appointmentId ? { ...a, ...saved } : a)));
-      await loadNotifications(requireActiveSalon().id);
-      addToast('Rendez-vous annulé.', 'info');
-    }, 'Annulation du rendez-vous impossible.');
-  };
-
-  // ----- Clients de passage (sans rendez-vous) -----
-  const registerWalkIn = async (data: {
-    serviceId: string;
-    clientName?: string;
-    clientPhone?: string;
-    clientId?: string | null;
-    staffId?: string | null;
-    branchId?: string | null;
-    startImmediately?: boolean;
-    notes?: string;
-    idempotencyKey?: string;
-  }): Promise<{ success: boolean; appointment?: Appointment; error?: string }> => {
-    try {
-      const salonId = requireActiveSalon().id;
-      if (!memberships.some((m) => m.salonId === salonId)) {
-        throw new Error('Une adhésion active à ce salon est requise.');
-      }
-      const created = await salonApi(salonId).appointments.registerWalkIn({
-        serviceId: data.serviceId,
-        idempotencyKey: data.idempotencyKey ?? newIdempotencyKey(),
-        clientName: data.clientName ?? null,
-        clientPhone: data.clientPhone ?? null,
-        clientId: data.clientId ?? null,
-        staffId: data.staffId ?? null,
-        branchId: data.branchId ?? null,
-        startImmediately: data.startImmediately ?? false,
-        notes: data.notes ?? '',
-      });
-      setAppointments((prev) => [created, ...prev.filter((a) => a.id !== created.id)]);
-      addToast(
-        created.status === 'in_progress'
-          ? 'Client de passage installé : prestation démarrée.'
-          : 'Client de passage ajouté à la file d’attente.',
-        'success',
-      );
-      return { success: true, appointment: created };
-    } catch (error) {
-      const message = error instanceof ApiError ? error.message : 'Accueil du client de passage impossible.';
-      addToast(message, 'error');
-      return { success: false, error: message };
-    }
-  };
-
-  const startWalkIn = async (appointmentId: string, staffId?: string | null) => {
-    try {
-      const saved = await salonApi(requireActiveSalon().id).appointments.startWalkIn(
-        appointmentId,
-        staffId ?? null,
-      );
-      setAppointments((prev) => prev.map((a) => (a.id === appointmentId ? saved : a)));
-      addToast('Prestation démarrée.', 'success');
-      return { success: true, appointment: saved };
-    } catch (error) {
-      const message = error instanceof ApiError ? error.message : 'Démarrage impossible.';
-      addToast(message, 'error');
-      return { success: false, error: message };
-    }
-  };
-
-  const completeWalkIn = async (appointmentId: string) => {
-    try {
-      const saved = await salonApi(requireActiveSalon().id).appointments.completeWalkIn(appointmentId);
-      setAppointments((prev) => prev.map((a) => (a.id === appointmentId ? saved : a)));
-      // La fin de prestation met l'invitation à laisser un avis dans la file.
-      await loadNotifications(requireActiveSalon().id);
-      addToast('Prestation terminée. Vous pouvez encaisser.', 'success');
-      return { success: true, appointment: saved };
-    } catch (error) {
-      const message = error instanceof ApiError ? error.message : 'Clôture de la prestation impossible.';
-      addToast(message, 'error');
-      return { success: false, error: message };
-    }
-  };
-
   // Loyalty Program Handlers
   // Catalogue de récompenses extrait (features/loyalty) : même API, déstructurée ici.
   const { loyaltyRewards, setLoyaltyRewards, addLoyaltyReward, updateLoyaltyReward, deleteLoyaltyReward } =
@@ -617,16 +448,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Notifications : file d'envoi, déclenchement serveur et relance (features/notifications).
   const { notifications, loadNotifications, refreshNotifications, dispatchNotifications, retryNotification } =
     useNotificationsDomain({ hasPermission, requireActiveSalon, addToast, activeSalonId });
-
-  const newIdempotencyKey = (): string => {
-    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-      return crypto.randomUUID();
-    }
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-      const r = (Math.random() * 16) | 0;
-      return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
-    });
-  };
 
   const paymentStatusFromBalance = (
     balance: AppointmentBalance,
@@ -809,50 +630,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setClients,
   });
 
-  /** Les opérations ERP nécessitent une adhésion Supabase active au salon. */
-  const hasActiveMembership = memberships.some(
-    (membership) => membership.status === 'active' && membership.salonId === activeSalonId,
-  );
-  const toIso = (date: string, time: string) => `${date}T${time.slice(0, 5)}:00.000Z`;
-
-  const updateAppointment = (appointmentId: string, updates: Partial<Appointment>) => {
-    const current = appointments.find((a) => a.id === appointmentId);
-    if (!current) return;
-    const merged = { ...current, ...updates };
-
-    if (!hasActiveMembership) {
-      addToast('Modification indisponible sans adhésion active à ce salon.', 'error');
-      return;
-    }
-
-    // La fin et le montant sont recalculés côté serveur depuis la prestation :
-    // le client n'envoie que le début, le service, le collaborateur et les notes.
-    const startsAt = toIso(merged.date, merged.time);
-
-    void remote(async () => {
-      const saved = await salonApi(requireActiveSalon().id).appointments.reschedule(appointmentId, {
-        staffId: merged.staffId === 'any' || !merged.staffId ? current.staffId : merged.staffId,
-        serviceId: merged.serviceId,
-        startsAt,
-        notes: merged.notes ?? '',
-      });
-      setAppointments((prev) => prev.map((a) => (a.id === appointmentId ? { ...a, ...saved } : a)));
-      addToast('Rendez-vous modifié.', 'success');
-    }, 'Modification du rendez-vous impossible (créneau indisponible ?)');
-  };
-
-  const deleteAppointment = (appointmentId: string) => {
-    // Les rendez-vous ne sont jamais supprimés : l'historique est conservé.
-    void remote(async () => {
-      if (!hasActiveMembership) throw new Error('Annulation indisponible sans adhésion active au salon.');
-      const saved = await salonApi(requireActiveSalon().id).appointments.cancel(
-        appointmentId,
-        'Annulé depuis le planning',
-      );
-      setAppointments((prev) => prev.map((a) => (a.id === appointmentId ? { ...a, ...saved } : a)));
-      addToast('Rendez-vous annulé, historique conservé.', 'info');
-    }, 'Annulation du rendez-vous impossible');
-  };
+  // Rendez-vous : planning, réservations, statuts, déplacements, passages (features/appointments).
+  const {
+    appointments,
+    setAppointments,
+    bookAppointment,
+    updateAppointmentStatus,
+    updateAppointmentDetails,
+    updateAppointment,
+    cancelAppointment,
+    deleteAppointment,
+    registerWalkIn,
+    startWalkIn,
+    completeWalkIn,
+  } = useAppointmentsDomain({
+    memberships,
+    activeSalonId,
+    services,
+    requireActiveSalon,
+    remote,
+    addToast,
+    loadNotifications,
+    loadLoyalty,
+  });
 
   // Domaines extraits (features/) : même API exposée, déstructurée ci-dessous.
   const { expenses, setExpenses, addExpense, deleteExpense } = useExpensesDomain({

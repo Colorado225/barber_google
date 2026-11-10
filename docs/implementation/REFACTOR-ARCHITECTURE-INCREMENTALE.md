@@ -65,6 +65,12 @@ refusée avant l'envoi, avec un message. Auparavant, elle partait vers la base.
      relance. Libellé du déclenchement dans `notificationRules.ts` (fournisseur absent, file vide, échecs réels) ;
      commandes sur port injecté (`notificationCommands.ts`) ; sans permission `appointments.read`, aucune requête.
      7 tests (`tests/notification-domain-rules.test.tsx`). Aucun libellé modifié.
+   - rendez-vous (`features/appointments/useAppointmentsDomain.ts`) : planning, réservations, statuts,
+     déplacements, annulations, passages sans rendez-vous. Charges utiles et motifs dans `appointmentRules.ts`
+     (début ISO, « any », motif de transition, déplacement qui garde le collaborateur) ; commandes sur port
+     injecté (`appointmentCommands.ts`). La clé d'idempotence passe dans `features/shared/idempotency.ts`
+     (partagée avec les encaissements). 12 tests (`tests/appointment-domain-rules.test.tsx`). Aucun message ni
+     effet de bord modifié. `AppContext.tsx` : 1 059 → 859 lignes.
    - prestations (`features/services`) : état et commandes ; règles de charge utile et contrôles avant envoi
      (nom requis, prix et durées entiers) ; 6 tests. Changement de comportement : une prestation invalide est
      refusée avant envoi, avec un message.
@@ -72,7 +78,7 @@ refusée avant l'envoi, avec un message. Auparavant, elle partait vers la base.
      `loyaltyTransactions` le lit. Tests de charge utile dans `tests/team-and-client-rules.test.tsx` (3).
      `AppContext.tsx` : 1 393 → 1 175 lignes. Les hooks eux-mêmes ne sont pas testés directement (pas de rendu
      interactif dans le harnais actuel).
-2. **À faire** : rendez-vous ; finances (caisse).
+2. **À faire** : finances (caisse) ; réservation publique et annulation publique (marketplace) restées dans le contexte.
    Les finances dépendent des rendez-vous (`syncAfterFinance`) : elles viennent après. Pour les clients, sortir
    `loyaltyTransactions` du contexte permettra de déplacer aussi l'état.
 3. **Fait (partiel)** : `lib/api.ts` (1 289 lignes) découpé en deux temps.
