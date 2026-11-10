@@ -8,7 +8,14 @@ import {
   reviewSaasPayment,
   subscribeSalonToPlan,
 } from '../src/lib/saas';
-import { getAuditLogs, getMarketplaceReviews } from '../src/lib/superadmin';
+import {
+  getAdminReviews,
+  getPlatformAuditLogs,
+  moderateReviewByAdmin,
+  setSalonPublicationByAdmin,
+  setSalonStatusByAdmin,
+  setSalonVerificationByAdmin,
+} from '../src/lib/superadmin';
 
 // Lot 1 (P0) : aucun abonnement ne doit être activé ni fabriqué depuis le navigateur.
 // Les tests tournent sans Supabase configuré : toute écriture d'abonnement doit échouer,
@@ -54,11 +61,21 @@ test('aucune demande en attente ni déclaration de paiement sans base de donnée
   await assert.rejects(reviewSaasPayment('pay-1', 'confirm'), /base de données/);
 });
 
-test('journal d’audit et avis SuperAdmin ne contiennent aucune entrée pré-remplie', () => {
-  assert.deepEqual(getAuditLogs(), []);
-  assert.deepEqual(getMarketplaceReviews(), []);
+test('journal d’audit, avis et mutations SuperAdmin exigent la base serveur sans jamais écrire en local', async () => {
+  await assert.rejects(getPlatformAuditLogs(), /base de données/);
+  await assert.rejects(getAdminReviews(), /base de données/);
+  await assert.rejects(setSalonPublicationByAdmin('s1', true, 'Motif valide'), /base de données/);
+  await assert.rejects(setSalonVerificationByAdmin('s1', true, 'Motif valide'), /base de données/);
+  await assert.rejects(setSalonStatusByAdmin('s1', 'suspended', 'Motif valide'), /base de données/);
+  await assert.rejects(moderateReviewByAdmin('r1', 'hide', 'Motif valide'), /base de données/);
   assert.equal(store.has('barbercuts_admin_audit_log'), false);
   assert.equal(store.has('barbercuts_admin_reviews'), false);
+  assert.equal(store.has('barbercuts_admin_salon_overrides'), false);
+
+  const superadminSource = await readFile(new URL('../src/lib/superadmin.ts', import.meta.url), 'utf8');
+  assert.equal(superadminSource.includes('barbercuts_admin_salon_overrides'), false);
+  assert.equal(superadminSource.includes('barbercuts_admin_audit_log'), false);
+  assert.equal(superadminSource.includes('barbercuts_admin_reviews'), false);
 });
 
 test('régression : le code d’abonnement ne contient plus de repli local ni de plan simulé', async () => {

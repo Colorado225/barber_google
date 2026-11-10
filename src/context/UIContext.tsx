@@ -3,7 +3,7 @@ import type { Salon } from '../types';
 
 export type AppMode = 'marketplace' | 'erp';
 
-interface Toast {
+export interface Toast {
   id: string;
   message: string;
   type: 'success' | 'error' | 'info';
@@ -20,9 +20,9 @@ export interface UIContextValue {
   setSelectedSalonForModal: (salon: Salon | null) => void;
 }
 
-const UIContext = createContext<UIContextValue | undefined>(undefined);
+export const UIContext = createContext<UIContextValue | undefined>(undefined);
 
-export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export function useUiFeedbackState(): UIContextValue {
   const [mode, setMode] = useState<AppMode>(() => {
     if (typeof window === 'undefined') return 'marketplace';
     return window.location.pathname.toLowerCase().startsWith('/app') ? 'erp' : 'marketplace';
@@ -30,23 +30,26 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [selectedSalonForModal, setSelectedSalonForModal] = useState<Salon | null>(null);
 
-  const addToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'success') => {
-    const id = Date.now().toString() + Math.random().toString(36).substring(2, 5);
-    setToasts((prev) => [...prev, { id, message, type }]);
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 4500);
-  }, []);
-
   const removeToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
+
+  const addToast = useCallback(
+    (message: string, type: 'success' | 'error' | 'info' = 'success') => {
+      const id = Date.now().toString() + Math.random().toString(36).substring(2, 5);
+      setToasts((prev) => [...prev, { id, message, type }]);
+      setTimeout(() => {
+        removeToast(id);
+      }, 4500);
+    },
+    [removeToast],
+  );
 
   const formatPrice = useCallback((amount: number): string => {
     return new Intl.NumberFormat('fr-FR').format(amount) + ' FCFA';
   }, []);
 
-  const value = useMemo<UIContextValue>(
+  return useMemo<UIContextValue>(
     () => ({
       mode,
       setMode,
@@ -59,7 +62,10 @@ export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     }),
     [mode, toasts, selectedSalonForModal, addToast, removeToast, formatPrice],
   );
+}
 
+export const UIProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const value = useUiFeedbackState();
   return <UIContext.Provider value={value}>{children}</UIContext.Provider>;
 };
 
@@ -68,6 +74,8 @@ export const useUI = (): UIContextValue => {
   if (!context) throw new Error('useUI must be used within a UIProvider');
   return context;
 };
+
+export const useUiFeedback = useUI;
 
 export const useOptionalUI = (): UIContextValue => {
   const context = useContext(UIContext);

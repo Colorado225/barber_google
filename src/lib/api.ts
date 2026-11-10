@@ -6,9 +6,12 @@ import type {
   LoyaltyLedgerEntry,
   LoyaltySettings,
   NotificationDispatchResult,
+  NotificationHealthSummary,
+  NotificationProbeResult,
   CashSession,
   Client,
   Expense,
+  ExpenseEvent,
   FinancialSummary,
   LoyaltyReward,
   PaymentEntryKind,
@@ -19,22 +22,17 @@ import type {
   Service,
   StaffMember,
   StockItem,
+  StockMovement,
+  StockMovementType,
+  Supplier,
 } from '../types';
+import { mapCapabilities, mapNotificationProbe, mapSalonNotificationHealth } from './notifications';
 import { getSupabaseClient } from './supabase';
+import { ApiError } from './apiError';
+
+export { ApiError };
 
 type DbRow = Record<string, unknown>;
-
-export class ApiError extends Error {
-  status: number;
-  code?: string;
-
-  constructor(message: string, status = 500, code?: string) {
-    super(message);
-    this.name = 'ApiError';
-    this.status = status;
-    this.code = code;
-  }
-}
 
 function throwSupabaseError(error: { message: string; code?: string }): never {
   const status =
@@ -159,6 +157,10 @@ function mapStaff(row: DbRow): StaffMember {
   };
 }
 
+export function mapAppointmentRow(row: DbRow): Appointment {
+  return mapAppointment(row);
+}
+
 function mapAppointment(row: DbRow): Appointment {
   const startsAt = stringValue(row, 'starts_at');
   const { date, time } = abidjanDateTime(startsAt);
@@ -183,6 +185,7 @@ function mapAppointment(row: DbRow): Appointment {
     source: stringValue(row, 'source') as Appointment['source'],
     notes: stringValue(row, 'notes'),
     createdAt: stringValue(row, 'created_at'),
+    updatedAt: optionalString(row, 'updated_at'),
     startsAt,
     endsAt: stringValue(row, 'ends_at'),
     arrivalAt: optionalString(row, 'arrival_at'),
@@ -308,8 +311,50 @@ function mapExpense(row: DbRow): Expense {
     paymentMethod: undefined,
     notes: stringValue(row, 'notes'),
     receiptRef: optionalString(row, 'receipt_ref'),
+    entryKind: (optionalString(row, 'entry_kind') as Expense['entryKind']) ?? 'expense',
+    originalExpenseId: optionalString(row, 'original_expense_id') ?? null,
+    status: (optionalString(row, 'status') as Expense['status']) ?? 'active',
+    supplierId: optionalString(row, 'supplier_id') ?? null,
+    attachmentPath: optionalString(row, 'attachment_path') ?? null,
+    attachmentName: optionalString(row, 'attachment_name') ?? null,
+    attachmentMime: optionalString(row, 'attachment_mime') ?? null,
+    attachmentSize: optionalNumber(row, 'attachment_size') ?? null,
+    reason: optionalString(row, 'reason') ?? '',
+    reversedAt: optionalString(row, 'reversed_at') ?? null,
+    reversedBy: optionalString(row, 'reversed_by') ?? null,
     createdBy: optionalString(row, 'created_by'),
     createdAt: optionalString(row, 'created_at'),
+  };
+}
+
+function mapExpenseEvent(row: DbRow): ExpenseEvent {
+  return {
+    id: stringValue(row, 'id'),
+    salonId: stringValue(row, 'salon_id'),
+    expenseId: stringValue(row, 'expense_id'),
+    eventType: stringValue(row, 'event_type') as ExpenseEvent['eventType'],
+    amount: numberValue(row, 'amount'),
+    reason: stringValue(row, 'reason'),
+    actorId: optionalString(row, 'actor_id') ?? null,
+    metadata:
+      row.metadata && typeof row.metadata === 'object' ? (row.metadata as Record<string, unknown>) : {},
+    createdAt: stringValue(row, 'created_at'),
+  };
+}
+
+function mapSupplier(row: DbRow): Supplier {
+  return {
+    id: stringValue(row, 'id'),
+    salonId: stringValue(row, 'salon_id'),
+    name: stringValue(row, 'name'),
+    contactName: stringValue(row, 'contact_name'),
+    phone: stringValue(row, 'phone'),
+    email: optionalString(row, 'email'),
+    address: stringValue(row, 'address'),
+    notes: stringValue(row, 'notes'),
+    isActive: row.is_active !== false,
+    createdAt: optionalString(row, 'created_at'),
+    updatedAt: optionalString(row, 'updated_at'),
   };
 }
 
@@ -322,8 +367,34 @@ function mapStock(row: DbRow): StockItem {
     quantity: numberValue(row, 'quantity'),
     minThreshold: numberValue(row, 'min_threshold'),
     unitCost: numberValue(row, 'unit_cost'),
+    sellingPrice: optionalNumber(row, 'selling_price'),
+    supplierId: optionalString(row, 'supplier_id') ?? null,
     supplier: stringValue(row, 'supplier'),
     lastRestock: optionalString(row, 'last_restock'),
+    isActive: row.is_active !== false,
+    updatedAt: optionalString(row, 'updated_at'),
+  };
+}
+
+function mapStockMovement(row: DbRow): StockMovement {
+  return {
+    id: stringValue(row, 'id'),
+    salonId: stringValue(row, 'salon_id'),
+    branchId: optionalString(row, 'branch_id') ?? null,
+    stockItemId: stringValue(row, 'stock_item_id'),
+    stockItemName: optionalString(row, 'stock_item_name'),
+    supplierId: optionalString(row, 'supplier_id') ?? null,
+    supplierName: optionalString(row, 'supplier_name'),
+    movementType: stringValue(row, 'movement_type') as StockMovementType,
+    quantityDelta: numberValue(row, 'quantity_delta'),
+    quantityBefore: numberValue(row, 'quantity_before'),
+    quantityAfter: numberValue(row, 'quantity_after'),
+    unitCost: optionalNumber(row, 'unit_cost') ?? null,
+    reason: stringValue(row, 'reason'),
+    reference: optionalString(row, 'reference'),
+    appointmentId: optionalString(row, 'appointment_id') ?? null,
+    actorId: optionalString(row, 'actor_id') ?? null,
+    createdAt: stringValue(row, 'created_at'),
   };
 }
 
@@ -382,6 +453,10 @@ function mapLoyaltyLedgerEntry(row: DbRow): LoyaltyLedgerEntry {
   };
 }
 
+export function mapNotificationRow(row: DbRow): AppointmentNotification {
+  return mapNotification(row);
+}
+
 function mapNotification(row: DbRow): AppointmentNotification {
   return {
     id: stringValue(row, 'id'),
@@ -396,6 +471,8 @@ function mapNotification(row: DbRow): AppointmentNotification {
     sentAt: optionalString(row, 'sent_at') ?? null,
     error: optionalString(row, 'error') ?? null,
     attempts: numberValue(row, 'attempts'),
+    failureCount: numberValue(row, 'failure_count'),
+    lastError: optionalString(row, 'last_error') ?? null,
     providerMessageId: optionalString(row, 'provider_message_id') ?? null,
   };
 }
@@ -409,6 +486,9 @@ function mapReview(row: DbRow): Review {
     date: stringValue(row, 'created_at').slice(0, 10),
     comment: stringValue(row, 'comment'),
     verified: booleanValue(row, 'verified'),
+    isHidden: booleanValue(row, 'is_hidden'),
+    moderatedAt: optionalString(row, 'moderated_at'),
+    moderationReason: optionalString(row, 'moderation_reason'),
   };
 }
 
@@ -442,7 +522,55 @@ type StaffInput = Pick<StaffMember, 'name' | 'role' | 'commissionRate'> &
     >
   >;
 type ExpenseInput = Pick<Expense, 'title' | 'category' | 'amount' | 'date'> &
-  Partial<Pick<Expense, 'notes' | 'branchId' | 'receiptRef'>>;
+  Partial<
+    Pick<
+      Expense,
+      | 'notes'
+      | 'branchId'
+      | 'receiptRef'
+      | 'supplierId'
+      | 'attachmentPath'
+      | 'attachmentName'
+      | 'attachmentMime'
+      | 'attachmentSize'
+    >
+  >;
+
+export interface ExpenseCorrectionInput {
+  originalExpenseId: string;
+  title: string;
+  category: Expense['category'];
+  amount: number;
+  date: string;
+  reason: string;
+  branchId?: string | null;
+  notes?: string;
+  receiptRef?: string | null;
+  supplierId?: string | null;
+}
+
+export interface SupplierInput {
+  id?: string | null;
+  name: string;
+  contactName?: string;
+  phone?: string;
+  email?: string | null;
+  address?: string;
+  notes?: string;
+  isActive?: boolean;
+}
+
+export interface RecordStockMovementInput {
+  stockItemId: string;
+  movementType: Exclude<StockMovementType, 'initial'>;
+  quantityDelta: number;
+  reason: string;
+  branchId?: string | null;
+  supplierId?: string | null;
+  unitCost?: number | null;
+  reference?: string | null;
+  appointmentId?: string | null;
+}
 
 export interface RecordPaymentInput {
   appointmentId: string;
@@ -472,7 +600,10 @@ export interface PaymentListParams {
   limit?: number;
 }
 type StockInput = Pick<StockItem, 'name' | 'category' | 'quantity' | 'minThreshold' | 'unitCost'> &
-  Partial<Pick<StockItem, 'supplier'>>;
+  Partial<Pick<StockItem, 'supplier' | 'supplierId' | 'sellingPrice' | 'isActive'>> & {
+    reason?: string;
+    branchId?: string | null;
+  };
 type RewardInput = Pick<LoyaltyReward, 'name' | 'pointsCost' | 'category'> &
   Partial<Pick<LoyaltyReward, 'description' | 'isActive' | 'discountPercentage' | 'freeServiceName'>>;
 
@@ -551,12 +682,17 @@ export function salonApi(salonId: string) {
       .from('expenses')
       .select('*')
       .eq('salon_id', salonId)
-      .order('spent_on', { ascending: false });
+      .order('spent_on', { ascending: false })
+      .order('created_at', { ascending: false });
     return (unwrap(result) ?? []).map((row) => mapExpense(row as DbRow));
   };
   const listStock = async () => {
     const result = await supabase.from('stock_items').select('*').eq('salon_id', salonId).order('name');
     return (unwrap(result) ?? []).map((row) => mapStock(row as DbRow));
+  };
+  const listSuppliers = async () => {
+    const result = await supabase.from('suppliers').select('*').eq('salon_id', salonId).order('name');
+    return (unwrap(result) ?? []).map((row) => mapSupplier(row as DbRow));
   };
   const listRewards = async () => {
     const result = await supabase.from('rewards').select('*').eq('salon_id', salonId).order('name');
@@ -573,21 +709,32 @@ export function salonApi(salonId: string) {
 
   return {
     async workspace() {
-      const [salonResult, branchesResult, clients, services, staff, expenses, stock, rewards, reviews] =
-        await Promise.all([
-          supabase.from('salons').select('*').eq('id', salonId).single(),
-          supabase.from('branches').select('id, name').eq('salon_id', salonId).order('created_at'),
-          listClients(),
-          listServices(true),
-          listStaff(),
-          listExpenses(),
-          listStock(),
-          listRewards(),
-          listReviews(),
-        ]);
+      const [
+        salonResult,
+        branchesResult,
+        clients,
+        services,
+        staff,
+        expenses,
+        stock,
+        suppliers,
+        rewards,
+        reviews,
+      ] = await Promise.all([
+        supabase.from('salons').select('*').eq('id', salonId).single(),
+        supabase.from('branches').select('id, name').eq('salon_id', salonId).order('created_at'),
+        listClients(),
+        listServices(true),
+        listStaff(),
+        listExpenses(),
+        listStock(),
+        listSuppliers(),
+        listRewards(),
+        listReviews(),
+      ]);
       const salon = unwrap(salonResult);
       const branches = (unwrap(branchesResult) ?? []) as { id: string; name: string }[];
-      return { salon, branches, clients, services, staff, expenses, stock, rewards, reviews };
+      return { salon, branches, clients, services, staff, expenses, stock, suppliers, rewards, reviews };
     },
     clients: {
       list: listClients,
@@ -924,8 +1071,60 @@ export function salonApi(salonId: string) {
           p_branch_id: data.branchId ?? null,
           p_notes: data.notes ?? '',
           p_receipt_ref: data.receiptRef ?? null,
+          p_supplier_id: data.supplierId ?? null,
+          p_attachment_path: data.attachmentPath ?? null,
+          p_attachment_name: data.attachmentName ?? null,
+          p_attachment_mime: data.attachmentMime ?? null,
+          p_attachment_size: data.attachmentSize ?? null,
         });
         return mapExpense(unwrap(result) as DbRow);
+      },
+      async attachReceipt(
+        expenseId: string,
+        attachment: { path: string; name: string; mime: string; size: number },
+      ) {
+        const result = await supabase.rpc('attach_expense_receipt', {
+          p_salon_id: salonId,
+          p_expense_id: expenseId,
+          p_attachment_path: attachment.path,
+          p_attachment_name: attachment.name,
+          p_attachment_mime: attachment.mime,
+          p_attachment_size: attachment.size,
+        });
+        return mapExpense(unwrap(result) as DbRow);
+      },
+      async reverse(expenseId: string, reason: string) {
+        const result = await supabase.rpc('reverse_expense', {
+          p_salon_id: salonId,
+          p_expense_id: expenseId,
+          p_reason: reason,
+        });
+        return mapExpense(unwrap(result) as DbRow);
+      },
+      async correct(data: ExpenseCorrectionInput) {
+        const result = await supabase.rpc('correct_expense', {
+          p_salon_id: salonId,
+          p_original_expense_id: data.originalExpenseId,
+          p_title: data.title,
+          p_category: data.category,
+          p_amount: data.amount,
+          p_spent_on: data.date,
+          p_reason: data.reason,
+          p_branch_id: data.branchId ?? null,
+          p_notes: data.notes ?? '',
+          p_receipt_ref: data.receiptRef ?? null,
+          p_supplier_id: data.supplierId ?? null,
+        });
+        return mapExpense(unwrap(result) as DbRow);
+      },
+      async events(expenseId?: string | null, limit = 200) {
+        const result = await supabase.rpc('list_expense_events', {
+          p_salon_id: salonId,
+          p_expense_id: expenseId ?? null,
+          p_limit: limit,
+        });
+        const data = unwrap(result);
+        return (Array.isArray(data) ? data : []).map((row) => mapExpenseEvent(row as DbRow));
       },
     },
     payments: {
@@ -1075,44 +1274,86 @@ export function salonApi(salonId: string) {
         return mapFinancialSummary(row);
       },
     },
+    suppliers: {
+      async list(includeInactive = false) {
+        const result = await supabase.rpc('list_suppliers', {
+          p_salon_id: salonId,
+          p_include_inactive: includeInactive,
+        });
+        const data = unwrap(result);
+        return (Array.isArray(data) ? data : []).map((row) => mapSupplier(row as DbRow));
+      },
+      async upsert(data: SupplierInput) {
+        const result = await supabase.rpc('upsert_supplier', {
+          p_salon_id: salonId,
+          p_name: data.name,
+          p_contact_name: data.contactName ?? '',
+          p_phone: data.phone ?? '',
+          p_email: data.email ?? null,
+          p_address: data.address ?? '',
+          p_notes: data.notes ?? '',
+          p_is_active: data.isActive ?? true,
+          p_supplier_id: data.id ?? null,
+        });
+        return mapSupplier(unwrap(result) as DbRow);
+      },
+    },
     stock: {
       list: listStock,
+      async movements(stockItemId?: string | null, limit = 200) {
+        const result = await supabase.rpc('list_stock_movements', {
+          p_salon_id: salonId,
+          p_stock_item_id: stockItemId ?? null,
+          p_limit: limit,
+        });
+        const data = unwrap(result);
+        return (Array.isArray(data) ? data : []).map((row) => mapStockMovement(row as DbRow));
+      },
       async create(data: StockInput) {
-        const result = await supabase
-          .from('stock_items')
-          .insert({
-            salon_id: salonId,
-            name: data.name,
-            category: data.category,
-            quantity: data.quantity,
-            min_threshold: data.minThreshold,
-            unit_cost: data.unitCost,
-            supplier: data.supplier ?? '',
-          })
-          .select('*')
-          .single();
+        const result = await supabase.rpc('create_stock_item', {
+          p_salon_id: salonId,
+          p_name: data.name,
+          p_category: data.category,
+          p_initial_quantity: data.quantity,
+          p_min_threshold: data.minThreshold,
+          p_unit_cost: data.unitCost,
+          p_supplier_id: data.supplierId ?? null,
+          p_supplier_name: data.supplier ?? '',
+          p_reason: data.reason ?? 'Stock initial',
+          p_branch_id: data.branchId ?? null,
+          p_selling_price: data.sellingPrice ?? null,
+        });
         return mapStock(unwrap(result) as DbRow);
       },
-      async update(id: string, data: StockInput) {
-        const result = await supabase
-          .from('stock_items')
-          .update({
-            name: data.name,
-            category: data.category,
-            quantity: data.quantity,
-            min_threshold: data.minThreshold,
-            unit_cost: data.unitCost,
-            supplier: data.supplier ?? '',
-          })
-          .eq('salon_id', salonId)
-          .eq('id', id)
-          .select('*')
-          .single();
+      async updateMetadata(id: string, data: Omit<StockInput, 'quantity' | 'reason' | 'branchId'>) {
+        const result = await supabase.rpc('update_stock_item_metadata', {
+          p_salon_id: salonId,
+          p_stock_item_id: id,
+          p_name: data.name,
+          p_category: data.category,
+          p_min_threshold: data.minThreshold,
+          p_unit_cost: data.unitCost,
+          p_supplier_id: data.supplierId ?? null,
+          p_supplier_name: data.supplier ?? '',
+          p_selling_price: data.sellingPrice ?? null,
+          p_is_active: data.isActive ?? true,
+        });
         return mapStock(unwrap(result) as DbRow);
       },
-      async remove(id: string) {
-        const { error } = await supabase.from('stock_items').delete().eq('salon_id', salonId).eq('id', id);
-        if (error) throwSupabaseError(error);
+      async recordMovement(data: RecordStockMovementInput) {
+        const result = await supabase.rpc('record_stock_movement', {
+          p_salon_id: salonId,
+          p_stock_item_id: data.stockItemId,
+          p_movement_type: data.movementType,
+          p_quantity_delta: data.quantityDelta,
+          p_reason: data.reason,
+          p_branch_id: data.branchId ?? null,
+          p_supplier_id: data.supplierId ?? null,
+          p_unit_cost: data.unitCost ?? null,
+          p_reference: data.reference ?? null,
+          p_appointment_id: data.appointmentId ?? null,
+        });
+        return mapStockMovement(unwrap(result) as DbRow);
       },
     },
     rewards: {
@@ -1167,6 +1408,24 @@ export function salonApi(salonId: string) {
           .limit(limit);
         return (unwrap(result) ?? []).map((row) => mapNotification(row as DbRow));
       },
+      async health(): Promise<NotificationHealthSummary> {
+        const result = await supabase.rpc('get_salon_notification_health', { p_salon_id: salonId });
+        return mapSalonNotificationHealth(unwrap(result));
+      },
+      async probe(checkWhatsappApi = false): Promise<NotificationProbeResult> {
+        const { data, error } = await supabase.functions.invoke('notifications-dispatcher', {
+          body: { salon_id: salonId, mode: 'health', check_whatsapp_api: checkWhatsappApi },
+        });
+        if (error) {
+          throw new ApiError(
+            `Expéditeur injoignable : ${error.message}. Vérifiez que la fonction « notifications-dispatcher » est déployée.`,
+            502,
+          );
+        }
+        const payload = (data ?? {}) as { error?: string };
+        if (payload.error) throw new ApiError(payload.error, 400);
+        return mapNotificationProbe(data);
+      },
       async retry(id: string): Promise<AppointmentNotification> {
         const result = await supabase.rpc('retry_notification', { p_salon_id: salonId, p_id: id });
         return mapNotification(unwrap(result) as DbRow);
@@ -1189,6 +1448,7 @@ export function salonApi(salonId: string) {
           failed?: number;
           skipped?: number;
           provider_configured?: boolean;
+          capabilities?: unknown;
           error?: string;
         };
         if (payload.error) throw new ApiError(payload.error, 400);
@@ -1198,6 +1458,7 @@ export function salonApi(salonId: string) {
           failed: Number(payload.failed ?? 0),
           skipped: Number(payload.skipped ?? 0),
           providerConfigured: payload.provider_configured !== false,
+          capabilities: mapCapabilities(payload.capabilities),
         };
       },
     },

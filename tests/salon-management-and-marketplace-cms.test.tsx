@@ -4,9 +4,10 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import {
   getAdminSalonsList,
-  updateSalonByAdmin,
-  getAuditLogs,
-  type SalonAdminDetail,
+  getPlatformAuditLogs,
+  setSalonStatusByAdmin,
+  setSalonVerificationByAdmin,
+  type AdminRpcClient,
 } from '../src/lib/superadmin';
 import {
   getMarketplaceContent,
@@ -45,49 +46,121 @@ function setupMockLocalStorage() {
   };
 }
 
-test('SalonManagement : consultation, certification et désactivation/suspension des salons locataires', () => {
+test('SalonManagement : consultation, certification, suspension et audit via RPC serveur', async () => {
   setupMockLocalStorage();
 
-  // Salons tels que renvoyés par la base (aucune donnée inventée).
-  const REAL_SALONS = [
-    { id: 'real-a', name: 'Salon A', commune: 'Cocody', isPublishedOnMarketplace: true, isVerified: false },
-    { id: 'real-b', name: 'Salon B', commune: 'Plateau', isPublishedOnMarketplace: true, isVerified: false },
-    { id: 'real-c', name: 'Salon C', commune: 'Marcory', isPublishedOnMarketplace: false, isVerified: false },
+  const serverSalons = [
+    {
+      id: 'real-a',
+      name: 'Salon A',
+      commune: 'Cocody',
+      organization_name: 'Org A',
+      phone: '+22507000001',
+      is_published: true,
+      is_verified: false,
+      status: 'active',
+      subscription_plan_id: 'starter',
+      subscription_plan_name: 'Starter Solo',
+      subscription_price_xof: 15000,
+    },
+    {
+      id: 'real-b',
+      name: 'Salon B',
+      commune: 'Plateau',
+      organization_name: 'Org B',
+      phone: '+22507000002',
+      is_published: false,
+      is_verified: false,
+      status: 'active',
+      subscription_plan_id: 'pro',
+      subscription_plan_name: 'Pro Équipe',
+      subscription_price_xof: 35000,
+    },
   ];
+  const serverAudit: Array<Record<string, unknown>> = [];
 
-  // 1. Consultation de la liste consolidée
-  const salons = getAdminSalonsList(REAL_SALONS);
-  assert.equal(
-    salons.length,
-    REAL_SALONS.length,
-    'La liste doit refléter exactement les salons reçus de la base',
+  const rpcClient: AdminRpcClient = {
+    async rpc(fn, params = {}) {
+      if (fn === 'admin_list_salons') {
+        return { data: serverSalons.map((s) => ({ ...s })), error: null };
+      }
+      if (fn === 'admin_set_salon_verification') {
+        const target = serverSalons.find((s) => s.id === params.p_salon_id);
+        if (!target) return { data: null, error: { message: 'Salon introuvable.' } };
+        const before = { is_verified: target.is_verified };
+        target.is_verified = Boolean(params.p_verified);
+        serverAudit.unshift({
+          id: `audit-${serverAudit.length + 1}`,
+          created_at: new Date().toISOString(),
+          actor_role: 'super_admin',
+          actor_email: 'dominiquek051@gmail.com',
+          action: target.is_verified ? 'salon.certified' : 'salon.uncertified',
+          target_type: 'salon',
+          target_id: target.id,
+          before_values: before,
+          after_values: { is_verified: target.is_verified },
+          reason: params.p_reason,
+          details: { salon_name: target.name },
+        });
+        return { data: { ...target }, error: null };
+      }
+      if (fn === 'admin_set_salon_status') {
+        const target = serverSalons.find((s) => s.id === params.p_salon_id);
+        if (!target) return { data: null, error: { message: 'Salon introuvable.' } };
+        const before = { status: target.status, is_published: target.is_published };
+        target.status = params.p_status === 'suspended' ? 'suspended' : 'active';
+        if (target.status === 'suspended') target.is_published = false;
+        serverAudit.unshift({
+          id: `audit-${serverAudit.length + 1}`,
+          created_at: new Date().toISOString(),
+          actor_role: 'super_admin',
+          actor_email: 'dominiquek051@gmail.com',
+          action: target.status === 'suspended' ? 'salon.suspended' : 'salon.reactivated',
+          target_type: 'salon',
+          target_id: target.id,
+          before_values: before,
+          after_values: { status: target.status, is_published: target.is_published },
+          reason: params.p_reason,
+          details: { salon_name: target.name },
+        });
+        return { data: { ...target }, error: null };
+      }
+      if (fn === 'admin_list_audit_logs') {
+        return { data: serverAudit, error: null };
+      }
+      return { data: null, error: { message: `RPC inconnue: ${fn}` } };
+    },
+  };
+
+  // 1. Consultation consolidée (inclut publiés et non-publiés)
+  const salons = await getAdminSalonsList(rpcClient);
+  assert.equal(salons.length, 2);
+  assert.equal(salons[0].status, 'active');
+
+  // 2. Certification officielle avec motif obligatoire
+  await assert.rejects(
+    setSalonVerificationByAdmin('real-a', true, ' ', rpcClient),
+    /Un motif est obligatoire/,
   );
+  await setSalonVerificationByAdmin('real-a', true, 'Contrôle conformité validé', rpcClient);
 
-  const salonA = salons[0];
-  assert.ok(salonA.id, 'Le salon doit posséder un identifiant');
-  assert.ok(salonA.name, 'Le salon doit posséder un nom commercial');
-  assert.equal(salonA.status, 'active', 'Le salon doit être actif par défaut');
+  // 3. Suspension d’un salon locataire
+  await setSalonStatusByAdmin('real-a', 'suspended', 'Impayé critique', rpcClient);
+  const reloaded = await getAdminSalonsList(rpcClient);
+  const targetSuspended = reloaded.find((s) => s.id === 'real-a');
+  assert.equal(targetSuspended?.status, 'suspended');
+  assert.equal(targetSuspended?.isPublished, false);
+  assert.equal(targetSuspended?.isVerified, true);
 
-  // 2. Certification officielle par le SuperAdmin
-  updateSalonByAdmin(salonA.id, { isVerified: true }, 'admin@barbercuts.com');
-  const updatedSalons = getAdminSalonsList(REAL_SALONS);
-  const verifiedSalon = updatedSalons.find((s) => s.id === salonA.id);
-  assert.equal(verifiedSalon?.isVerified, true, 'Le salon doit être marqué certifié');
-
-  // 3. Désactivation / Suspension d’un salon locataire
-  updateSalonByAdmin(salonA.id, { status: 'suspended', isPublished: false }, 'admin@barbercuts.com');
-  const suspendedSalons = getAdminSalonsList(REAL_SALONS);
-  const targetSuspended = suspendedSalons.find((s) => s.id === salonA.id);
-  assert.equal(targetSuspended?.status, 'suspended', 'Le statut du salon doit être suspendu');
-  assert.equal(targetSuspended?.isPublished, false, 'Le salon suspendu doit être masqué de la marketplace');
-
-  // 4. Vérification de la traçabilité dans les journaux d’audit
-  const logs = getAuditLogs();
-  assert.ok(logs.length >= 2, 'Les actions administratives doivent être journalisées');
-  assert.ok(
-    logs.some((l) => l.action.includes('Modification statut') || l.action.includes('suspendu')),
-    'Le journal doit tracer la suspension du salon',
-  );
+  // 4. Traçabilité serveur avant/après + motif, sans aucune écriture localStorage
+  const logs = await getPlatformAuditLogs(undefined, rpcClient);
+  assert.equal(logs.length, 2);
+  assert.equal(logs[0].action, 'salon.suspended');
+  assert.equal(logs[0].reason, 'Impayé critique');
+  assert.deepEqual(logs[0].beforeValues, { status: 'active', is_published: true });
+  assert.deepEqual(logs[0].afterValues, { status: 'suspended', is_published: false });
+  assert.equal(localStorage.getItem('barbercuts_admin_salon_overrides'), null);
+  assert.equal(localStorage.getItem('barbercuts_admin_audit_log'), null);
 });
 
 test('MarketplaceSectionsAdmin : administration dynamique des sections, onglets et ajout de nouvelles sections', () => {

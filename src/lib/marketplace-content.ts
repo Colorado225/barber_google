@@ -1,5 +1,4 @@
 import { useCallback, useSyncExternalStore } from 'react';
-import { logAdminAction } from './superadmin';
 
 export interface MarketplaceTabConfig {
   id: string;
@@ -467,8 +466,8 @@ export function getMarketplaceContent(): MarketplaceContentConfig {
  */
 export function saveMarketplaceContent(
   config: MarketplaceContentConfig,
-  adminEmail: string = 'dominiquek051@gmail.com',
-  auditAction: string = DEFAULT_AUDIT_ACTION,
+  _adminEmail: string = 'dominiquek051@gmail.com',
+  _auditAction: string = DEFAULT_AUDIT_ACTION,
 ): MarketplaceContentConfig {
   const updated: MarketplaceContentConfig = {
     ...config,
@@ -478,7 +477,6 @@ export function saveMarketplaceContent(
   try {
     localStorage.setItem(MARKETPLACE_CONTENT_STORAGE_KEY, JSON.stringify(updated));
     notifyMarketplaceContentChanged(updated);
-    logAdminAction(auditAction, 'Marketplace Globale', adminEmail, 'info');
   } catch (err) {
     console.error('Erreur lors de la sauvegarde de la configuration marketplace', err);
   }
@@ -489,18 +487,12 @@ export function saveMarketplaceContent(
  * Réinitialise la configuration aux valeurs par défaut d'usine
  */
 export function resetMarketplaceContent(
-  adminEmail: string = 'dominiquek051@gmail.com',
+  _adminEmail: string = 'dominiquek051@gmail.com',
 ): MarketplaceContentConfig {
   if (typeof window !== 'undefined') {
     try {
       localStorage.setItem(MARKETPLACE_CONTENT_STORAGE_KEY, JSON.stringify(DEFAULT_MARKETPLACE_CONTENT));
       notifyMarketplaceContentChanged(DEFAULT_MARKETPLACE_CONTENT);
-      logAdminAction(
-        'Réinitialisation des contenus Marketplace',
-        'Marketplace Globale',
-        adminEmail,
-        'warning',
-      );
     } catch {
       // ignore
     }

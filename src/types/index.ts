@@ -46,6 +46,10 @@ export interface Salon {
   isRecommended?: boolean;
   isPopular?: boolean;
   isVerified?: boolean;
+  verifiedAt?: string;
+  status?: 'active' | 'suspended';
+  suspendedAt?: string;
+  suspensionReason?: string;
   isPublishedOnMarketplace?: boolean;
   featuredPrestations?: string[];
   publicationDate?: string;
@@ -124,6 +128,7 @@ export interface Appointment {
   source: 'marketplace' | 'direct' | 'whatsapp' | 'phone' | 'walk_in';
   notes?: string;
   createdAt: string;
+  updatedAt?: string;
   /** Horodatages serveur (source de vérité du calendrier). */
   startsAt?: string;
   endsAt?: string;
@@ -233,6 +238,9 @@ export interface AppointmentBalance {
 export type ExpenseCategory =
   'rent' | 'electricity' | 'water' | 'salaries' | 'products' | 'maintenance' | 'marketing' | 'other';
 
+export type ExpenseEntryKind = 'expense' | 'expense_reversal';
+export type ExpenseStatus = 'active' | 'reversed' | 'superseded';
+
 export interface Expense {
   id: string;
   salonId: string;
@@ -245,11 +253,51 @@ export interface Expense {
   paymentMethod?: PaymentMethod;
   notes?: string;
   receiptRef?: string;
+  entryKind?: ExpenseEntryKind;
+  originalExpenseId?: string | null;
+  status?: ExpenseStatus;
+  supplierId?: string | null;
+  attachmentPath?: string | null;
+  attachmentName?: string | null;
+  attachmentMime?: string | null;
+  attachmentSize?: number | null;
+  reason?: string;
+  reversedAt?: string | null;
+  reversedBy?: string | null;
   createdBy?: string;
   createdAt?: string;
 }
 
+export interface ExpenseEvent {
+  id: string;
+  salonId: string;
+  expenseId: string;
+  eventType: 'recorded' | 'attachment_updated' | 'reversed' | 'corrected';
+  amount: number;
+  reason: string;
+  actorId?: string | null;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface Supplier {
+  id: string;
+  salonId: string;
+  name: string;
+  contactName: string;
+  phone: string;
+  email?: string;
+  address: string;
+  notes: string;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export type StockCategory = 'shampoing' | 'gel_cire' | 'huile_barbe' | 'lames' | 'soin' | 'accessoires';
+
+export type StockMovementType =
+  'initial' | 'restock' | 'sale' | 'service_use' | 'loss' | 'adjustment' | 'return';
 
 export interface StockItem {
   id: string;
@@ -260,8 +308,31 @@ export interface StockItem {
   minThreshold: number;
   unitCost: number;
   sellingPrice?: number;
+  supplierId?: string | null;
   supplier: string;
   lastRestock?: string;
+  isActive?: boolean;
+  updatedAt?: string;
+}
+
+export interface StockMovement {
+  id: string;
+  salonId: string;
+  branchId?: string | null;
+  stockItemId: string;
+  stockItemName?: string;
+  supplierId?: string | null;
+  supplierName?: string;
+  movementType: StockMovementType;
+  quantityDelta: number;
+  quantityBefore: number;
+  quantityAfter: number;
+  unitCost?: number | null;
+  reason: string;
+  reference?: string;
+  appointmentId?: string | null;
+  actorId?: string | null;
+  createdAt: string;
 }
 
 export interface Review {
@@ -272,6 +343,9 @@ export interface Review {
   date: string;
   comment: string;
   verified: boolean;
+  isHidden?: boolean;
+  moderatedAt?: string;
+  moderationReason?: string;
 }
 
 export interface SubscriptionPlan {
@@ -362,7 +436,199 @@ export interface AppointmentNotification {
   sentAt?: string | null;
   error?: string | null;
   attempts: number;
+  failureCount?: number;
+  lastError?: string | null;
   providerMessageId?: string | null;
+}
+
+export interface NotificationCapabilities {
+  email: {
+    provider: string;
+    supported: boolean;
+    configured: boolean;
+    hasApiKey: boolean;
+    hasSender: boolean;
+  };
+  whatsapp: {
+    provider: string;
+    supported: boolean;
+    configured: boolean;
+    hasToken: boolean;
+    hasPhoneNumberId: boolean;
+    hasBusinessAccountId: boolean;
+    templateModeEnabled: boolean;
+    templatePrefixConfigured: boolean;
+    templateLang: string;
+    defaultCountryCode: string;
+    expectedTemplates: string[];
+  };
+  sms: {
+    provider: null | string;
+    supported: false;
+    configured: false;
+    reason: string;
+    message: string;
+  };
+  scheduler: {
+    dispatchTokenConfigured: boolean;
+    publicAppUrlConfigured: boolean;
+  };
+}
+
+export interface WhatsappAuditResult {
+  checked: boolean;
+  phoneVerified: boolean;
+  verifiedName?: string;
+  displayPhoneNumber?: string;
+  qualityRating?: string;
+  templatesChecked: boolean;
+  approvedTemplates: Array<{ name: string; status: string; language: string }>;
+  missingTemplates: string[];
+  error?: string | null;
+}
+
+export interface NotificationProbeResult {
+  service: string;
+  ok: boolean;
+  providerConfigured: boolean;
+  capabilities: NotificationCapabilities;
+  whatsappAudit: WhatsappAuditResult | null;
+  checkedAt: string;
+}
+
+export interface NotificationChannelHealth {
+  supported: boolean;
+  unavailableReason?: string;
+  pending: number;
+  sent: number;
+  failed: number;
+  skipped: number;
+  repeatedFailures: number;
+  latestError: string | null;
+}
+
+export interface NotificationSchedulerHealth {
+  configured: boolean;
+  isEnabled: boolean;
+  hasDispatchToken: boolean;
+  hasEndpoint: boolean;
+  batchSize: number;
+  updatedAt: string | null;
+  cronAvailable: boolean;
+  cronScheduled: boolean;
+  cronActive: boolean;
+  cronSchedule: string | null;
+  lastRunAt: string | null;
+  lastRunStatus: string | null;
+  lastReturnMessage: string | null;
+  httpAvailable: boolean;
+  lastHttpStatus: number | null;
+  lastHttpError: string | null;
+  lastHttpAt: string | null;
+  lastHttpPreview: string | null;
+}
+
+export interface NotificationDispatchRunRecord {
+  id: string;
+  salonId: string | null;
+  triggerSource: 'cron' | 'manual' | 'probe';
+  providerConfigured: boolean;
+  emailConfigured: boolean;
+  whatsappConfigured: boolean;
+  whatsappTemplateMode: boolean;
+  smsSupported: boolean;
+  processed: number;
+  sent: number;
+  failed: number;
+  skipped: number;
+  error: string | null;
+  createdAt: string;
+}
+
+export interface NotificationHealthSummary {
+  salonId: string;
+  counts: {
+    pending: number;
+    sending: number;
+    sent: number;
+    failed: number;
+    skipped: number;
+    total: number;
+  };
+  repeatedFailures: number;
+  exhaustedFailures: number;
+  recentFailures24h: number;
+  overduePending: number;
+  stuckSending: number;
+  byChannel: {
+    email: NotificationChannelHealth;
+    whatsapp: NotificationChannelHealth;
+    sms: NotificationChannelHealth;
+  };
+  repeatedFailureItems: Array<{
+    id: string;
+    channel: NotificationChannel;
+    kind: AppointmentNotification['kind'];
+    recipient: string;
+    attempts: number;
+    failureCount: number;
+    lastAttemptAt: string | null;
+    error: string | null;
+  }>;
+  scheduler: NotificationSchedulerHealth;
+  lastRun: NotificationDispatchRunRecord | null;
+  lastSalonRun: NotificationDispatchRunRecord | null;
+  smsUnavailableReason: string;
+}
+
+export interface PlatformNotificationHealthSummary {
+  counts: {
+    pending: number;
+    sending: number;
+    sent: number;
+    failed: number;
+    skipped: number;
+    total: number;
+  };
+  repeatedFailures: number;
+  exhaustedFailures: number;
+  recentFailures24h: number;
+  overduePending: number;
+  stuckSending: number;
+  byChannel: {
+    email: NotificationChannelHealth;
+    whatsapp: NotificationChannelHealth;
+    sms: NotificationChannelHealth;
+  };
+  salonsWithIssues: Array<{
+    salonId: string;
+    salonName: string;
+    failedCount: number;
+    repeatedFailures: number;
+    recentFailures24h: number;
+    overduePending: number;
+    latestError: string | null;
+  }>;
+  scheduler: NotificationSchedulerHealth;
+  lastRun: NotificationDispatchRunRecord | null;
+  smsUnavailableReason: string;
+}
+
+export interface NotificationAlert {
+  id: string;
+  severity: 'critical' | 'warning' | 'info';
+  code:
+    | 'repeated_failures'
+    | 'failure_burst'
+    | 'stuck_sending'
+    | 'scheduler_error'
+    | 'overdue_pending'
+    | 'provider_missing'
+    | 'whatsapp_template_disabled'
+    | 'sms_unavailable';
+  title: string;
+  description: string;
+  count?: number;
 }
 
 export interface NotificationDispatchResult {
@@ -371,6 +637,7 @@ export interface NotificationDispatchResult {
   failed: number;
   skipped: number;
   providerConfigured: boolean;
+  capabilities?: NotificationCapabilities;
 }
 
 export interface LoyaltySettings {
@@ -488,13 +755,64 @@ export interface SaaSSubscription {
   };
 }
 
-/** Métriques globales d'exploitation pour la console Super Admin. */
+/** Métriques globales d'exploitation pour la console Super Admin (séparées par nature, période et statut). */
 export interface PlatformMetrics {
+  periodFrom: string | null;
+  periodTo: string | null;
+  timezone: string;
   totalSalons: number;
   publishedSalons: number;
+  suspendedSalons?: number;
+  verifiedSalons?: number;
   activeSubscriptions: number;
   estimatedMrrXof: number;
+  monthlyMrrXof: number;
+  yearlyMrrXof: number;
+  annualRunRateXof: number;
+  subscriptionsByStatus: {
+    active: number;
+    trialing: number;
+    pendingPayment: number;
+    pastDue: number;
+    cancelled: number;
+  };
+  subscriptionsByBillingPeriod: {
+    monthly: number;
+    yearly: number;
+  };
+  saasCollectedRevenueXof: number;
+  saasConfirmedPaymentsCount: number;
+  saasPendingPaymentsXof: number;
+  saasPendingPaymentsCount: number;
+  saasRejectedPaymentsXof: number;
+  saasRejectedPaymentsCount: number;
   plansCount: number;
+  completedAppointments: number;
+  cancelledAppointments: number;
+  noShowAppointments: number;
   totalAppointments: number;
+  appointmentsByStatus: {
+    pending: number;
+    confirmed: number;
+    checkedIn: number;
+    inProgress: number;
+    completed: number;
+    cancelled: number;
+    noShow: number;
+  };
   totalRevenueXof: number;
+  collectedNetRevenueXof: number;
+  collectedGrossRevenueXof: number;
+  refundsXof: number;
+  paymentReversalsXof: number;
+  refundReversalsXof: number;
+  pendingPaymentsXof: number;
+  pendingPaymentsCount: number;
+  failedPaymentsXof: number;
+  failedPaymentsCount: number;
+  confirmedPaymentsCount: number;
+  refundsCount: number;
+  hiddenReviews?: number;
 }
+
+export type RealtimeSyncStatus = 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error';

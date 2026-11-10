@@ -12,9 +12,11 @@ import {
   Zap,
   Users,
   Store,
+  Ban,
 } from 'lucide-react';
 import type { SaaSPlan } from '../../types';
 import { getSaasPlans } from '../../lib/saas';
+import { SMS_UNAVAILABLE_MESSAGE, SMS_UNAVAILABLE_TITLE } from '../../lib/notifications';
 import { useOptionalApp } from '../../context/AppContext';
 
 export const PricingView: React.FC = () => {
@@ -195,6 +197,21 @@ export const PricingView: React.FC = () => {
             })}
           </div>
         )}
+
+        {/* Transparence sur les canaux de notification */}
+        <div
+          data-testid="pricing-sms-unavailable-notice"
+          className="mt-10 rounded-2xl border border-[#27272e] bg-[#141417] p-5 flex items-start gap-3 text-xs text-stone-300"
+        >
+          <Ban className="w-4 h-4 text-stone-400 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p className="font-bold text-white">{SMS_UNAVAILABLE_TITLE}</p>
+            <p className="text-stone-400 leading-relaxed">
+              {SMS_UNAVAILABLE_MESSAGE} La disponibilité effective des rappels automatiques dépend de
+              l’activation des clés opérateur et de la validation des modèles WhatsApp.
+            </p>
+          </div>
+        </div>
 
         {/* Trust Badges */}
         <div className="mt-16 grid grid-cols-1 sm:grid-cols-3 gap-6 text-center">

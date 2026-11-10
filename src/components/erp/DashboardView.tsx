@@ -6,6 +6,7 @@ import {
   buildRevenueSeries,
   buildServicePerformance,
   computeAverageBasket,
+  expenseSignedAmount,
   paymentSignedAmount,
   PeriodKey,
 } from '../../lib/analytics';
@@ -105,7 +106,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     [salonTransactions],
   );
 
-  const totalExpenses = useMemo(() => salonExpenses.reduce((acc, e) => acc + e.amount, 0), [salonExpenses]);
+  const totalExpenses = useMemo(
+    () => salonExpenses.reduce((acc, e) => acc + expenseSignedAmount(e), 0),
+    [salonExpenses],
+  );
 
   const estimatedMargin = totalRevenue - totalExpenses;
 
@@ -134,7 +138,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     .filter((t) => t.method === 'cash')
     .reduce((acc, t) => acc + paymentSignedAmount(t), 0);
 
-  const lowStockItems = salonStocks.filter((item) => item.quantity <= item.minThreshold);
+  const lowStockItems = salonStocks.filter(
+    (item) => item.isActive !== false && item.quantity <= item.minThreshold,
+  );
 
   // ==========================================
   // 1. DATA FOR MONTHLY REVENUE CHART (real data)

@@ -48,11 +48,16 @@ jobs:
       - name: Build de production
         run: npm run build
 
+      - name: Mesure des bundles et temps de chargement (budget P2)
+        run: npm run perf:report
+
       - name: Archive du build
         uses: actions/upload-artifact@v4
         with:
           name: dist
-          path: dist
+          path: |
+            dist
+            reports/bundle-metrics.json
           retention-days: 7
 
   supabase-migrations:

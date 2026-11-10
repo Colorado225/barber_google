@@ -9,7 +9,8 @@ import type {
   StaffMember,
 } from '../types';
 import { getSupabaseClient } from './supabase';
-import { ApiError } from './api';
+import { ApiError } from './apiError';
+import { redactBookingSecrets } from './bookingVault';
 
 type DbRow = Record<string, unknown>;
 
@@ -49,7 +50,7 @@ export type { PublicSalonDetail };
 function unwrap<T>(result: { data: T | null; error: { message: string; code?: string } | null }): T {
   if (result.error) {
     const status = result.error.code === '42501' ? 403 : result.error.code === '23505' ? 409 : 400;
-    throw new ApiError(result.error.message, status, result.error.code);
+    throw new ApiError(redactBookingSecrets(result.error.message), status, result.error.code);
   }
   if (result.data === null) throw new ApiError('Supabase n’a retourné aucune donnée.');
   return result.data;
@@ -95,6 +96,11 @@ export function mapPublicSalon(row: DbRow): Salon {
     minPrice: num(row, 'min_price') ?? undefined,
     isPublishedOnMarketplace: row.is_published === true,
     isVerified: row.is_verified === true,
+    verifiedAt: str(row, 'verified_at') || undefined,
+    status: row.status === 'suspended' ? 'suspended' : 'active',
+    suspendedAt: str(row, 'suspended_at') || undefined,
+    suspensionReason: str(row, 'suspension_reason') || undefined,
+    subscriptionPlanId: str(row, 'subscription_plan_id') || undefined,
     publicationDate: str(row, 'publication_date') || undefined,
     paymentMethods: Array.isArray(row.payment_methods) ? (row.payment_methods as PaymentMethod[]) : undefined,
     featuredPrestations: Array.isArray(row.featured_service_ids)
@@ -127,6 +133,9 @@ function mapPublicReview(row: DbRow): Review {
     date: str(row, 'created_at').slice(0, 10),
     comment: str(row, 'comment'),
     verified: row.verified === true,
+    isHidden: row.is_hidden === true,
+    moderatedAt: str(row, 'moderated_at') || undefined,
+    moderationReason: str(row, 'moderation_reason') || undefined,
   };
 }
 
@@ -311,7 +320,13 @@ export interface PortalReview {
 }
 
 export interface BookingPortal {
-  booking: PublicBooking & { clientEmail: string; clientPhone: string; notes: string; createdAt: string };
+  booking: PublicBooking & {
+    clientEmail: string;
+    clientPhone: string;
+    notes: string;
+    createdAt: string;
+    tokenRotatedAt?: string | null;
+  };
   salon: {
     id: string;
     name: string;
@@ -358,6 +373,7 @@ export async function getBookingPortal(token: string): Promise<BookingPortal> {
       clientPhone: str(booking, 'client_phone'),
       notes: str(booking, 'notes'),
       createdAt: str(booking, 'created_at'),
+      tokenRotatedAt: str(booking, 'token_rotated_at') || null,
     },
     salon: {
       id: str(salon, 'id'),
@@ -407,4 +423,34 @@ export async function submitBookingReview(
     p_author: author ?? null,
   });
   return mapPortalReview(unwrap(result) as DbRow);
+}
+
+export async function rotateBookingToken(token: string): Promise<{
+  appointmentId: string;
+  token: string;
+  rotatedAt: string;
+}> {
+  const supabase = getSupabaseClient();
+  const result = await supabase.rpc('marketplace_rotate_booking_token', { p_token: token });
+  const row = unwrap(result) as DbRow;
+  return {
+    appointmentId: str(row, 'appointment_id'),
+    token: str(row, 'token'),
+    rotatedAt: str(row, 'rotated_at'),
+  };
+}
+
+export async function revokeBookingToken(token: string): Promise<{
+  appointmentId: string;
+  revoked: boolean;
+  revokedAt: string;
+}> {
+  const supabase = getSupabaseClient();
+  const result = await supabase.rpc('marketplace_revoke_booking_token', { p_token: token });
+  const row = unwrap(result) as DbRow;
+  return {
+    appointmentId: str(row, 'appointment_id'),
+    revoked: row.revoked === true,
+    revokedAt: str(row, 'revoked_at'),
+  };
 }

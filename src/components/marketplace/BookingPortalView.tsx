@@ -1,28 +1,63 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   AlertTriangle,
   ArrowLeft,
+  BookmarkCheck,
+  BookmarkPlus,
   CheckCircle2,
   Clock,
   Copy,
   Gift,
+  KeyRound,
   Loader2,
   MapPin,
   MessageCircle,
   RefreshCw,
   Scissors,
+  ShieldAlert,
+  ShieldCheck,
   Star,
+  Trash2,
   XCircle,
 } from 'lucide-react';
 import {
   cancelMarketplaceBooking,
   getBookingPortal,
+  revokeBookingToken,
+  rotateBookingToken,
   submitBookingReview,
   type BookingPortal,
 } from '../../lib/marketplace';
-import { bookingPortalUrl, forgetBookingLink, saveBookingLink } from '../../lib/bookingVault';
+import {
+  bookingPortalUrl,
+  clearActiveBookingToken,
+  forgetBookingLink,
+  isBookingSavedOnDevice,
+  redactBookingSecrets,
+  replaceSavedBookingToken,
+  resolveBookingToken,
+  saveBookingLink,
+  setActiveBookingToken,
+} from '../../lib/bookingVault';
+import { applyStrictPortalPrivacy } from '../../lib/portalIsolation';
 import { useOptionalApp } from '../../context/AppContext';
+
+export interface BookingPortalApi {
+  getBookingPortal: typeof getBookingPortal;
+  cancelMarketplaceBooking: typeof cancelMarketplaceBooking;
+  submitBookingReview: typeof submitBookingReview;
+  rotateBookingToken: typeof rotateBookingToken;
+  revokeBookingToken: typeof revokeBookingToken;
+}
+
+const DEFAULT_PORTAL_API: BookingPortalApi = {
+  getBookingPortal,
+  cancelMarketplaceBooking,
+  submitBookingReview,
+  rotateBookingToken,
+  revokeBookingToken,
+};
 
 const STATUS_LABEL: Record<string, { label: string; tone: string; hint: string }> = {
   pending: {
@@ -89,57 +124,124 @@ function formatWhen(iso: string): string {
   return `${date} à ${time}`;
 }
 
-export const BookingPortalView: React.FC = () => {
-  const { token = '' } = useParams();
+export const BookingPortalView: React.FC<{ api?: BookingPortalApi }> = ({ api = DEFAULT_PORTAL_API }) => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { token: paramToken = '' } = useParams();
   const { formatPrice, addToast } = useOptionalApp();
+
+  const stateToken = ((location.state as { bookingToken?: string } | null)?.bookingToken ?? '').trim();
+  const resolvedToken = useMemo(
+    () =>
+      resolveBookingToken({
+        stateToken,
+        hash: location.hash,
+        search: location.search,
+        paramToken,
+      }),
+    [stateToken, location.hash, location.search, paramToken],
+  );
+
+  const [activeToken, setActiveToken] = useState<string>(() => resolvedToken);
   const [portal, setPortal] = useState<BookingPortal | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(Boolean(resolvedToken));
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [savedOnDevice, setSavedOnDevice] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<'rotate' | 'revoke' | null>(null);
+  const [rotatedNotice, setRotatedNotice] = useState(false);
+  const [revokedSalonName, setRevokedSalonName] = useState<string | null>(null);
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
 
-  const load = useCallback(async () => {
-    if (!token) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await getBookingPortal(token);
-      setPortal(data);
-      saveBookingLink({
-        token,
-        appointmentId: data.booking.id,
-        salonId: data.salon.id,
-        salonName: data.salon.name,
-        serviceName: data.booking.serviceName,
-        startsAt: data.booking.startsAt,
+  // Politique de référent stricte (`no-referrer`), désindexation (`noindex`) et
+  // suppression des ressources tierces (polices externes) sur le portail.
+  useEffect(() => applyStrictPortalPrivacy({ title: 'Ma réservation — Barber Cuts' }), []);
+
+  // Dès qu'un jeton arrive via l'URL (#fragment, :token historique ou ?token=),
+  // on le place dans `sessionStorage` et on nettoie immédiatement la barre d'adresse
+  // pour éviter son exposition dans l'historique, les journaux ou les outils analytiques.
+  useEffect(() => {
+    if (!resolvedToken) return;
+    setActiveToken((prev) => (prev === resolvedToken ? prev : resolvedToken));
+    setActiveBookingToken(resolvedToken);
+
+    const hasTokenInUrl = Boolean(paramToken) || Boolean(location.hash) || Boolean(location.search);
+    if (hasTokenInUrl) {
+      navigate('/reservation', {
+        replace: true,
+        state: { bookingToken: resolvedToken },
       });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Réservation introuvable.');
-    } finally {
-      setLoading(false);
     }
-  }, [token]);
+  }, [resolvedToken, paramToken, location.hash, location.search, navigate]);
+
+  const load = useCallback(
+    async (targetToken: string, options?: { background?: boolean }) => {
+      if (!targetToken) {
+        setLoading(false);
+        return;
+      }
+      if (!options?.background) {
+        setLoading(true);
+      }
+      setError(null);
+      try {
+        const data = await api.getBookingPortal(targetToken);
+        setPortal(data);
+        const alreadySaved = isBookingSavedOnDevice({
+          token: targetToken,
+          appointmentId: data.booking.id,
+        });
+        setSavedOnDevice(alreadySaved);
+        // N'écrit dans `localStorage` que si cet appareil avait déjà mémorisé cette réservation.
+        if (alreadySaved) {
+          saveBookingLink({
+            token: targetToken,
+            appointmentId: data.booking.id,
+            salonId: data.salon.id,
+            salonName: data.salon.name,
+            serviceName: data.booking.serviceName,
+            startsAt: data.booking.startsAt,
+          });
+        }
+      } catch (err) {
+        const rawMessage = err instanceof Error ? err.message : 'Réservation introuvable.';
+        setError(redactBookingSecrets(rawMessage, targetToken));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [api],
+  );
+
+  const portalLoadedRef = React.useRef(false);
+  portalLoadedRef.current = Boolean(portal);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (revokedSalonName) return;
+    if (!activeToken) {
+      setLoading(false);
+      return;
+    }
+    void load(activeToken, { background: portalLoadedRef.current });
+  }, [activeToken, load, revokedSalonName]);
 
   const handleCancel = async () => {
-    if (!portal) return;
+    if (!portal || !activeToken) return;
     setBusy(true);
     try {
-      await cancelMarketplaceBooking(
+      await api.cancelMarketplaceBooking(
         portal.salon.id,
         portal.booking.id,
-        token,
+        activeToken,
         'Annulée par le client depuis son lien de suivi',
       );
-      await load();
+      await load(activeToken);
       addToast('Votre réservation est annulée.', 'success');
     } catch (err) {
-      addToast(err instanceof Error ? err.message : 'Annulation impossible.', 'error');
+      const msg = err instanceof Error ? err.message : 'Annulation impossible.';
+      addToast(redactBookingSecrets(msg, activeToken), 'error');
     } finally {
       setBusy(false);
     }
@@ -147,29 +249,118 @@ export const BookingPortalView: React.FC = () => {
 
   const handleReview = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (!activeToken) return;
     setBusy(true);
     try {
-      await submitBookingReview(token, rating, comment.trim());
+      await api.submitBookingReview(activeToken, rating, comment.trim());
       setComment('');
-      await load();
+      await load(activeToken);
       addToast('Merci ! Votre avis vérifié est publié.', 'success');
     } catch (err) {
-      addToast(err instanceof Error ? err.message : 'Envoi de l’avis impossible.', 'error');
+      const msg = err instanceof Error ? err.message : 'Envoi de l’avis impossible.';
+      addToast(redactBookingSecrets(msg, activeToken), 'error');
     } finally {
       setBusy(false);
     }
   };
 
   const handleCopy = async () => {
-    const url = bookingPortalUrl(token);
+    if (!activeToken) return;
+    const url = bookingPortalUrl(activeToken);
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
     } catch {
-      addToast('Copie impossible : sélectionnez le lien manuellement.', 'error');
+      addToast('Copie impossible sur ce navigateur.', 'error');
     }
   };
+
+  const handleToggleSaveOnDevice = () => {
+    if (!portal || !activeToken) return;
+    if (savedOnDevice) {
+      forgetBookingLink(activeToken, portal.booking.id);
+      setSavedOnDevice(false);
+      addToast('Lien retiré de cet appareil.', 'success');
+    } else {
+      saveBookingLink({
+        token: activeToken,
+        appointmentId: portal.booking.id,
+        salonId: portal.salon.id,
+        salonName: portal.salon.name,
+        serviceName: portal.booking.serviceName,
+        startsAt: portal.booking.startsAt,
+      });
+      setSavedOnDevice(true);
+      addToast('Lien mémorisé sur cet appareil uniquement.', 'success');
+    }
+  };
+
+  const handleRotateToken = async () => {
+    if (!portal || !activeToken) return;
+    setBusy(true);
+    try {
+      const result = await api.rotateBookingToken(activeToken);
+      const nextToken = result.token;
+      setActiveBookingToken(nextToken);
+      replaceSavedBookingToken(activeToken, nextToken, portal.booking.id);
+      setActiveToken(nextToken);
+      setConfirmAction(null);
+      setRotatedNotice(true);
+      navigate('/reservation', {
+        replace: true,
+        state: { bookingToken: nextToken },
+      });
+      addToast('Nouveau lien secret généré : l’ancien lien est désormais invalide.', 'success');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Renouvellement du lien impossible.';
+      addToast(redactBookingSecrets(msg, activeToken), 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRevokeToken = async () => {
+    if (!portal || !activeToken) return;
+    setBusy(true);
+    try {
+      await api.revokeBookingToken(activeToken);
+      clearActiveBookingToken();
+      forgetBookingLink(activeToken, portal.booking.id);
+      setSavedOnDevice(false);
+      setConfirmAction(null);
+      setRevokedSalonName(portal.salon.name);
+      setPortal(null);
+      setActiveToken('');
+      navigate('/reservation', { replace: true, state: null });
+      addToast('Accès par lien révoqué définitivement.', 'info');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Révocation du lien impossible.';
+      addToast(redactBookingSecrets(msg, activeToken), 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (revokedSalonName) {
+    return (
+      <div className="max-w-lg mx-auto w-full px-4 py-20 text-center space-y-4">
+        <ShieldCheck className="w-10 h-10 text-emerald-400 mx-auto" />
+        <h1 className="text-xl font-bold text-white">Lien secret révoqué</h1>
+        <p className="text-sm text-stone-300">
+          L’accès autonome par lien pour votre réservation chez{' '}
+          <strong className="text-white">{revokedSalonName}</strong> a été désactivé. L’ancien lien ne permet
+          plus de consulter ni d’annuler ce rendez-vous.
+        </p>
+        <p className="text-xs text-stone-400">
+          Si vous devez modifier ou annuler votre créneau ensuite, contactez directement le salon.
+        </p>
+        <Link to="/" className="inline-flex items-center gap-2 text-[#C9A45C] text-sm font-semibold">
+          <ArrowLeft className="w-4 h-4" /> Retour à la marketplace
+        </Link>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -179,15 +370,25 @@ export const BookingPortalView: React.FC = () => {
     );
   }
 
-  if (error || !portal) {
+  if (error || !portal || !activeToken) {
     return (
       <div className="max-w-lg mx-auto w-full px-4 py-20 text-center space-y-4">
         <AlertTriangle className="w-10 h-10 text-amber-400 mx-auto" />
         <h1 className="text-xl font-bold text-white">Réservation introuvable</h1>
-        <p className="text-sm text-stone-400">{error ?? 'Ce lien de suivi n’est plus valide.'}</p>
-        <Link to="/" className="inline-flex items-center gap-2 text-[#C9A45C] text-sm font-semibold">
-          <ArrowLeft className="w-4 h-4" /> Retour à la marketplace
-        </Link>
+        <p className="text-sm text-stone-400">
+          {error ?? 'Ce lien de suivi n’est plus valide ou a été révoqué.'}
+        </p>
+        <div className="flex flex-wrap items-center justify-center gap-4 pt-2">
+          <Link
+            to="/mes-reservations"
+            className="inline-flex items-center gap-2 text-stone-300 hover:text-white text-sm font-semibold"
+          >
+            Mes réservations mémorisées
+          </Link>
+          <Link to="/" className="inline-flex items-center gap-2 text-[#C9A45C] text-sm font-semibold">
+            <ArrowLeft className="w-4 h-4" /> Retour à la marketplace
+          </Link>
+        </div>
       </div>
     );
   }
@@ -206,16 +407,17 @@ export const BookingPortalView: React.FC = () => {
           <ArrowLeft className="w-4 h-4" /> Mes réservations
         </Link>
         <button
-          onClick={() => void load()}
+          type="button"
+          onClick={() => void load(activeToken)}
           className="inline-flex items-center gap-2 text-stone-400 hover:text-white text-xs font-semibold"
         >
           <RefreshCw className="w-4 h-4" /> Actualiser
         </button>
       </div>
 
-      <header className="bg-[#18181b] border border-[#26262a] rounded-3xl p-6 space-y-4">
-        <div className="flex items-start justify-between gap-4">
-          <div>
+      <header className="bg-[#18181b] border border-[#26262a] rounded-3xl p-4 sm:p-6 space-y-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
             <p className="text-[11px] uppercase tracking-widest text-[#C9A45C] font-semibold">
               Ma réservation
             </p>
@@ -255,6 +457,7 @@ export const BookingPortalView: React.FC = () => {
         <div className="flex flex-wrap gap-2">
           {portal.canCancel && (
             <button
+              type="button"
               onClick={() => void handleCancel()}
               disabled={busy}
               className="px-4 py-2 rounded-xl bg-red-900/30 hover:bg-red-900/50 disabled:opacity-50 text-red-300 text-xs font-semibold inline-flex items-center gap-2"
@@ -267,24 +470,173 @@ export const BookingPortalView: React.FC = () => {
               href={`https://wa.me/${whatsapp}?text=${encodeURIComponent(`Bonjour ${salon.name}, je vous contacte au sujet de ma réservation #${booking.id.slice(0, 8)}.`)}`}
               target="_blank"
               rel="noopener noreferrer"
+              referrerPolicy="no-referrer"
               className="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-semibold inline-flex items-center gap-2"
             >
               <MessageCircle className="w-4 h-4" /> Contacter le salon
             </a>
           )}
           <button
+            type="button"
             onClick={() => void handleCopy()}
             className="px-4 py-2 rounded-xl bg-[#232328] hover:bg-[#2c2c32] text-stone-300 text-xs font-semibold inline-flex items-center gap-2"
           >
             {copied ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-            {copied ? 'Lien copié' : 'Copier mon lien de suivi'}
+            {copied ? 'Lien copié' : 'Copier mon lien secret'}
+          </button>
+          <button
+            type="button"
+            onClick={handleToggleSaveOnDevice}
+            className="px-4 py-2 rounded-xl bg-[#232328] hover:bg-[#2c2c32] text-stone-300 text-xs font-semibold inline-flex items-center gap-2"
+          >
+            {savedOnDevice ? (
+              <>
+                <BookmarkCheck className="w-4 h-4 text-[#C9A45C]" /> Retirer de cet appareil
+              </>
+            ) : (
+              <>
+                <BookmarkPlus className="w-4 h-4" /> Mémoriser sur cet appareil
+              </>
+            )}
           </button>
         </div>
-        <p className="text-[11px] text-stone-500">
-          Ce lien est personnel : il permet de suivre et d’annuler cette réservation sans créer de compte.
-          Conservez-le.
-        </p>
+
+        <div
+          role="note"
+          aria-label="Sécurité du lien de réservation"
+          className="rounded-2xl border border-amber-500/35 bg-amber-950/20 p-3.5 text-xs space-y-1.5"
+        >
+          <p className="font-bold text-amber-200 flex items-center gap-1.5">
+            <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
+            Ce lien est un secret d’accès
+          </p>
+          <p className="text-stone-300 leading-relaxed">
+            Toute personne possédant ce lien peut consulter les détails de votre rendez-vous, l’annuler ou
+            déposer un avis en votre nom — sans mot de passe. Ne le partagez pas et ne le mémorisez pas sur un
+            appareil partagé.
+          </p>
+        </div>
       </header>
+
+      <section
+        aria-label="Gestion du lien secret"
+        className="bg-[#18181b] border border-[#26262a] rounded-3xl p-5 space-y-3"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="text-sm font-bold text-white flex items-center gap-2">
+              <KeyRound className="w-4 h-4 text-[#C9A45C]" /> Contrôle de votre lien d’accès
+            </h2>
+            <p className="text-xs text-stone-400 mt-1">
+              Si ce lien a été partagé par erreur ou ouvert sur un autre appareil, vous pouvez le renouveler
+              ou le révoquer immédiatement.
+            </p>
+          </div>
+          {booking.tokenRotatedAt && (
+            <span className="text-[11px] text-stone-400">
+              Dernier renouvellement : {formatWhen(booking.tokenRotatedAt)}
+            </span>
+          )}
+        </div>
+
+        {rotatedNotice && (
+          <div
+            role="status"
+            className="rounded-2xl border border-emerald-500/40 bg-emerald-950/30 p-3 text-xs text-emerald-200 flex flex-wrap items-center justify-between gap-2"
+          >
+            <span>
+              Nouveau lien secret actif : l’ancien lien ne fonctionne plus. Pensez à copier ce nouveau lien.
+            </span>
+            <button
+              type="button"
+              onClick={() => void handleCopy()}
+              className="px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-semibold"
+            >
+              Copier le nouveau lien
+            </button>
+          </div>
+        )}
+
+        {confirmAction === null && (
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setConfirmAction('rotate')}
+              disabled={busy}
+              className="px-4 py-2 rounded-xl bg-[#232328] hover:bg-[#2c2c32] disabled:opacity-50 text-stone-200 text-xs font-semibold inline-flex items-center gap-2"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-[#C9A45C]" /> Renouveler le lien secret
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmAction('revoke')}
+              disabled={busy}
+              className="px-4 py-2 rounded-xl bg-red-950/40 hover:bg-red-900/40 disabled:opacity-50 border border-red-500/30 text-red-300 text-xs font-semibold inline-flex items-center gap-2"
+            >
+              <Trash2 className="w-3.5 h-3.5" /> Révoquer définitivement le lien
+            </button>
+          </div>
+        )}
+
+        {confirmAction === 'rotate' && (
+          <div className="rounded-2xl border border-[#C9A45C]/40 bg-[#111113] p-4 space-y-3 text-xs">
+            <p className="text-white font-semibold">Générer un nouveau lien secret et invalider l’ancien ?</p>
+            <p className="text-stone-400">
+              L’ancien lien (y compris dans les e-mails ou messages déjà envoyés) cessera immédiatement de
+              fonctionner. Les prochains rappels automatiques utiliseront le nouveau lien.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => void handleRotateToken()}
+                disabled={busy}
+                className="px-4 py-2 rounded-xl bg-[#C9A45C] hover:bg-[#d8b46c] disabled:opacity-50 text-[#101010] font-bold"
+              >
+                {busy ? 'Renouvellement…' : 'Confirmer le renouvellement'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmAction(null)}
+                disabled={busy}
+                className="px-4 py-2 rounded-xl bg-[#232328] text-stone-300 font-semibold"
+              >
+                Annuler
+              </button>
+            </div>
+          </div>
+        )}
+
+        {confirmAction === 'revoke' && (
+          <div className="rounded-2xl border border-red-500/40 bg-red-950/20 p-4 space-y-3 text-xs">
+            <p className="text-red-200 font-semibold">
+              Désactiver définitivement l’accès par lien pour cette réservation ?
+            </p>
+            <p className="text-stone-300">
+              Une fois révoqué, ni vous ni personne d’autre ne pourrez plus consulter, annuler ou noter ce
+              rendez-vous via un lien. Pour toute modification ultérieure, il faudra contacter le salon
+              directement.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => void handleRevokeToken()}
+                disabled={busy}
+                className="px-4 py-2 rounded-xl bg-red-700 hover:bg-red-600 disabled:opacity-50 text-white font-bold"
+              >
+                {busy ? 'Révocation…' : 'Confirmer la révocation'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmAction(null)}
+                disabled={busy}
+                className="px-4 py-2 rounded-xl bg-[#232328] text-stone-300 font-semibold"
+              >
+                Annuler
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
 
       {portal.loyalty && (
         <section className="bg-[#18181b] border border-[#26262a] rounded-3xl p-5 flex items-center justify-between gap-4">
@@ -394,16 +746,6 @@ export const BookingPortalView: React.FC = () => {
           )}
         </ol>
       </section>
-
-      <button
-        onClick={() => {
-          forgetBookingLink(token);
-          addToast('Lien retiré de cet appareil.', 'success');
-        }}
-        className="text-[11px] text-stone-500 hover:text-stone-300"
-      >
-        Retirer ce lien de suivi de cet appareil
-      </button>
     </div>
   );
 };

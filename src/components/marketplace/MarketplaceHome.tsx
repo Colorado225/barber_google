@@ -3,12 +3,12 @@ import { Link, useInRouterContext } from 'react-router-dom';
 import { useOptionalApp } from '../../context/AppContext';
 import type { Salon } from '../../types';
 import type { MarketplaceDemoData } from '../../lib/marketplace-demo';
-import { listSavedBookings, bookingPortalPath, type SavedBooking } from '../../lib/bookingVault';
+import { listSavedBookings, setActiveBookingToken, type SavedBooking } from '../../lib/bookingVault';
 import { SalonCard } from './SalonCard';
 import { FeaturedSectionCard } from './FeaturedSectionCard';
 import { useSalonDeepLink } from '../../hooks/useSalonDeepLink';
 import { useMarketplaceContent } from '../../lib/marketplace-content';
-import { applySalonAdminOverrides, useSalonAdminOverrides } from '../../lib/superadmin';
+import { isSlowOrConstrainedNetwork } from '../../lib/networkHints';
 import {
   Search,
   MapPin,
@@ -90,14 +90,10 @@ export const MarketplaceHome: React.FC = () => {
     [config.featuredSections],
   );
 
-  // Décisions SuperAdmin (suspension, publication, certification) appliquées en direct aux salons affichés.
-  const salonAdminOverrides = useSalonAdminOverrides();
+  // Seuls les salons publiés et actifs (non suspendus) sont affichés côté public.
   const marketplaceSalons = useMemo(
-    () =>
-      applySalonAdminOverrides(salons, salonAdminOverrides).filter(
-        (salon) => salon.isPublishedOnMarketplace === true,
-      ),
-    [salons, salonAdminOverrides],
+    () => salons.filter((salon) => salon.isPublishedOnMarketplace === true && salon.status !== 'suspended'),
+    [salons],
   );
 
   // QR code links (/?salon=<slug>) open the salon's booking profile directly.
@@ -120,6 +116,7 @@ export const MarketplaceHome: React.FC = () => {
   const [activeTestimony, setActiveTestimony] = useState(0);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
   const [videoUnavailable, setVideoUnavailable] = useState(false);
+  const [slowNetwork] = useState(() => isSlowOrConstrainedNetwork());
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(
     () =>
       typeof window !== 'undefined' &&
@@ -258,7 +255,7 @@ export const MarketplaceHome: React.FC = () => {
 
       {/* HERO SECTION (Configurable) */}
       <section className="relative isolate min-h-[620px] overflow-hidden border-b border-[#1f1f23] bg-[#17130d] md:min-h-[680px]">
-        {config.hero.showVideo !== false && !prefersReducedMotion && !videoUnavailable && (
+        {config.hero.showVideo !== false && !prefersReducedMotion && !slowNetwork && !videoUnavailable && (
           <video
             className="absolute inset-0 h-full w-full object-cover object-[58%_center] sm:object-center"
             src={HERO_VIDEO_SRC}
@@ -498,14 +495,17 @@ export const MarketplaceHome: React.FC = () => {
             <div className="flex items-center gap-2">
               {routed ? (
                 <Link
-                  to={bookingPortalPath(savedBookings[0].token)}
+                  to="/reservation"
+                  state={{ bookingToken: savedBookings[0].token }}
+                  onClick={() => setActiveBookingToken(savedBookings[0].token)}
                   className="px-4 py-2 rounded-xl bg-[#C9A45C] hover:bg-[#d8b46c] text-[#101010] text-xs font-bold inline-flex items-center gap-1.5"
                 >
                   Suivre ma réservation <ArrowRight className="w-3.5 h-3.5" />
                 </Link>
               ) : (
                 <a
-                  href={bookingPortalPath(savedBookings[0].token)}
+                  href="/reservation"
+                  onClick={() => setActiveBookingToken(savedBookings[0].token)}
                   className="px-4 py-2 rounded-xl bg-[#C9A45C] hover:bg-[#d8b46c] text-[#101010] text-xs font-bold inline-flex items-center gap-1.5"
                 >
                   Suivre ma réservation <ArrowRight className="w-3.5 h-3.5" />

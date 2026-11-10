@@ -1,20 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { Suspense, useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ShieldCheck,
-  Sparkles,
   TrendingUp,
   Store,
-  Users,
   CreditCard,
   Edit3,
   Plus,
   Check,
-  ArrowLeft,
   DollarSign,
   AlertCircle,
-  Clock,
-  Layers,
   CheckCircle2,
   RefreshCw,
   Eye,
@@ -22,17 +17,18 @@ import {
   LogOut,
   Activity,
   MessageSquare,
-  ShieldAlert,
-  Search,
-  ExternalLink,
-  Ban,
-  Settings,
-  Bell,
   Globe,
-  Award,
-  Filter,
+  Settings,
+  FileText,
+  Bell,
+  X,
 } from 'lucide-react';
-import type { SaaSPlan, PlatformMetrics, Salon } from '../../types';
+import type {
+  SaaSPlan,
+  PlatformMetrics,
+  PlatformNotificationHealthSummary,
+  NotificationProbeResult,
+} from '../../types';
 import {
   getAllSaasPlans,
   getPlatformMetrics,
@@ -46,27 +42,59 @@ import {
   verifySuperAdminAccess,
   logoutSuperAdmin,
   getAdminSalonsList,
-  updateSalonByAdmin,
-  getMarketplaceReviews,
-  deleteReviewByAdmin,
-  getAuditLogs,
-  isSalonLiveOnMarketplace,
+  setSalonStatusByAdmin,
+  getAdminReviews,
+  getPlatformAuditLogs,
+  getPlatformNotificationHealth,
+  probePlatformNotificationDispatcher,
+  validateAuditReason,
   type AdminUser,
   type SalonAdminDetail,
   type MarketplaceReviewItem,
   type AuditLogEntry,
 } from '../../lib/superadmin';
-import { AdminLoginForm } from './AdminLoginForm';
-import { SalonManagement } from './SalonManagement';
-import { MarketplaceSectionsAdmin } from './MarketplaceSectionsAdmin';
-import { MarketplaceConfigManager } from './MarketplaceConfigManager';
-import { PricingTierEditor } from './PricingTierEditor';
-import { SaasPaymentReviewPanel } from './SaasPaymentReviewPanel';
+import { rangeForMetricsPeriod, type MetricsPeriodKey } from '../../lib/metricsPeriod';
+import { resolvePageMetadata } from '../../lib/seo';
+import { usePageSeo } from '../../hooks/useSiteMetadata';
+import { SectionLoadingFallback, lazyNamed } from '../common/ViewLoader';
 import { useOptionalApp } from '../../context/AppContext';
+
+const ADMIN_SEO = resolvePageMetadata('/admin', {
+  siteName: 'BarberCuts',
+  metaTitle: '',
+  metaDescription: '',
+});
+
+const AdminLoginForm = lazyNamed(() => import('./AdminLoginForm'), 'AdminLoginForm');
+const SalonManagement = lazyNamed(() => import('./SalonManagement'), 'SalonManagement');
+const AdminReviewsPanel = lazyNamed(() => import('./AdminReviewsPanel'), 'AdminReviewsPanel');
+const AdminAuditLogPanel = lazyNamed(() => import('./AdminAuditLogPanel'), 'AdminAuditLogPanel');
+const AdminSubscriptionsPanel = lazyNamed(
+  () => import('./AdminSubscriptionsPanel'),
+  'AdminSubscriptionsPanel',
+);
+const AdminOverviewPanel = lazyNamed(() => import('./AdminOverviewPanel'), 'AdminOverviewPanel');
+const AdminNotificationsPanel = lazyNamed(
+  () => import('./AdminNotificationsPanel'),
+  'AdminNotificationsPanel',
+);
+const MarketplaceSectionsAdmin = lazyNamed(
+  () => import('./MarketplaceSectionsAdmin'),
+  'MarketplaceSectionsAdmin',
+);
+const MarketplaceConfigManager = lazyNamed(
+  () => import('./MarketplaceConfigManager'),
+  'MarketplaceConfigManager',
+);
+const PricingTierEditor = lazyNamed(() => import('./PricingTierEditor'), 'PricingTierEditor');
+const SaasPaymentReviewPanel = lazyNamed(() => import('./SaasPaymentReviewPanel'), 'SaasPaymentReviewPanel');
 
 export type AdminDashboardTab =
   | 'overview'
   | 'salons'
+  | 'reviews'
+  | 'notifications'
+  | 'audit'
   | 'marketplace-sections'
   | 'marketplace-config'
   | 'pricing'
@@ -98,10 +126,10 @@ function loadPlatformSettings(): PlatformSettings {
 }
 
 export const AdminDashboard: React.FC = () => {
-  const { addToast, formatPrice, salons: appSalons } = useOptionalApp();
+  usePageSeo(ADMIN_SEO);
+  const { addToast, formatPrice, refreshMarketplace } = useOptionalApp();
 
-  // Authentication gate state
-  // Aucune session n'est acceptée avant vérification serveur (voir verifySuperAdminAccess).
+  // Authentication gate state — verified server-side via verifySuperAdminAccess
   const [adminSession, setAdminSession] = useState<AdminUser | null>(null);
   const [accessChecked, setAccessChecked] = useState(false);
 
@@ -117,81 +145,133 @@ export const AdminDashboard: React.FC = () => {
     };
   }, []);
 
-  // Navigation tab
   const [activeTab, setActiveTab] = useState<AdminDashboardTab>('overview');
 
-  // Platform Data
+  // Platform Data (100% server-backed)
+  const [metricsPeriod, setMetricsPeriod] = useState<MetricsPeriodKey>('month');
+  const [metricsRange, setMetricsRange] = useState<{ from: string | null; to: string | null }>(() =>
+    rangeForMetricsPeriod('month'),
+  );
+  const metricsRangeRef = useRef(metricsRange);
+  const [metricsLoading, setMetricsLoading] = useState(false);
   const [plans, setPlans] = useState<SaaSPlan[]>([]);
   const [metrics, setMetrics] = useState<PlatformMetrics | null>(null);
   const [salons, setSalons] = useState<SalonAdminDetail[]>([]);
   const [reviews, setReviews] = useState<MarketplaceReviewItem[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
+  const [notificationHealth, setNotificationHealth] = useState<PlatformNotificationHealthSummary | null>(
+    null,
+  );
+  const [notificationProbe, setNotificationProbe] = useState<NotificationProbeResult | null>(null);
+  const [probingNotifications, setProbingNotifications] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  // Search & Filters
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'hidden' | 'suspended'>('all');
-
-  // Éditeur de forfait : null = fermé ; plan null = nouveau forfait.
+  // Éditeur de forfait
   const [editorTarget, setEditorTarget] = useState<{
     plan: SaaSPlan | null;
     draft: SaaSPlanInput | null;
   } | null>(null);
-  // Brouillons en attente (non visibles sur la page Tarifs).
   const [planDrafts, setPlanDrafts] = useState<SaaSPlanDraft[]>([]);
 
-  // Subscription Edit Modal for a Salon
-  const [selectedSalonForSub, setSelectedSalonForSub] = useState<SalonAdminDetail | null>(null);
-  const [newSubPlanId, setNewSubPlanId] = useState('');
+  // Quick status modal on subscriptions tab (with mandatory motif)
+  const [pendingStatusSalon, setPendingStatusSalon] = useState<{
+    salon: SalonAdminDetail;
+    nextStatus: 'active' | 'suspended';
+  } | null>(null);
+  const [statusReason, setStatusReason] = useState('');
+  const [statusError, setStatusError] = useState<string | null>(null);
+  const [statusBusy, setStatusBusy] = useState(false);
 
-  // Platform-wide Settings State (stored in localStorage).
-  // La bannière d'annonce est désormais gérée dans « Config Marketplace » (source unique).
   const [platformSettings, setPlatformSettings] = useState<PlatformSettings>(() => loadPlatformSettings());
 
-  const loadAllData = async () => {
+  const loadAllData = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
-      const [fetchedPlans, fetchedMetrics, fetchedDrafts] = await Promise.all([
+      const activeRange = metricsRangeRef.current;
+      const [
+        fetchedPlans,
+        fetchedMetrics,
+        fetchedDrafts,
+        fetchedSalons,
+        fetchedReviews,
+        fetchedAuditLogs,
+        fetchedNotifHealth,
+      ] = await Promise.all([
         getAllSaasPlans(),
-        getPlatformMetrics(),
+        getPlatformMetrics({ from: activeRange.from, to: activeRange.to }),
         getSaasPlanDrafts(),
+        getAdminSalonsList(),
+        getAdminReviews(),
+        getPlatformAuditLogs({ limit: 150 }),
+        getPlatformNotificationHealth().catch(() => null),
       ]);
       setPlans(fetchedPlans);
       setMetrics(fetchedMetrics);
       setPlanDrafts(fetchedDrafts);
-      setSalons(getAdminSalonsList(appSalons));
-      setReviews(getMarketplaceReviews());
-      setAuditLogs(getAuditLogs());
-    } catch {
-      addToast('Erreur lors du chargement des données', 'error');
+      setSalons(fetchedSalons);
+      setReviews(fetchedReviews);
+      setAuditLogs(fetchedAuditLogs);
+      if (fetchedNotifHealth) {
+        setNotificationHealth(fetchedNotifHealth);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erreur lors du chargement des données serveur.';
+      setLoadError(message);
+      addToast(message, 'error');
     } finally {
       setLoading(false);
     }
-  };
+  }, [addToast]);
+
+  const handleMetricsPeriodChange = useCallback(
+    async (nextPeriod: MetricsPeriodKey, nextFrom: string | null, nextTo: string | null) => {
+      const nextRange = { from: nextFrom, to: nextTo };
+      metricsRangeRef.current = nextRange;
+      setMetricsPeriod(nextPeriod);
+      setMetricsRange(nextRange);
+      setMetricsLoading(true);
+      setLoadError(null);
+      try {
+        const fetchedMetrics = await getPlatformMetrics({ from: nextFrom, to: nextTo });
+        setMetrics(fetchedMetrics);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Erreur lors du filtrage des indicateurs.';
+        setLoadError(message);
+        addToast(message, 'error');
+      } finally {
+        setMetricsLoading(false);
+      }
+    },
+    [addToast],
+  );
+
+  const refreshAllAndMarketplace = useCallback(async () => {
+    await loadAllData();
+    if (refreshMarketplace) {
+      void refreshMarketplace();
+    }
+  }, [loadAllData, refreshMarketplace]);
 
   useEffect(() => {
     if (adminSession) {
-      loadAllData();
+      void loadAllData();
     }
     const handleSessionChange = () => setAdminSession(null);
-    const handleSalonsUpdate = () => {
-      setSalons(getAdminSalonsList(appSalons));
-      setAuditLogs(getAuditLogs());
+    const handlePlansUpdate = () => {
+      void refreshAllAndMarketplace();
     };
-    const handlePlansUpdate = () => loadAllData();
 
     window.addEventListener('superadmin_session_changed', handleSessionChange);
-    window.addEventListener('admin_salons_updated', handleSalonsUpdate);
     window.addEventListener('saas_plans_updated', handlePlansUpdate);
 
     return () => {
       window.removeEventListener('superadmin_session_changed', handleSessionChange);
-      window.removeEventListener('admin_salons_updated', handleSalonsUpdate);
       window.removeEventListener('saas_plans_updated', handlePlansUpdate);
     };
-  }, [adminSession, appSalons]);
+  }, [adminSession, loadAllData, refreshAllAndMarketplace]);
 
-  // VÉRIFICATION D'ACCÈS EN COURS : rien de sensible n'est affiché avant la réponse du serveur
   if (!accessChecked) {
     return (
       <div className="min-h-screen bg-[#070709] flex items-center justify-center text-stone-400 text-sm">
@@ -200,15 +280,16 @@ export const AdminDashboard: React.FC = () => {
     );
   }
 
-  // LOGIN GATE
   if (!adminSession) {
     return (
-      <AdminLoginForm
-        onSuccess={(user) => {
-          setAdminSession(user);
-          addToast(`Session Administrateur active : ${user.email}`, 'success');
-        }}
-      />
+      <Suspense fallback={<SectionLoadingFallback label="Chargement de la connexion SuperAdmin…" />}>
+        <AdminLoginForm
+          onSuccess={(user) => {
+            setAdminSession(user);
+            addToast(`Session Administrateur active : ${user.email}`, 'success');
+          }}
+        />
+      </Suspense>
     );
   }
 
@@ -218,7 +299,6 @@ export const AdminDashboard: React.FC = () => {
     addToast('Session administrateur clôturée.', 'info');
   };
 
-  // Plan Management handlers
   const openPlanEditor = (plan: SaaSPlan | null, draft: SaaSPlanInput | null = null) => {
     setEditorTarget({ plan, draft });
   };
@@ -227,7 +307,7 @@ export const AdminDashboard: React.FC = () => {
     try {
       await publishSaasPlanDraft(planId);
       addToast('Brouillon publié : visible sur la page Tarifs.', 'success');
-      await loadAllData();
+      await refreshAllAndMarketplace();
     } catch (err) {
       addToast(err instanceof Error ? err.message : 'Échec de la publication', 'error');
     }
@@ -238,13 +318,12 @@ export const AdminDashboard: React.FC = () => {
     try {
       await discardSaasPlanDraft(planId);
       addToast('Brouillon abandonné.', 'info');
-      await loadAllData();
+      await refreshAllAndMarketplace();
     } catch (err) {
       addToast(err instanceof Error ? err.message : 'Échec de l’abandon du brouillon', 'error');
     }
   };
 
-  // Cartes de l'onglet Tarifs : forfaits publiés + nouveaux forfaits existant seulement en brouillon.
   type PlanCardView = SaaSPlanInput & { subscribersCount?: number };
   const pricingCards: Array<{ view: PlanCardView; draft: SaaSPlanDraft | undefined; draftOnly: boolean }> = [
     ...plans.map((plan) => ({
@@ -257,51 +336,40 @@ export const AdminDashboard: React.FC = () => {
       .map((d) => ({ view: { ...d.plan, subscribersCount: 0 } as PlanCardView, draft: d, draftOnly: true })),
   ];
 
-  // Salon Listing Handlers
-  const handleToggleListingPublish = (salon: SalonAdminDetail) => {
-    const updated = !salon.isPublished;
-    updateSalonByAdmin(salon.id, { isPublished: updated }, adminSession.email);
-    addToast(
-      `Salon "${salon.name}" ${updated ? 'publié sur la Marketplace' : 'masqué de la Marketplace'}.`,
-      'info',
-    );
+  const handleConfirmSubscriptionStatus = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pendingStatusSalon) return;
+
+    setStatusError(null);
+    let validReason: string;
+    try {
+      validReason = validateAuditReason(statusReason);
+    } catch (err) {
+      setStatusError(err instanceof Error ? err.message : 'Motif invalide.');
+      return;
+    }
+
+    setStatusBusy(true);
+    try {
+      await setSalonStatusByAdmin(pendingStatusSalon.salon.id, pendingStatusSalon.nextStatus, validReason);
+      await refreshAllAndMarketplace();
+      addToast(
+        pendingStatusSalon.nextStatus === 'suspended'
+          ? `Accès de « ${pendingStatusSalon.salon.name} » suspendu.`
+          : `Accès de « ${pendingStatusSalon.salon.name} » réactivé.`,
+        pendingStatusSalon.nextStatus === 'suspended' ? 'error' : 'success',
+      );
+      setPendingStatusSalon(null);
+      setStatusReason('');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Échec de la mise à jour du statut.';
+      setStatusError(msg);
+      addToast(msg, 'error');
+    } finally {
+      setStatusBusy(false);
+    }
   };
 
-  const handleToggleVerified = (salon: SalonAdminDetail) => {
-    const updated = !salon.isVerified;
-    updateSalonByAdmin(salon.id, { isVerified: updated }, adminSession.email);
-    addToast(`Badge de vérification ${updated ? 'accordé à' : 'retiré de'} "${salon.name}".`, 'info');
-  };
-
-  const handleToggleSalonStatus = (salon: SalonAdminDetail) => {
-    const updated = salon.status === 'active' ? 'suspended' : 'active';
-    updateSalonByAdmin(salon.id, { status: updated }, adminSession.email);
-    addToast(
-      `Accès ERP pour "${salon.name}" ${updated === 'suspended' ? 'suspendu' : 'réactivé'}.`,
-      updated === 'suspended' ? 'error' : 'success',
-    );
-  };
-
-  // Subscription Plan override handler
-  const handleSaveSubscriptionOverride = () => {
-    if (!selectedSalonForSub || !newSubPlanId) return;
-    const targetPlan = plans.find((p) => p.id === newSubPlanId);
-    if (!targetPlan) return;
-
-    updateSalonByAdmin(
-      selectedSalonForSub.id,
-      {
-        planId: targetPlan.id,
-        planName: targetPlan.name,
-        priceAtSubscription: targetPlan.priceXof,
-      },
-      adminSession.email,
-    );
-    addToast(`Formule de "${selectedSalonForSub.name}" mise à jour vers ${targetPlan.name}.`, 'success');
-    setSelectedSalonForSub(null);
-  };
-
-  // Save Platform-wide settings
   const handleSavePlatformSettings = (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -312,17 +380,23 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  const filteredSalons = salons.filter((s) => {
-    const matchesSearch =
-      s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.commune.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.organizationName.toLowerCase().includes(searchQuery.toLowerCase());
+  const handleProbeNotifications = async () => {
+    setProbingNotifications(true);
+    try {
+      const result = await probePlatformNotificationDispatcher({ checkWhatsappApi: true });
+      setNotificationProbe(result);
+      const refreshedHealth = await getPlatformNotificationHealth().catch(() => null);
+      if (refreshedHealth) setNotificationHealth(refreshedHealth);
+      addToast('Audit des secrets et canaux de notification terminé.', 'success');
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Échec de l’audit des notifications.', 'error');
+    } finally {
+      setProbingNotifications(false);
+    }
+  };
 
-    if (statusFilter === 'published') return matchesSearch && s.isPublished;
-    if (statusFilter === 'hidden') return matchesSearch && !s.isPublished;
-    if (statusFilter === 'suspended') return matchesSearch && s.status === 'suspended';
-    return matchesSearch;
-  });
+  const hiddenReviewsCount = reviews.filter((r) => r.isHidden).length;
+  const repeatedNotificationAlertCount = notificationHealth?.repeatedFailures ?? 0;
 
   return (
     <div className="min-h-screen bg-[#070709] text-[#f7f6f2] font-sans flex flex-col selection:bg-[#C9A45C] selection:text-[#101010]">
@@ -348,6 +422,15 @@ export const AdminDashboard: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => void refreshAllAndMarketplace()}
+            disabled={loading}
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#141418] hover:bg-[#1c1c22] border border-[#26262e] text-xs font-semibold text-stone-300 hover:text-white transition-colors cursor-pointer disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-[#C9A45C] ${loading ? 'animate-spin' : ''}`} />
+            <span>Actualiser</span>
+          </button>
           <Link
             to="/tarifs"
             target="_blank"
@@ -367,13 +450,13 @@ export const AdminDashboard: React.FC = () => {
 
           <div className="h-4 w-px bg-[#26262e] hidden md:block" />
 
-          {/* Admin User Badge & Logout */}
           <div className="flex items-center gap-2">
             <div className="text-right hidden sm:block">
               <div className="text-xs font-bold text-white">{adminSession.name}</div>
               <div className="text-[10px] text-[#C9A45C]">{adminSession.email}</div>
             </div>
             <button
+              type="button"
               onClick={handleLogout}
               className="p-2 sm:px-3 sm:py-1.5 rounded-xl bg-red-950/40 hover:bg-red-900/50 border border-red-800/40 text-xs font-bold text-red-300 flex items-center gap-1.5 transition-colors cursor-pointer"
               title="Déconnexion sécurisée"
@@ -397,6 +480,19 @@ export const AdminDashboard: React.FC = () => {
               {[
                 { id: 'overview', label: 'Vue d’Ensemble', icon: Activity },
                 { id: 'salons', label: 'Gestion des Salons', icon: Store, count: salons.length },
+                {
+                  id: 'reviews',
+                  label: 'Modération des Avis',
+                  icon: MessageSquare,
+                  count: reviews.length,
+                },
+                {
+                  id: 'notifications',
+                  label: 'Notifications & Alertes',
+                  icon: Bell,
+                  count: repeatedNotificationAlertCount > 0 ? repeatedNotificationAlertCount : undefined,
+                },
+                { id: 'audit', label: 'Journal d’Audit', icon: FileText, count: auditLogs.length },
                 { id: 'marketplace-sections', label: 'Sections Marketplace', icon: Globe },
                 { id: 'marketplace-config', label: 'Bannières & Métadonnées', icon: Sliders },
                 { id: 'pricing', label: 'Tarifs & Plans SaaS', icon: DollarSign, count: plans.length },
@@ -413,6 +509,7 @@ export const AdminDashboard: React.FC = () => {
                 return (
                   <button
                     key={item.id}
+                    type="button"
                     onClick={() => setActiveTab(item.id as AdminDashboardTab)}
                     className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                       isActive
@@ -439,568 +536,485 @@ export const AdminDashboard: React.FC = () => {
             </nav>
           </div>
 
-          {/* Quick Metrics Widget */}
           <div className="p-3.5 rounded-2xl bg-[#0f0f13] border border-[#1e1e26] space-y-2 mt-auto">
             <div className="flex items-center justify-between text-[11px] font-bold text-stone-400">
-              <span>MRR Prévisionnel</span>
+              <span>MRR Normalisé (actifs)</span>
               <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
             </div>
             <div className="text-lg font-black text-white">
               {metrics ? formatPrice(metrics.estimatedMrrXof) : '—'}
             </div>
             <div className="text-[10px] text-stone-500">
-              {salons.filter((s) => s.status === 'active').length} établissements souscripteurs
+              {metrics
+                ? `${metrics.activeSubscriptions} abonnement(s) actif(s) · annuels ÷ 12`
+                : `${salons.filter((s) => s.status === 'active').length} établissement(s) actif(s)`}{' '}
+              · {hiddenReviewsCount} avis masqué(s)
             </div>
           </div>
         </aside>
 
         {/* Dynamic Content Panel */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto space-y-6">
-          {/* TAB 1: OVERVIEW */}
-          {activeTab === 'overview' && (
-            <div className="space-y-6">
-              <div>
-                <h1 className="text-2xl font-black text-white tracking-tight">Tableau de Bord Exécutif</h1>
-                <p className="text-xs text-stone-400 mt-1">
-                  Surveillance en direct de l'activité, des transactions et de la performance globale.
-                </p>
+          {loadError && (
+            <div
+              role="alert"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-red-800/60 bg-red-950/40 px-4 py-3 text-xs text-red-200"
+            >
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+                <span>{loadError}</span>
               </div>
-
-              {/* KPI Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="p-5 rounded-2xl bg-[#0d0d10] border border-[#1d1d24] space-y-1">
-                  <div className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">
-                    Revenu Récurrent Mensuel (MRR)
-                  </div>
-                  <div className="text-2xl sm:text-3xl font-black text-white">
-                    {metrics ? formatPrice(metrics.estimatedMrrXof) : '—'}
-                  </div>
-                  <div className="text-[10px] text-emerald-400 font-semibold">
-                    Abonnements salons régularisés
-                  </div>
-                </div>
-
-                <div className="p-5 rounded-2xl bg-[#0d0d10] border border-[#1d1d24] space-y-1">
-                  <div className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">
-                    Vitrines Marketplace
-                  </div>
-                  <div className="text-2xl sm:text-3xl font-black text-white">
-                    {salons.filter(isSalonLiveOnMarketplace).length} / {salons.length}
-                  </div>
-                  <div className="text-[10px] text-stone-400">Salons visibles publiquement</div>
-                </div>
-
-                <div className="p-5 rounded-2xl bg-[#0d0d10] border border-[#1d1d24] space-y-1">
-                  <div className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">
-                    Volume d'Affaires Global
-                  </div>
-                  <div className="text-2xl sm:text-3xl font-black text-white">
-                    {metrics ? formatPrice(metrics.totalRevenueXof) : '—'}
-                  </div>
-                  <div className="text-[10px] text-stone-400">Total encaissements déclarés</div>
-                </div>
-
-                <div className="p-5 rounded-2xl bg-[#0d0d10] border border-[#1d1d24] space-y-1">
-                  <div className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">
-                    Rendez-vous Réalisés
-                  </div>
-                  <div className="text-2xl sm:text-3xl font-black text-white">
-                    {metrics ? metrics.totalAppointments : '—'}
-                  </div>
-                  <div className="text-[10px] text-stone-400">Réservations traitées avec succès</div>
-                </div>
-              </div>
-
-              {/* Quick Actions Shortcuts */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <button
-                  onClick={() => setActiveTab('pricing')}
-                  className="p-5 rounded-2xl bg-[#0f0f13] hover:bg-[#141419] border border-[#202028] text-left transition-all"
-                >
-                  <DollarSign className="w-5 h-5 text-[#C9A45C] mb-2" />
-                  <div className="text-sm font-bold text-white">Gérer les Tarifs & Plans</div>
-                  <p className="text-xs text-stone-400 mt-1">
-                    Modifier les prix en FCFA et les avantages, puis publier immédiatement ou garder en
-                    brouillon.
-                  </p>
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('marketplace-sections')}
-                  className="p-5 rounded-2xl bg-[#0f0f13] hover:bg-[#141419] border border-[#202028] text-left transition-all"
-                >
-                  <Globe className="w-5 h-5 text-blue-400 mb-2" />
-                  <div className="text-sm font-bold text-white">Contrôler les Vitrines Salons</div>
-                  <p className="text-xs text-stone-400 mt-1">
-                    Publier, masquer ou certifier les fiches des salons visibles par les clients.
-                  </p>
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('subscriptions')}
-                  className="p-5 rounded-2xl bg-[#0f0f13] hover:bg-[#141419] border border-[#202028] text-left transition-all"
-                >
-                  <CreditCard className="w-5 h-5 text-emerald-400 mb-2" />
-                  <div className="text-sm font-bold text-white">Statuts & Contrats SaaS</div>
-                  <p className="text-xs text-stone-400 mt-1">
-                    Surveiller les échéances, tarifs souscrits garantis et suspensions d'accès.
-                  </p>
-                </button>
-              </div>
-
-              {/* Recent Audit Activity */}
-              <div className="space-y-3">
-                <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-                  Dernières Opérations Enregistrées
-                </h3>
-                <div className="rounded-2xl bg-[#0c0c10] border border-[#1a1a22] overflow-hidden">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-[#101014] border-b border-[#1a1a22] text-stone-400 text-[10px] uppercase">
-                      <tr>
-                        <th className="py-2.5 px-4">Horodatage</th>
-                        <th className="py-2.5 px-4">Action</th>
-                        <th className="py-2.5 px-4">Cible</th>
-                        <th className="py-2.5 px-4">Opérateur</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#15151c] text-stone-300 font-mono text-[11px]">
-                      {auditLogs.slice(0, 4).map((log) => (
-                        <tr key={log.id}>
-                          <td className="py-2.5 px-4 text-stone-500">
-                            {new Date(log.timestamp).toLocaleTimeString('fr-FR')}
-                          </td>
-                          <td className="py-2.5 px-4 text-white font-sans">{log.action}</td>
-                          <td className="py-2.5 px-4 text-[#E5C378]">{log.target}</td>
-                          <td className="py-2.5 px-4 text-stone-400">{log.performedBy}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 2: PRICING PLANS */}
-          {activeTab === 'pricing' && (
-            <div className="space-y-6">
-              <SaasPaymentReviewPanel formatPrice={formatPrice} />
-
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <h1 className="text-2xl font-black text-white tracking-tight">Tarifs & Forfaits SaaS</h1>
-                  <p className="text-xs text-stone-400 mt-1">
-                    Chaque modification peut être publiée immédiatement sur la page Tarifs, ou enregistrée en
-                    brouillon pour être publiée plus tard. Les salons déjà abonnés conservent leur tarif
-                    d’origine.
-                  </p>
-                </div>
-
-                <button
-                  onClick={() => openPlanEditor(null)}
-                  className="px-4 py-2.5 rounded-xl bg-[#C9A45C] hover:bg-[#d8b56d] text-[#101010] font-bold text-xs flex items-center gap-1.5 transition-all shadow-md cursor-pointer self-start sm:self-auto"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Nouveau Forfait</span>
-                </button>
-              </div>
-
-              {/* Plans Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {pricingCards.map(({ view: plan, draft, draftOnly }) => (
-                  <div
-                    key={plan.id}
-                    className={`rounded-3xl bg-[#0c0c10] border transition-all flex flex-col justify-between relative overflow-hidden ${
-                      plan.isPopular
-                        ? 'border-[#C9A45C] shadow-lg shadow-[#C9A45C]/5'
-                        : 'border-[#1e1e26] hover:border-[#33333d]'
-                    } ${!plan.isActive ? 'opacity-60' : ''}`}
-                  >
-                    {plan.badgeText && (
-                      <div className="absolute top-0 right-0 bg-[#C9A45C] text-[#101010] text-[10px] font-extrabold uppercase px-3 py-1 rounded-bl-xl tracking-wider">
-                        {plan.badgeText}
-                      </div>
-                    )}
-
-                    <div className="p-6 space-y-5">
-                      <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="text-lg font-bold text-white">{plan.name}</h3>
-                          {!plan.isActive && (
-                            <span className="px-2 py-0.5 rounded text-[10px] bg-red-950/60 text-red-400 border border-red-800/50">
-                              Inactif
-                            </span>
-                          )}
-                          {draftOnly && (
-                            <span className="px-2 py-0.5 rounded text-[10px] bg-amber-950/60 text-amber-300 border border-amber-500/40">
-                              Brouillon · non publié
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-stone-400 mt-1 min-h-[32px] line-clamp-2">
-                          {plan.description}
-                        </p>
-                      </div>
-
-                      <div className="border-y border-[#181820] py-4">
-                        <div className="flex items-baseline gap-1">
-                          <span className="text-3xl font-black text-[#E5C378]">
-                            {formatPrice(plan.priceXof)}
-                          </span>
-                          <span className="text-xs text-stone-400">/ mois</span>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div className="p-2.5 rounded-lg bg-[#111116] border border-[#1c1c24]">
-                          <span className="text-[10px] text-stone-400 block uppercase">Capacité Staff</span>
-                          <span className="font-bold text-white">
-                            {plan.maxStaff === null ? 'Illimité' : `${plan.maxStaff} barbier(s)`}
-                          </span>
-                        </div>
-                        <div className="p-2.5 rounded-lg bg-[#111116] border border-[#1c1c24]">
-                          <span className="text-[10px] text-stone-400 block uppercase">Succursales</span>
-                          <span className="font-bold text-white">
-                            {plan.maxBranches === 1 ? '1 salon' : `${plan.maxBranches} salons max`}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">
-                          Avantages Inclus ({plan.features.length})
-                        </div>
-                        <ul className="space-y-2 text-xs text-stone-300">
-                          {plan.features.map((feat, idx) => (
-                            <li key={idx} className="flex items-start gap-2">
-                              <Check className="w-3.5 h-3.5 text-[#C9A45C] shrink-0 mt-0.5" />
-                              <span>{feat}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-
-                    {draft && (
-                      <div className="mx-6 mb-4 rounded-xl border border-amber-500/30 bg-amber-950/20 p-3 text-xs text-amber-200 space-y-2">
-                        <div className="font-semibold">Brouillon en attente · non publié</div>
-                        <div>
-                          {draft.plan.name} — {formatPrice(draft.plan.priceXof)} / mois
-                        </div>
-                        <div className="flex flex-wrap gap-2 pt-1">
-                          <button
-                            type="button"
-                            onClick={() => handlePublishDraft(draft.planId)}
-                            className="px-3 py-1.5 rounded-lg bg-[#C9A45C] text-[#101010] font-bold"
-                          >
-                            Publier le brouillon
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDiscardDraft(draft.planId)}
-                            className="px-3 py-1.5 rounded-lg bg-[#181820] text-stone-300"
-                          >
-                            Abandonner
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="p-4 bg-[#101014] border-t border-[#1a1a22] flex items-center justify-between">
-                      <div className="text-xs text-stone-400">
-                        <span className="font-semibold text-stone-300">{plan.subscribersCount ?? 0}</span>{' '}
-                        salon(s) abonné(s)
-                      </div>
-                      <button
-                        onClick={() =>
-                          openPlanEditor(
-                            draftOnly ? null : (plans.find((p) => p.id === plan.id) ?? null),
-                            draft?.plan ?? null,
-                          )
-                        }
-                        className="px-3 py-1.5 rounded-lg bg-[#1a1a22] hover:bg-[#22222c] text-stone-200 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-                      >
-                        <Edit3 className="w-3.5 h-3.5 text-[#C9A45C]" />
-                        <span>Modifier</span>
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* TAB 2: SALON MANAGEMENT (VIEW, VERIFY, DEACTIVATE/SUSPEND) */}
-          {activeTab === 'salons' && (
-            <SalonManagement salons={salons} onRefresh={loadAllData} adminEmail={adminSession.email} />
-          )}
-
-          {/* TAB 3: MARKETPLACE SECTIONS & TABS CMS */}
-          {activeTab === 'marketplace-sections' && (
-            <MarketplaceSectionsAdmin adminEmail={adminSession.email} />
-          )}
-
-          {/* TAB 3 bis: BANNIÈRES, SECTIONS À LA UNE & MÉTADONNÉES DU SITE */}
-          {activeTab === 'marketplace-config' && <MarketplaceConfigManager adminEmail={adminSession.email} />}
-
-          {/* TAB 4: SUBSCRIPTION STATUS */}
-          {activeTab === 'subscriptions' && (
-            <div className="space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <h1 className="text-2xl font-black text-white tracking-tight">
-                    Statuts d'Abonnement des Salons
-                  </h1>
-                  <p className="text-xs text-stone-400 mt-1">
-                    Gérez les abonnements des établissements partenaires, tarifs garantis et suspensions
-                    d'accès ERP.
-                  </p>
-                </div>
-              </div>
-
-              {/* Subscriptions Table */}
-              <div className="rounded-2xl bg-[#0c0c10] border border-[#1a1a22] overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-[#101014] border-b border-[#1a1a22] text-stone-400 uppercase text-[10px]">
-                      <tr>
-                        <th className="py-3 px-4">Salon Partenaire</th>
-                        <th className="py-3 px-4">Forfait Actif</th>
-                        <th className="py-3 px-4">Tarif Souscrit Garanti</th>
-                        <th className="py-3 px-4">Statut Abonnement</th>
-                        <th className="py-3 px-4">Date de Renouvellement</th>
-                        <th className="py-3 px-4 text-right">Actions Contrat</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#15151c] text-stone-300">
-                      {salons.map((salon) => (
-                        <tr key={salon.id} className="hover:bg-[#111116] transition-colors">
-                          <td className="py-3.5 px-4 font-bold text-white">
-                            <div className="flex items-center gap-2">
-                              <Store className="w-3.5 h-3.5 text-[#C9A45C]" />
-                              <span>{salon.name}</span>
-                            </div>
-                          </td>
-                          <td className="py-3.5 px-4">
-                            <span className="font-semibold text-[#E5C378]">
-                              {salon.planName || 'Formule non disponible'}
-                            </span>
-                          </td>
-                          <td className="py-3.5 px-4 font-bold text-white">
-                            {salon.planName ? `${formatPrice(salon.priceAtSubscription)} / mois` : '—'}
-                          </td>
-                          <td className="py-3.5 px-4">
-                            <span
-                              className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                                salon.status === 'active'
-                                  ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                                  : 'bg-red-500/15 text-red-400 border border-red-500/30'
-                              }`}
-                            >
-                              {salon.status === 'active' ? 'Abonné Actif' : 'Suspendu / Impayé'}
-                            </span>
-                          </td>
-                          <td className="py-3.5 px-4 text-stone-400">
-                            {new Date(Date.now() + 25 * 86400000).toLocaleDateString('fr-FR')}
-                          </td>
-                          <td className="py-3.5 px-4 text-right space-x-2">
-                            <button
-                              onClick={() => {
-                                setSelectedSalonForSub(salon);
-                                setNewSubPlanId(salon.planId);
-                              }}
-                              className="px-2.5 py-1 rounded-lg bg-[#1a1a22] hover:bg-[#242430] text-stone-300 text-xs font-semibold transition-colors cursor-pointer"
-                            >
-                              Changer Forfait
-                            </button>
-                            <button
-                              onClick={() => handleToggleSalonStatus(salon)}
-                              className={`px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
-                                salon.status === 'active'
-                                  ? 'bg-red-950/40 hover:bg-red-900/50 text-red-300 border border-red-800/40'
-                                  : 'bg-emerald-950/40 hover:bg-emerald-900/50 text-emerald-300 border border-emerald-800/40'
-                              }`}
-                            >
-                              {salon.status === 'active' ? 'Suspendre' : 'Réactiver'}
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 5: PLATFORM-WIDE SETTINGS */}
-          {activeTab === 'settings' && (
-            <div className="space-y-6 max-w-3xl">
-              <div>
-                <h1 className="text-2xl font-black text-white tracking-tight">
-                  Paramètres Globaux de la Plateforme
-                </h1>
-                <p className="text-xs text-stone-400 mt-1">
-                  Configurez les règles financières, bannières d'annonce et alertes pour l'ensemble du SaaS.
-                </p>
-              </div>
-
-              <form
-                onSubmit={handleSavePlatformSettings}
-                className="space-y-5 bg-[#0c0c10] border border-[#1a1a22] rounded-3xl p-6 sm:p-8"
+              <button
+                type="button"
+                onClick={() => void refreshAllAndMarketplace()}
+                className="px-3 py-1.5 rounded-lg bg-red-900/60 hover:bg-red-800/60 text-white font-bold cursor-pointer"
               >
-                <div className="space-y-4">
+                Réessayer
+              </button>
+            </div>
+          )}
+
+          <Suspense fallback={<SectionLoadingFallback label="Chargement du module d’administration…" />}>
+            {/* TAB 1: OVERVIEW */}
+            {activeTab === 'overview' && (
+              <AdminOverviewPanel
+                metrics={metrics}
+                metricsLoading={metricsLoading}
+                salons={salons}
+                auditLogs={auditLogs}
+                notificationHealth={notificationHealth}
+                period={metricsPeriod}
+                fromDate={metricsRange.from}
+                toDate={metricsRange.to}
+                onPeriodChange={(nextPeriod, nextFrom, nextTo) => {
+                  void handleMetricsPeriodChange(nextPeriod, nextFrom, nextTo);
+                }}
+                onNavigateTab={(tab) => setActiveTab(tab)}
+                formatPrice={formatPrice}
+              />
+            )}
+
+            {/* TAB 2: PRICING PLANS */}
+            {activeTab === 'pricing' && (
+              <div className="space-y-6">
+                <SaasPaymentReviewPanel
+                  formatPrice={formatPrice}
+                  onDecision={() => {
+                    void refreshAllAndMarketplace();
+                  }}
+                />
+
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-stone-300 mb-1.5">
-                      Devise Officielle de la Plateforme
-                    </label>
-                    <input
-                      type="text"
-                      disabled
-                      value={platformSettings.defaultCurrency}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#08080a] border border-[#202028] text-xs text-stone-400 disabled:opacity-60"
-                    />
-                    <span className="text-[10px] text-stone-500">
-                      Standardisé en Franc CFA (XOF) sans arrondis flottants.
-                    </span>
+                    <h1 className="text-2xl font-black text-white tracking-tight">Tarifs & Forfaits SaaS</h1>
+                    <p className="text-xs text-stone-400 mt-1">
+                      Chaque modification peut être publiée immédiatement sur la page Tarifs, ou enregistrée
+                      en brouillon pour être publiée plus tard. Les salons déjà abonnés conservent leur tarif
+                      d’origine.
+                    </p>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-stone-300 mb-1.5">
-                      Frais de Service / Commission Marketplace (%)
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="number"
-                        step={0.5}
-                        min={0}
-                        max={20}
-                        value={platformSettings.commissionRate}
-                        onChange={(e) =>
-                          setPlatformSettings({ ...platformSettings, commissionRate: Number(e.target.value) })
-                        }
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-[#08080a] border border-[#202028] text-xs text-white focus:outline-none focus:border-[#C9A45C]"
-                      />
-                      <span className="absolute right-3.5 top-2.5 text-xs text-stone-500 font-bold">%</span>
-                    </div>
-                  </div>
-
-                  <div className="rounded-xl border border-[#2a2a36] bg-[#08080a] p-3.5 text-xs text-stone-400">
-                    La bannière d'annonce globale, les sections à la une et les métadonnées du site se gèrent
-                    désormais dans{' '}
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab('marketplace-config')}
-                      className="text-[#C9A45C] font-bold hover:underline cursor-pointer"
-                    >
-                      Bannières & Métadonnées
-                    </button>
-                    .
-                  </div>
-
-                  <div className="pt-2 space-y-3">
-                    <label className="flex items-center gap-2.5 text-xs font-semibold text-stone-300 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={platformSettings.autoApproveSalons}
-                        onChange={(e) =>
-                          setPlatformSettings({ ...platformSettings, autoApproveSalons: e.target.checked })
-                        }
-                        className="w-4 h-4 rounded text-[#C9A45C] bg-[#08080a] border-[#2e2e38] focus:ring-0"
-                      />
-                      <span>Publication automatique des salons après inscription</span>
-                    </label>
-
-                    <label className="flex items-center gap-2.5 text-xs font-semibold text-red-300 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={platformSettings.maintenanceMode}
-                        onChange={(e) =>
-                          setPlatformSettings({ ...platformSettings, maintenanceMode: e.target.checked })
-                        }
-                        className="w-4 h-4 rounded text-red-500 bg-[#08080a] border-[#2e2e38] focus:ring-0"
-                      />
-                      <span>Mode Maintenance Global (Verrouiller les nouvelles inscriptions)</span>
-                    </label>
-                  </div>
-                </div>
-
-                <div className="pt-4 border-t border-[#1a1a22] flex justify-end">
                   <button
-                    type="submit"
-                    className="px-5 py-2.5 rounded-xl bg-[#C9A45C] hover:bg-[#d8b56d] text-[#101010] font-bold text-xs flex items-center gap-2 transition-all shadow-md cursor-pointer"
+                    type="button"
+                    onClick={() => openPlanEditor(null)}
+                    className="px-4 py-2.5 rounded-xl bg-[#C9A45C] hover:bg-[#d8b56d] text-[#101010] font-bold text-xs flex items-center gap-1.5 transition-all shadow-md cursor-pointer self-start sm:self-auto"
                   >
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>Enregistrer les Paramètres</span>
+                    <Plus className="w-4 h-4" />
+                    <span>Nouveau Forfait</span>
                   </button>
                 </div>
-              </form>
-            </div>
-          )}
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {pricingCards.map(({ view: plan, draft, draftOnly }) => (
+                    <div
+                      key={plan.id}
+                      className={`rounded-3xl bg-[#0c0c10] border transition-all flex flex-col justify-between relative overflow-hidden ${
+                        plan.isPopular
+                          ? 'border-[#C9A45C] shadow-lg shadow-[#C9A45C]/5'
+                          : 'border-[#1e1e26] hover:border-[#33333d]'
+                      } ${!plan.isActive ? 'opacity-60' : ''}`}
+                    >
+                      {plan.badgeText && (
+                        <div className="absolute top-0 right-0 bg-[#C9A45C] text-[#101010] text-[10px] font-extrabold uppercase px-3 py-1 rounded-bl-xl tracking-wider">
+                          {plan.badgeText}
+                        </div>
+                      )}
+
+                      <div className="p-6 space-y-5">
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="text-lg font-bold text-white">{plan.name}</h3>
+                            {!plan.isActive && (
+                              <span className="px-2 py-0.5 rounded text-[10px] bg-red-950/60 text-red-400 border border-red-800/50">
+                                Inactif
+                              </span>
+                            )}
+                            {draftOnly && (
+                              <span className="px-2 py-0.5 rounded text-[10px] bg-amber-950/60 text-amber-300 border border-amber-500/40">
+                                Brouillon · non publié
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-stone-400 mt-1 min-h-[32px] line-clamp-2">
+                            {plan.description}
+                          </p>
+                        </div>
+
+                        <div className="border-y border-[#181820] py-4">
+                          <div className="flex items-baseline gap-1">
+                            <span className="text-3xl font-black text-[#E5C378]">
+                              {formatPrice(plan.priceXof)}
+                            </span>
+                            <span className="text-xs text-stone-400">/ mois</span>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div className="p-2.5 rounded-lg bg-[#111116] border border-[#1c1c24]">
+                            <span className="text-[10px] text-stone-400 block uppercase">Capacité Staff</span>
+                            <span className="font-bold text-white">
+                              {plan.maxStaff === null ? 'Illimité' : `${plan.maxStaff} barbier(s)`}
+                            </span>
+                          </div>
+                          <div className="p-2.5 rounded-lg bg-[#111116] border border-[#1c1c24]">
+                            <span className="text-[10px] text-stone-400 block uppercase">Succursales</span>
+                            <span className="font-bold text-white">
+                              {plan.maxBranches === 1 ? '1 salon' : `${plan.maxBranches} salons max`}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">
+                            Avantages Inclus ({plan.features.length})
+                          </div>
+                          <ul className="space-y-2 text-xs text-stone-300">
+                            {plan.features.map((feat, idx) => (
+                              <li key={idx} className="flex items-start gap-2">
+                                <Check className="w-3.5 h-3.5 text-[#C9A45C] shrink-0 mt-0.5" />
+                                <span>{feat}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+
+                      {draft && (
+                        <div className="mx-6 mb-4 rounded-xl border border-amber-500/30 bg-amber-950/20 p-3 text-xs text-amber-200 space-y-2">
+                          <div className="font-semibold">Brouillon en attente · non publié</div>
+                          <div>
+                            {draft.plan.name} — {formatPrice(draft.plan.priceXof)} / mois
+                          </div>
+                          <div className="flex flex-wrap gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => void handlePublishDraft(draft.planId)}
+                              className="px-3 py-1.5 rounded-lg bg-[#C9A45C] text-[#101010] font-bold"
+                            >
+                              Publier le brouillon
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void handleDiscardDraft(draft.planId)}
+                              className="px-3 py-1.5 rounded-lg bg-[#181820] text-stone-300"
+                            >
+                              Abandonner
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="p-4 bg-[#101014] border-t border-[#1a1a22] flex items-center justify-between">
+                        <div className="text-xs text-stone-400">
+                          <span className="font-semibold text-stone-300">{plan.subscribersCount ?? 0}</span>{' '}
+                          salon(s) abonné(s)
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openPlanEditor(
+                              draftOnly ? null : (plans.find((p) => p.id === plan.id) ?? null),
+                              draft?.plan ?? null,
+                            )
+                          }
+                          className="px-3 py-1.5 rounded-lg bg-[#1a1a22] hover:bg-[#22222c] text-stone-200 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                        >
+                          <Edit3 className="w-3.5 h-3.5 text-[#C9A45C]" />
+                          <span>Modifier</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* TAB: SALON MANAGEMENT */}
+            {activeTab === 'salons' && (
+              <SalonManagement
+                salons={salons}
+                onRefresh={refreshAllAndMarketplace}
+                adminEmail={adminSession.email}
+              />
+            )}
+
+            {/* TAB: REVIEWS MODERATION */}
+            {activeTab === 'reviews' && (
+              <AdminReviewsPanel reviews={reviews} onRefresh={refreshAllAndMarketplace} />
+            )}
+
+            {/* TAB: SERVER AUDIT LOG */}
+            {activeTab === 'audit' && (
+              <AdminAuditLogPanel logs={auditLogs} onRefresh={refreshAllAndMarketplace} />
+            )}
+
+            {/* TAB: MARKETPLACE SECTIONS */}
+            {activeTab === 'marketplace-sections' && (
+              <MarketplaceSectionsAdmin adminEmail={adminSession.email} />
+            )}
+
+            {/* TAB: MARKETPLACE CONFIG */}
+            {activeTab === 'marketplace-config' && (
+              <MarketplaceConfigManager adminEmail={adminSession.email} />
+            )}
+
+            {/* TAB: SUBSCRIPTION STATUS */}
+            {activeTab === 'subscriptions' && (
+              <AdminSubscriptionsPanel
+                salons={salons}
+                formatPrice={formatPrice}
+                onRefresh={() => {
+                  void refreshAllAndMarketplace();
+                }}
+                onToggleSalonStatus={(salon) => {
+                  setPendingStatusSalon({
+                    salon,
+                    nextStatus: salon.status === 'active' ? 'suspended' : 'active',
+                  });
+                  setStatusReason('');
+                  setStatusError(null);
+                }}
+              />
+            )}
+
+            {/* TAB: NOTIFICATIONS & OBSERVABILITY */}
+            {activeTab === 'notifications' && (
+              <AdminNotificationsPanel
+                health={notificationHealth}
+                probe={notificationProbe}
+                probing={probingNotifications}
+                onRefresh={() => {
+                  void refreshAllAndMarketplace();
+                }}
+                onProbe={() => {
+                  void handleProbeNotifications();
+                }}
+              />
+            )}
+
+            {/* TAB: PLATFORM-WIDE SETTINGS */}
+            {activeTab === 'settings' && (
+              <div className="space-y-6 max-w-3xl">
+                <div>
+                  <h1 className="text-2xl font-black text-white tracking-tight">
+                    Paramètres Globaux de la Plateforme
+                  </h1>
+                  <p className="text-xs text-stone-400 mt-1">
+                    Configurez les règles financières, bannières d’annonce et alertes pour l’ensemble du SaaS.
+                  </p>
+                </div>
+
+                <form
+                  onSubmit={handleSavePlatformSettings}
+                  className="space-y-5 bg-[#0c0c10] border border-[#1a1a22] rounded-3xl p-6 sm:p-8"
+                >
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-stone-300 mb-1.5">
+                        Devise Officielle de la Plateforme
+                      </label>
+                      <input
+                        type="text"
+                        disabled
+                        value={platformSettings.defaultCurrency}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-[#08080a] border border-[#202028] text-xs text-stone-400 disabled:opacity-60"
+                      />
+                      <span className="text-[10px] text-stone-500">
+                        Standardisé en Franc CFA (XOF) sans arrondis flottants.
+                      </span>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-stone-300 mb-1.5">
+                        Frais de Service / Commission Marketplace (%)
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          step={0.5}
+                          min={0}
+                          max={20}
+                          value={platformSettings.commissionRate}
+                          onChange={(e) =>
+                            setPlatformSettings({
+                              ...platformSettings,
+                              commissionRate: Number(e.target.value),
+                            })
+                          }
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-[#08080a] border border-[#202028] text-xs text-white focus:outline-none focus:border-[#C9A45C]"
+                        />
+                        <span className="absolute right-3.5 top-2.5 text-xs text-stone-500 font-bold">%</span>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-[#2a2a36] bg-[#08080a] p-3.5 text-xs text-stone-400">
+                      La bannière d’annonce globale, les sections à la une et les métadonnées du site se
+                      gèrent désormais dans{' '}
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('marketplace-config')}
+                        className="text-[#C9A45C] font-bold hover:underline cursor-pointer"
+                      >
+                        Bannières & Métadonnées
+                      </button>
+                      .
+                    </div>
+
+                    <div className="pt-2 space-y-3">
+                      <label className="flex items-center gap-2.5 text-xs font-semibold text-stone-300 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={platformSettings.autoApproveSalons}
+                          onChange={(e) =>
+                            setPlatformSettings({ ...platformSettings, autoApproveSalons: e.target.checked })
+                          }
+                          className="w-4 h-4 rounded text-[#C9A45C] bg-[#08080a] border-[#2e2e38] focus:ring-0"
+                        />
+                        <span>Publication automatique des salons après inscription</span>
+                      </label>
+
+                      <label className="flex items-center gap-2.5 text-xs font-semibold text-red-300 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={platformSettings.maintenanceMode}
+                          onChange={(e) =>
+                            setPlatformSettings({ ...platformSettings, maintenanceMode: e.target.checked })
+                          }
+                          className="w-4 h-4 rounded text-red-500 bg-[#08080a] border-[#2e2e38] focus:ring-0"
+                        />
+                        <span>Mode Maintenance Global (Verrouiller les nouvelles inscriptions)</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="pt-4 border-t border-[#1a1a22] flex justify-end">
+                    <button
+                      type="submit"
+                      className="px-5 py-2.5 rounded-xl bg-[#C9A45C] hover:bg-[#d8b56d] text-[#101010] font-bold text-xs flex items-center gap-2 transition-all shadow-md cursor-pointer"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Enregistrer les Paramètres</span>
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+          </Suspense>
         </main>
       </div>
 
       {/* PLAN EDIT MODAL */}
       {editorTarget && (
-        <PricingTierEditor
-          plan={editorTarget.plan}
-          pendingDraft={editorTarget.draft}
-          nextDisplayOrder={plans.length + 1}
-          onClose={() => setEditorTarget(null)}
-          onSaved={() => {
-            setEditorTarget(null);
-            loadAllData();
-          }}
-        />
+        <Suspense fallback={null}>
+          <PricingTierEditor
+            plan={editorTarget.plan}
+            pendingDraft={editorTarget.draft}
+            nextDisplayOrder={plans.length + 1}
+            onClose={() => setEditorTarget(null)}
+            onSaved={() => {
+              setEditorTarget(null);
+              void refreshAllAndMarketplace();
+            }}
+          />
+        </Suspense>
       )}
 
-      {/* SUBSCRIPTION OVERRIDE MODAL FOR SALON */}
-      {selectedSalonForSub && (
+      {/* SUBSCRIPTION TAB STATUS TOGGLE MODAL */}
+      {pendingStatusSalon && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#0f0f13] border border-[#262632] rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl">
-            <div>
-              <h3 className="text-base font-bold text-white">
-                Modifier la Formule de « {selectedSalonForSub.name} »
-              </h3>
-              <p className="text-xs text-stone-400 mt-1">
-                Attribuez manuellement un nouveau forfait SaaS à cet établissement.
-              </p>
-            </div>
-
-            <div className="space-y-3">
-              <label className="block text-xs font-semibold text-stone-300">
-                Sélectionner le forfait cible :
-              </label>
-              <select
-                value={newSubPlanId}
-                onChange={(e) => setNewSubPlanId(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-[#08080a] border border-[#202028] text-xs text-white focus:outline-none focus:border-[#C9A45C]"
-              >
-                {plans.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} — {formatPrice(p.priceXof)} / mois
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#1c1c24]">
+          <form
+            onSubmit={handleConfirmSubscriptionStatus}
+            className="bg-[#0f0f13] border border-[#262632] rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-base font-bold text-white">
+                  {pendingStatusSalon.nextStatus === 'suspended'
+                    ? `Suspendre « ${pendingStatusSalon.salon.name} »`
+                    : `Réactiver « ${pendingStatusSalon.salon.name} »`}
+                </h3>
+                <p className="text-xs text-stone-400 mt-1">
+                  {pendingStatusSalon.nextStatus === 'suspended'
+                    ? 'Le salon sera immédiatement retiré de la marketplace et ses réservations publiques bloquées.'
+                    : 'Le salon retrouvera un statut actif mais devra être republié pour redevenir visible.'}
+                </p>
+              </div>
               <button
                 type="button"
-                onClick={() => setSelectedSalonForSub(null)}
+                disabled={statusBusy}
+                onClick={() => setPendingStatusSalon(null)}
+                className="p-1.5 rounded-lg bg-[#181820] text-stone-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div>
+              <label htmlFor="sub-status-reason" className="block text-xs font-semibold text-stone-300 mb-1">
+                Motif de l’opération *
+              </label>
+              <input
+                id="sub-status-reason"
+                type="text"
+                value={statusReason}
+                onChange={(e) => setStatusReason(e.target.value)}
+                placeholder="Ex. Impayé prolongé, régularisation effectuée..."
+                className="w-full px-3.5 py-2.5 rounded-xl bg-[#08080a] border border-[#202028] text-xs text-white focus:outline-none focus:border-[#C9A45C]"
+              />
+            </div>
+
+            {statusError && (
+              <div
+                role="alert"
+                className="flex items-start gap-2 rounded-xl border border-red-800/60 bg-red-950/40 p-3 text-xs text-red-200"
+              >
+                <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                <span>{statusError}</span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-3 pt-2 border-t border-[#1c1c24]">
+              <button
+                type="button"
+                disabled={statusBusy}
+                onClick={() => setPendingStatusSalon(null)}
                 className="px-4 py-2 rounded-xl bg-[#181820] text-stone-400 text-xs font-semibold"
               >
                 Annuler
               </button>
               <button
-                type="button"
-                onClick={handleSaveSubscriptionOverride}
-                className="px-4 py-2 rounded-xl bg-[#C9A45C] text-[#101010] font-bold text-xs"
+                type="submit"
+                disabled={statusBusy}
+                className={`px-4 py-2 rounded-xl font-bold text-xs cursor-pointer disabled:opacity-50 ${
+                  pendingStatusSalon.nextStatus === 'suspended'
+                    ? 'bg-red-600 text-white hover:bg-red-500'
+                    : 'bg-[#C9A45C] text-[#101010] hover:bg-[#d6b36a]'
+                }`}
               >
-                Appliquer la Formule
+                {statusBusy ? 'Enregistrement…' : 'Confirmer'}
               </button>
             </div>
-          </div>
+          </form>
         </div>
       )}
     </div>

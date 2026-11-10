@@ -1,13 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { PublicSalonDetail, SalonMarketplaceViewConfig, Service } from '../../../types';
 import { getMarketplaceSalonDetail } from '../../../lib/marketplace';
 import { getDefaultCustomizerConfig } from '../../../lib/marketplace-customizer';
-import {
-  applySalonAdminOverrides,
-  getSalonAdminOverrides,
-  isSalonHiddenByAdmin,
-} from '../../../lib/superadmin';
+import { buildSalonSeoMetadata, resolvePageMetadata, type PageSeoMetadata } from '../../../lib/seo';
+import { usePageSeo } from '../../../hooks/useSiteMetadata';
 import { ClassicSalonLayout } from './layouts/ClassicSalonLayout';
 import { ElegantSalonLayout } from './layouts/ElegantSalonLayout';
 import { EditorialSalonLayout } from './layouts/EditorialSalonLayout';
@@ -28,6 +25,48 @@ export const SalonPublicPage: React.FC<SalonPublicPageProps> = ({ initialDetail,
   // Direct modal booking flow for public visitors
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [preselectedService, setPreselectedService] = useState<Service | null>(null);
+  const [preselectedStaffId, setPreselectedStaffId] = useState<string>('any');
+
+  const seoMetadata = useMemo<PageSeoMetadata>(() => {
+    if (detail && detail.salon.status !== 'suspended') {
+      return buildSalonSeoMetadata(detail);
+    }
+    const slugPath = slug ? `/salons/${encodeURIComponent(slug)}` : '/salons';
+    if (error) {
+      return {
+        ...resolvePageMetadata(slugPath, {
+          siteName: 'BarberCuts',
+          metaTitle: 'Salon indisponible | BarberCuts',
+          metaDescription: "Cet établissement n'est plus disponible sur la marketplace BarberCuts.",
+        }),
+        canonicalPath: slugPath,
+        title: 'Salon indisponible | BarberCuts',
+        ogTitle: 'Salon indisponible | BarberCuts',
+        description: "Cet établissement n'est plus disponible sur la marketplace BarberCuts.",
+        ogDescription: "Cet établissement n'est plus disponible sur la marketplace BarberCuts.",
+        robots: 'noindex, nofollow',
+        jsonLd: null,
+      };
+    }
+    return {
+      ...resolvePageMetadata('/', {
+        siteName: 'BarberCuts',
+        metaTitle: 'Fiche salon | BarberCuts',
+        metaDescription:
+          'Découvrez les prestations, les tarifs et réservez votre rendez-vous en ligne sur BarberCuts.',
+      }),
+      canonicalPath: slugPath,
+      title: 'Fiche salon | BarberCuts',
+      ogTitle: 'Fiche salon | BarberCuts',
+      description:
+        'Découvrez les prestations, les tarifs et réservez votre rendez-vous en ligne sur BarberCuts.',
+      ogDescription:
+        'Découvrez les prestations, les tarifs et réservez votre rendez-vous en ligne sur BarberCuts.',
+      jsonLd: null,
+    };
+  }, [detail, error, slug]);
+
+  usePageSeo(seoMetadata);
 
   useEffect(() => {
     if (initialDetail) {
@@ -43,15 +82,11 @@ export const SalonPublicPage: React.FC<SalonPublicPageProps> = ({ initialDetail,
     getMarketplaceSalonDetail(slug)
       .then((data) => {
         if (cancelled) return;
-        // Décisions SuperAdmin : un salon suspendu ou retiré n'a plus de vitrine publique ;
-        // la certification décidée par l'admin est appliquée au badge affiché.
-        const overrides = getSalonAdminOverrides();
-        if (isSalonHiddenByAdmin(data.salon.id, overrides)) {
+        if (data.salon.status === 'suspended') {
           setError("Cet établissement n'est plus disponible sur la marketplace.");
           return;
         }
-        const [salonWithDecisions] = applySalonAdminOverrides([data.salon], overrides);
-        setDetail({ ...data, salon: salonWithDecisions });
+        setDetail(data);
       })
       .catch((err) => {
         if (!cancelled) {
@@ -104,6 +139,8 @@ export const SalonPublicPage: React.FC<SalonPublicPageProps> = ({ initialDetail,
   const config: SalonMarketplaceViewConfig = detail.customizer || getDefaultCustomizerConfig(detail.salon.id);
 
   const handleBookNow = () => {
+    setPreselectedService(null);
+    setPreselectedStaffId('any');
     if (onOpenBookingModal) {
       onOpenBookingModal();
     } else {
@@ -113,6 +150,7 @@ export const SalonPublicPage: React.FC<SalonPublicPageProps> = ({ initialDetail,
 
   const handleSelectService = (service: Service) => {
     setPreselectedService(service);
+    setPreselectedStaffId('any');
     if (onOpenBookingModal) {
       onOpenBookingModal(service.id);
     } else {
@@ -121,6 +159,7 @@ export const SalonPublicPage: React.FC<SalonPublicPageProps> = ({ initialDetail,
   };
 
   const handleSelectStaff = (staffId: string) => {
+    setPreselectedStaffId(staffId);
     if (onOpenBookingModal) {
       onOpenBookingModal(undefined, staffId);
     } else {
@@ -179,9 +218,13 @@ export const SalonPublicPage: React.FC<SalonPublicPageProps> = ({ initialDetail,
       {isBookingModalOpen && (
         <SalonDetailModal
           salon={detail.salon}
+          initialDetail={detail}
+          initialServiceId={preselectedService?.id}
+          initialStaffId={preselectedStaffId}
           onClose={() => {
             setIsBookingModalOpen(false);
             setPreselectedService(null);
+            setPreselectedStaffId('any');
           }}
         />
       )}

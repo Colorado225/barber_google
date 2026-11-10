@@ -1,6 +1,6 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import path from 'path';
+import path from 'node:path';
 import { defineConfig } from 'vite';
 
 export default defineConfig(() => {
@@ -8,7 +8,27 @@ export default defineConfig(() => {
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve(import.meta.dirname, '.'),
+      },
+    },
+    build: {
+      rolldownOptions: {
+        output: {
+          codeSplitting: {
+            groups: [
+              {
+                name: 'vendor-react',
+                test: /node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler)[\\/]/,
+                priority: 30,
+              },
+              {
+                name: 'vendor-supabase',
+                test: /node_modules[\\/]@supabase[\\/]/,
+                priority: 20,
+              },
+            ],
+          },
+        },
       },
     },
     server: {

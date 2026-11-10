@@ -11,10 +11,12 @@ import {
   Users,
   CheckCircle2,
   Clock,
+  Ban,
 } from 'lucide-react';
 import { useOptionalApp } from '../../context/AppContext';
 import { useOptionalAuth } from '../../context/AuthContext';
 import type { SaaSPlan, SaaSSubscription } from '../../types';
+import { SMS_UNAVAILABLE_MESSAGE, SMS_UNAVAILABLE_TITLE } from '../../lib/notifications';
 import {
   declareSaasPayment,
   getPendingSalonSubscription,
@@ -429,6 +431,17 @@ export const SaaSPlanView: React.FC = () => {
               </div>
             );
           })}
+        </div>
+
+        <div
+          data-testid="saas-sms-unavailable-notice"
+          className="rounded-2xl border border-[#26262c] bg-[#141416] p-4 flex items-start gap-3 text-xs text-stone-300"
+        >
+          <Ban className="w-4 h-4 text-stone-400 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p className="font-bold text-white">{SMS_UNAVAILABLE_TITLE}</p>
+            <p className="text-stone-400 leading-relaxed">{SMS_UNAVAILABLE_MESSAGE}</p>
+          </div>
         </div>
       </div>
     </div>

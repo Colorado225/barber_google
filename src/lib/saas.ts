@@ -1,4 +1,5 @@
 import type { SaaSPlan, SaaSSubscription, PlatformMetrics } from '../types';
+import { NOTIFICATION_CHANNEL_HONEST_FEATURE, normalizeSaasPlanFeatures } from './notifications';
 import { getSupabaseClient, isSupabaseConfigured } from './supabase';
 
 const DEFAULT_PLANS: SaaSPlan[] = [
@@ -39,7 +40,7 @@ const DEFAULT_PLANS: SaaSPlan[] = [
       'Module Clients de passage (Walk-in en direct)',
       'Programme de fidélité et récompenses automatisé',
       'Personnalisation complète de la vitrine (3 thèmes)',
-      'Rappels SMS & WhatsApp anti-no-show',
+      NOTIFICATION_CHANNEL_HONEST_FEATURE,
       'Gestion des dépenses et alertes de stock bas',
     ],
     maxStaff: 5,
@@ -85,7 +86,11 @@ function getLocalPlans(): SaaSPlan[] {
       localStorage.setItem(LOCAL_STORAGE_KEY_PLANS, JSON.stringify(DEFAULT_PLANS));
       return DEFAULT_PLANS;
     }
-    return JSON.parse(raw) as SaaSPlan[];
+    const parsed = JSON.parse(raw) as SaaSPlan[];
+    return parsed.map((plan) => ({
+      ...plan,
+      features: normalizeSaasPlanFeatures(Array.isArray(plan.features) ? plan.features : []),
+    }));
   } catch {
     return DEFAULT_PLANS;
   }
@@ -121,7 +126,7 @@ function planFromRow(row: Record<string, unknown>): SaaSPlan {
     priceXof: Number(row.price_xof),
     billingPeriod: (row.billing_period as 'monthly' | 'yearly') || 'monthly',
     description: String(row.description || ''),
-    features: Array.isArray(row.features) ? (row.features as string[]) : [],
+    features: normalizeSaasPlanFeatures(Array.isArray(row.features) ? (row.features as string[]) : []),
     maxStaff: row.max_staff ? Number(row.max_staff) : null,
     maxBranches: Number(row.max_branches || 1),
     isPopular: Boolean(row.is_popular),
@@ -156,7 +161,9 @@ function planFromPayload(planId: string, payload: Record<string, unknown>): SaaS
     priceXof: Number(payload.price_xof ?? 0),
     billingPeriod: (payload.billing_period as 'monthly' | 'yearly') || 'monthly',
     description: String(payload.description ?? ''),
-    features: Array.isArray(payload.features) ? (payload.features as string[]) : [],
+    features: normalizeSaasPlanFeatures(
+      Array.isArray(payload.features) ? (payload.features as string[]) : [],
+    ),
     maxStaff:
       payload.max_staff === null || payload.max_staff === undefined ? null : Number(payload.max_staff),
     maxBranches: Number(payload.max_branches ?? 1),
@@ -497,33 +504,113 @@ export async function reviewSaasPayment(
   }
 }
 
+export interface PlatformMetricsFilter {
+  from?: string | null;
+  to?: string | null;
+}
+
+export interface SaasRpcClient {
+  rpc: (
+    fn: string,
+    params?: Record<string, unknown>,
+  ) => PromiseLike<{ data: unknown; error: { message: string; code?: string } | null }>;
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+}
+
+export function mapPlatformMetricsRow(d: Record<string, unknown>): PlatformMetrics {
+  const subsByStatus = asRecord(d.subscriptions_by_status);
+  const subsByPeriod = asRecord(d.subscriptions_by_billing_period);
+  const apptsByStatus = asRecord(d.appointments_by_status);
+  const netRevenue = Number(d.collected_net_revenue_xof ?? d.total_revenue_xof ?? 0);
+
+  return {
+    periodFrom: typeof d.period_from === 'string' ? d.period_from : null,
+    periodTo: typeof d.period_to === 'string' ? d.period_to : null,
+    timezone: typeof d.timezone === 'string' ? d.timezone : 'Africa/Abidjan',
+    totalSalons: Number(d.total_salons || 0),
+    publishedSalons: Number(d.published_salons || 0),
+    suspendedSalons: d.suspended_salons !== undefined ? Number(d.suspended_salons) : undefined,
+    verifiedSalons: d.verified_salons !== undefined ? Number(d.verified_salons) : undefined,
+    activeSubscriptions: Number(d.active_subscriptions || 0),
+    estimatedMrrXof: Number(d.estimated_mrr_xof || 0),
+    monthlyMrrXof: Number(d.monthly_mrr_xof || 0),
+    yearlyMrrXof: Number(d.yearly_mrr_xof || 0),
+    annualRunRateXof: Number(d.annual_run_rate_xof || 0),
+    subscriptionsByStatus: {
+      active: Number(subsByStatus.active ?? d.active_subscriptions ?? 0),
+      trialing: Number(subsByStatus.trialing || 0),
+      pendingPayment: Number(subsByStatus.pending_payment || 0),
+      pastDue: Number(subsByStatus.past_due || 0),
+      cancelled: Number(subsByStatus.cancelled || 0),
+    },
+    subscriptionsByBillingPeriod: {
+      monthly: Number(subsByPeriod.monthly || 0),
+      yearly: Number(subsByPeriod.yearly || 0),
+    },
+    saasCollectedRevenueXof: Number(d.saas_collected_revenue_xof || 0),
+    saasConfirmedPaymentsCount: Number(d.saas_confirmed_payments_count || 0),
+    saasPendingPaymentsXof: Number(d.saas_pending_payments_xof || 0),
+    saasPendingPaymentsCount: Number(d.saas_pending_payments_count || 0),
+    saasRejectedPaymentsXof: Number(d.saas_rejected_payments_xof || 0),
+    saasRejectedPaymentsCount: Number(d.saas_rejected_payments_count || 0),
+    plansCount: Number(d.plans_count || 0),
+    completedAppointments: Number(d.completed_appointments ?? apptsByStatus.completed ?? 0),
+    cancelledAppointments: Number(d.cancelled_appointments ?? apptsByStatus.cancelled ?? 0),
+    noShowAppointments: Number(d.no_show_appointments ?? apptsByStatus.no_show ?? 0),
+    totalAppointments: Number(d.total_appointments || 0),
+    appointmentsByStatus: {
+      pending: Number(apptsByStatus.pending || 0),
+      confirmed: Number(apptsByStatus.confirmed || 0),
+      checkedIn: Number(apptsByStatus.checked_in || 0),
+      inProgress: Number(apptsByStatus.in_progress || 0),
+      completed: Number(apptsByStatus.completed ?? d.completed_appointments ?? 0),
+      cancelled: Number(apptsByStatus.cancelled ?? d.cancelled_appointments ?? 0),
+      noShow: Number(apptsByStatus.no_show ?? d.no_show_appointments ?? 0),
+    },
+    totalRevenueXof: netRevenue,
+    collectedNetRevenueXof: netRevenue,
+    collectedGrossRevenueXof: Number(d.collected_gross_revenue_xof || 0),
+    refundsXof: Number(d.refunds_xof || 0),
+    paymentReversalsXof: Number(d.payment_reversals_xof || 0),
+    refundReversalsXof: Number(d.refund_reversals_xof || 0),
+    pendingPaymentsXof: Number(d.pending_payments_xof || 0),
+    pendingPaymentsCount: Number(d.pending_payments_count || 0),
+    failedPaymentsXof: Number(d.failed_payments_xof || 0),
+    failedPaymentsCount: Number(d.failed_payments_count || 0),
+    confirmedPaymentsCount: Number(d.confirmed_payments_count || 0),
+    refundsCount: Number(d.refunds_count || 0),
+    hiddenReviews: d.hidden_reviews !== undefined ? Number(d.hidden_reviews) : undefined,
+  };
+}
+
 /**
  * Récupère les métriques de la plateforme pour la console Super Admin.
  *
- * Renvoie `null` si la RPC échoue ou si Supabase n'est pas configuré : aucune valeur
- * de repli n'est inventée. L'interface affiche alors « — ».
+ * Renvoie `null` si Supabase n'est pas configuré : aucune valeur de repli n'est inventée.
+ * L'interface affiche alors « — ».
  */
-export async function getPlatformMetrics(): Promise<PlatformMetrics | null> {
-  if (isSupabaseConfigured()) {
-    try {
-      const client = getSupabaseClient();
-      const { data, error } = await client.rpc('get_platform_metrics');
-      if (!error && data) {
-        const d = data as Record<string, unknown>;
-        return {
-          totalSalons: Number(d.total_salons || 0),
-          publishedSalons: Number(d.published_salons || 0),
-          activeSubscriptions: Number(d.active_subscriptions || 0),
-          estimatedMrrXof: Number(d.estimated_mrr_xof || 0),
-          plansCount: Number(d.plans_count || 0),
-          totalAppointments: Number(d.total_appointments || 0),
-          totalRevenueXof: Number(d.total_revenue_xof || 0),
-        };
-      }
-    } catch {
-      // repli local
-    }
+export async function getPlatformMetrics(
+  filter?: PlatformMetricsFilter,
+  clientOverride?: SaasRpcClient,
+): Promise<PlatformMetrics | null> {
+  if (!clientOverride && !isSupabaseConfigured()) {
+    return null;
   }
 
-  return null;
+  const client = clientOverride ?? getSupabaseClient();
+  const params =
+    filter && (filter.from !== undefined || filter.to !== undefined)
+      ? { p_from: filter.from ?? null, p_to: filter.to ?? null }
+      : undefined;
+  const { data, error } = await client.rpc('get_platform_metrics', params);
+  if (error) {
+    throw new Error(error.message || 'Impossible de charger les indicateurs de la plateforme.');
+  }
+  if (!data || typeof data !== 'object') {
+    return null;
+  }
+  return mapPlatformMetricsRow(data as Record<string, unknown>);
 }

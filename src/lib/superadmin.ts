@@ -1,7 +1,6 @@
-import { useSyncExternalStore } from 'react';
 import { getSupabaseClient, isSupabaseConfigured } from './supabase';
-import type { Salon, SaaSPlan, SaaSSubscription } from '../types';
-import { getAllSaasPlans, getPlatformMetrics } from './saas';
+import type { NotificationProbeResult, PlatformNotificationHealthSummary } from '../types';
+import { mapNotificationProbe, mapPlatformNotificationHealth } from './notifications';
 
 export interface AdminUser {
   id: string;
@@ -11,22 +10,65 @@ export interface AdminUser {
   lastLogin: string;
 }
 
+export interface SalonPaymentSummary {
+  id: string;
+  status: 'pending' | 'confirmed' | 'rejected';
+  amountXof?: number;
+  method?: string;
+  reference?: string;
+  declaredAt?: string;
+  decidedAt?: string;
+  decisionReason?: string;
+}
+
+export interface PendingSubscriptionSummary {
+  id: string;
+  planId: string;
+  planName?: string;
+  priceXof?: number;
+  billingPeriod?: 'monthly' | 'yearly';
+  payment: SalonPaymentSummary | null;
+}
+
 export interface SalonAdminDetail {
   id: string;
   name: string;
+  slug?: string;
+  organizationId?: string;
   organizationName: string;
   commune: string;
+  city?: string;
   phone: string;
   email?: string;
   isPublished: boolean;
   isVerified: boolean;
+  verifiedAt?: string;
+  status: 'active' | 'suspended';
+  suspendedAt?: string;
+  suspensionReason?: string;
+  subscriptionId?: string;
   planId: string;
   planName: string;
-  priceAtSubscription: number;
-  status: 'active' | 'suspended';
-  /** Indicateurs réels non fournis par la liste publique : `undefined` tant qu'ils ne sont pas branchés. */
+  priceAtSubscription?: number;
+  subscriptionStatus?: 'pending_payment' | 'trialing' | 'active' | 'past_due' | 'cancelled';
+  subscriptionBillingPeriod?: 'monthly' | 'yearly';
+  subscriptionStartedAt?: string;
+  currentPeriodEnd?: string;
+  latestPayment: SalonPaymentSummary | null;
+  pendingSubscription: PendingSubscriptionSummary | null;
+  staffCount?: number;
+  serviceCount?: number;
   appointmentsCount?: number;
+  completedAppointmentsCount?: number;
+  cancelledAppointmentsCount?: number;
   totalRevenueXof?: number;
+  collectedGrossXof?: number;
+  refundsXof?: number;
+  pendingPaymentsXof?: number;
+  rating?: number;
+  reviewCount?: number;
+  totalReviewCount?: number;
+  publicationDate?: string;
   createdAt: string;
 }
 
@@ -34,28 +76,42 @@ export interface MarketplaceReviewItem {
   id: string;
   salonId: string;
   salonName: string;
+  salonSlug?: string;
+  salonStatus?: 'active' | 'suspended';
   author: string;
   rating: number;
   comment: string;
   createdAt: string;
   isVerified: boolean;
-  isFlagged?: boolean;
+  isHidden: boolean;
+  moderatedAt?: string;
+  moderatedBy?: string;
+  moderationReason?: string;
 }
 
 export interface AuditLogEntry {
   id: string;
   timestamp: string;
+  actorUserId?: string;
+  actorRole?: string;
+  actorEmail?: string;
   action: string;
-  target: string;
-  performedBy: string;
-  severity: 'info' | 'warning' | 'critical';
+  targetType: string;
+  targetId: string;
+  beforeValues: Record<string, unknown> | null;
+  afterValues: Record<string, unknown> | null;
+  reason?: string;
+  details: Record<string, unknown>;
+}
+
+export interface AdminRpcClient {
+  rpc: (
+    fn: string,
+    params?: Record<string, unknown>,
+  ) => PromiseLike<{ data: unknown; error: { message: string; code?: string } | null }>;
 }
 
 const SUPERADMIN_SESSION_KEY = 'barbercuts_superadmin_session';
-const SALON_ADMIN_OVERRIDE_KEY = 'barbercuts_admin_salon_overrides';
-export const SALON_ADMIN_OVERRIDES_EVENT = 'admin_salons_updated';
-const REVIEWS_MODERATION_KEY = 'barbercuts_admin_reviews';
-const AUDIT_LOG_KEY = 'barbercuts_admin_audit_log';
 
 /**
  * Compte unique autorisé à administrer la plateforme.
@@ -65,6 +121,7 @@ const AUDIT_LOG_KEY = 'barbercuts_admin_audit_log';
 export const SUPERADMIN_EMAIL = 'dominiquek051@gmail.com';
 
 const SUPERADMIN_ACCESS_DENIED = 'Identifiants super-administrateur invalides ou accès non autorisé.';
+const ADMIN_DB_NOT_CONFIGURED = 'Administration impossible : la base de données n’est pas configurée.';
 
 function clearSuperAdminSession(): void {
   if (typeof window === 'undefined') return;
@@ -172,7 +229,6 @@ export async function loginSuperAdmin(email: string, password: string): Promise<
   if (!admin) {
     throw new Error(SUPERADMIN_ACCESS_DENIED);
   }
-  logAdminAction('Connexion authentifiée via Supabase', 'Console SuperAdmin', admin.email, 'info');
   return admin;
 }
 
@@ -181,10 +237,6 @@ export async function loginSuperAdmin(email: string, password: string): Promise<
  */
 export function logoutSuperAdmin(): void {
   if (typeof window === 'undefined') return;
-  const current = getSuperAdminSession();
-  if (current) {
-    logAdminAction('Déconnexion de la console', 'Console SuperAdmin', current.email, 'info');
-  }
   clearSuperAdminSession();
   if (isSupabaseConfigured()) {
     void getSupabaseClient().auth.signOut();
@@ -192,245 +244,370 @@ export function logoutSuperAdmin(): void {
   window.dispatchEvent(new CustomEvent('superadmin_session_changed'));
 }
 
-/**
- * Journalise une action administrative
- */
-export function logAdminAction(
-  action: string,
-  target: string,
-  performedBy: string,
-  severity: 'info' | 'warning' | 'critical' = 'info',
-) {
-  if (typeof window === 'undefined') return;
-  try {
-    const current = getAuditLogs();
-    const entry: AuditLogEntry = {
-      id: `log_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-      timestamp: new Date().toISOString(),
-      action,
-      target,
-      performedBy,
-      severity,
-    };
-    localStorage.setItem(AUDIT_LOG_KEY, JSON.stringify([entry, ...current.slice(0, 99)]));
-  } catch {
-    // ignore
-  }
-}
-
-/**
- * Récupère le journal d'audit
- */
-export function getAuditLogs(): AuditLogEntry[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = localStorage.getItem(AUDIT_LOG_KEY);
-    if (!raw) return [];
-    return JSON.parse(raw);
-  } catch {
-    return [];
-  }
-}
-
-export type SalonAdminOverrides = Record<string, Partial<SalonAdminDetail>>;
-
-/** Lecture brute des overrides SuperAdmin (vérification, publication, suspension, formule…). */
-export function getSalonAdminOverrides(): SalonAdminOverrides {
-  if (typeof window === 'undefined') return {};
-  try {
-    const raw = localStorage.getItem(SALON_ADMIN_OVERRIDE_KEY);
-    return raw ? (JSON.parse(raw) as SalonAdminOverrides) : {};
-  } catch {
-    return {};
-  }
-}
-
-/**
- * Applique les décisions du SuperAdmin aux salons affichés côté client.
- * - Un salon suspendu n'est jamais visible sur la marketplace.
- * - La publication est celle décidée par l'admin, sinon celle de la base.
- * - La certification (badge) est celle décidée par l'admin, sinon celle de la base.
- * Source unique de vérité : la marketplace et l'administration utilisent cette même règle.
- */
-export function applySalonAdminOverrides<
-  T extends { id: string; isVerified?: boolean; isPublishedOnMarketplace?: boolean },
->(salons: T[], overrides: SalonAdminOverrides = getSalonAdminOverrides()): T[] {
-  return salons.map((salon) => {
-    const override = overrides[salon.id];
-    if (!override) return salon;
-    const isSuspended = override.status === 'suspended';
-    return {
-      ...salon,
-      isVerified: override.isVerified ?? salon.isVerified,
-      isPublishedOnMarketplace:
-        !isSuspended && (override.isPublished ?? salon.isPublishedOnMarketplace === true),
-    };
-  });
-}
-
-/**
- * Vrai si le SuperAdmin a suspendu ou retiré ce salon de la marketplace.
- * Ne se fonde que sur les décisions admin (et non sur le flag de base) : utile pour les vues
- * dont la donnée de base n'est pas complète, comme la vitrine publique d'un salon.
- */
-export function isSalonHiddenByAdmin(
-  salonId: string,
-  overrides: SalonAdminOverrides = getSalonAdminOverrides(),
-): boolean {
-  const override = overrides[salonId];
-  return Boolean(override && (override.status === 'suspended' || override.isPublished === false));
-}
-
 /** Un salon est en ligne sur la marketplace s'il est publié et son accès n'est pas suspendu. */
 export function isSalonLiveOnMarketplace(salon: Pick<SalonAdminDetail, 'isPublished' | 'status'>): boolean {
   return salon.isPublished && salon.status === 'active';
 }
 
-let cachedOverridesRaw: string | null = null;
-let cachedOverrides: SalonAdminOverrides = {};
-
-function readRawSalonAdminOverrides(): string | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    return localStorage.getItem(SALON_ADMIN_OVERRIDE_KEY);
-  } catch {
-    return null;
+export function validateAuditReason(reason: string): string {
+  const trimmed = reason.trim();
+  if (trimmed.length < 3 || trimmed.length > 500) {
+    throw new Error('Un motif est obligatoire (entre 3 et 500 caractères).');
   }
+  return trimmed;
 }
 
-function getSalonAdminOverridesSnapshot(): SalonAdminOverrides {
-  const raw = readRawSalonAdminOverrides();
-  if (raw !== cachedOverridesRaw) {
-    cachedOverridesRaw = raw;
-    cachedOverrides = getSalonAdminOverrides();
+function resolveRpcClient(clientOverride?: AdminRpcClient): AdminRpcClient {
+  if (clientOverride) return clientOverride;
+  if (!isSupabaseConfigured()) {
+    throw new Error(ADMIN_DB_NOT_CONFIGURED);
   }
-  return cachedOverrides;
+  return getSupabaseClient();
 }
 
-function subscribeToSalonAdminOverrides(listener: () => void): () => void {
-  if (typeof window === 'undefined') return () => undefined;
-  const onStorage = (event: StorageEvent) => {
-    if (event.key === null || event.key === SALON_ADMIN_OVERRIDE_KEY) listener();
-  };
-  window.addEventListener(SALON_ADMIN_OVERRIDES_EVENT, listener);
-  window.addEventListener('storage', onStorage);
-  return () => {
-    window.removeEventListener(SALON_ADMIN_OVERRIDES_EVENT, listener);
-    window.removeEventListener('storage', onStorage);
-  };
-}
+const str = (row: Record<string, unknown>, key: string, fallback = ''): string =>
+  typeof row[key] === 'string' ? (row[key] as string) : fallback;
 
-/** Hook réactif : la vue publique se met à jour dès qu'un SuperAdmin modifie un salon. */
-export function useSalonAdminOverrides(): SalonAdminOverrides {
-  return useSyncExternalStore(
-    subscribeToSalonAdminOverrides,
-    getSalonAdminOverridesSnapshot,
-    getSalonAdminOverridesSnapshot,
-  );
-}
-
-/** Tarifs officiels des forfaits SaaS (identiques au schéma `saas_plans`). */
-const OFFICIAL_PLANS: Record<string, { name: string; priceXof: number }> = {
-  starter: { name: 'Starter Solo', priceXof: 15000 },
-  pro: { name: 'Pro Équipe', priceXof: 35000 },
-  prestige: { name: 'Prestige & Chaînes', priceXof: 75000 },
+const optStr = (row: Record<string, unknown>, key: string): string | undefined => {
+  const value = row[key];
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
 };
 
+const optNum = (row: Record<string, unknown>, key: string): number | undefined => {
+  const value = row[key];
+  return value === null || value === undefined ? undefined : Number(value);
+};
+
+const VALID_SUBSCRIPTION_STATUSES = new Set([
+  'pending_payment',
+  'trialing',
+  'active',
+  'past_due',
+  'cancelled',
+]);
+
+const VALID_PAYMENT_STATUSES = new Set(['pending', 'confirmed', 'rejected']);
+
+function parseSubscriptionStatus(value: unknown): SalonAdminDetail['subscriptionStatus'] {
+  return typeof value === 'string' && VALID_SUBSCRIPTION_STATUSES.has(value)
+    ? (value as SalonAdminDetail['subscriptionStatus'])
+    : undefined;
+}
+
+function parseBillingPeriod(value: unknown): 'monthly' | 'yearly' | undefined {
+  if (value === 'yearly') return 'yearly';
+  if (value === 'monthly') return 'monthly';
+  return undefined;
+}
+
+function mapPaymentSummary(row: Record<string, unknown>, prefix: string): SalonPaymentSummary | null {
+  const id = optStr(row, `${prefix}_id`);
+  const statusRaw = optStr(row, `${prefix}_status`);
+  if (!id || !statusRaw || !VALID_PAYMENT_STATUSES.has(statusRaw)) {
+    return null;
+  }
+  return {
+    id,
+    status: statusRaw as SalonPaymentSummary['status'],
+    amountXof: optNum(row, `${prefix}_amount_xof`),
+    method: optStr(row, `${prefix}_method`),
+    reference: optStr(row, `${prefix}_reference`),
+    declaredAt: optStr(row, `${prefix}_declared_at`),
+    decidedAt: optStr(row, `${prefix}_decided_at`),
+    decisionReason: optStr(row, `${prefix}_decision_reason`),
+  };
+}
+
+export function mapAdminSalonRow(row: Record<string, unknown>): SalonAdminDetail {
+  const subscriptionStatus = parseSubscriptionStatus(row.subscription_status);
+  const rawPeriodEnd = optStr(row, 'subscription_current_period_end');
+  const currentPeriodEnd = subscriptionStatus === 'pending_payment' ? undefined : rawPeriodEnd;
+
+  const pendingSubId = optStr(row, 'pending_subscription_id');
+  const pendingPlanId = str(row, 'pending_subscription_plan_id');
+  const pendingSubscription: PendingSubscriptionSummary | null = pendingSubId
+    ? {
+        id: pendingSubId,
+        planId: pendingPlanId,
+        planName: optStr(row, 'pending_subscription_plan_name'),
+        priceXof: optNum(row, 'pending_subscription_price_xof'),
+        billingPeriod: parseBillingPeriod(row.pending_subscription_billing_period),
+        payment: mapPaymentSummary(row, 'pending_payment'),
+      }
+    : null;
+
+  return {
+    id: str(row, 'id'),
+    name: str(row, 'name'),
+    slug: optStr(row, 'slug'),
+    organizationId: optStr(row, 'organization_id'),
+    organizationName: str(row, 'organization_name'),
+    commune: str(row, 'commune'),
+    city: optStr(row, 'city'),
+    phone: str(row, 'phone'),
+    email: optStr(row, 'email'),
+    isPublished: row.is_published === true,
+    isVerified: row.is_verified === true,
+    verifiedAt: optStr(row, 'verified_at'),
+    status: row.status === 'suspended' ? 'suspended' : 'active',
+    suspendedAt: optStr(row, 'suspended_at'),
+    suspensionReason: optStr(row, 'suspension_reason'),
+    subscriptionId: optStr(row, 'subscription_id'),
+    planId: str(row, 'subscription_plan_id'),
+    planName: str(row, 'subscription_plan_name'),
+    priceAtSubscription: optNum(row, 'subscription_price_xof'),
+    subscriptionStatus,
+    subscriptionBillingPeriod: parseBillingPeriod(row.subscription_billing_period),
+    subscriptionStartedAt:
+      subscriptionStatus === 'pending_payment' ? undefined : optStr(row, 'subscription_started_at'),
+    currentPeriodEnd,
+    latestPayment: mapPaymentSummary(row, 'subscription_payment'),
+    pendingSubscription,
+    staffCount: optNum(row, 'staff_count'),
+    serviceCount: optNum(row, 'service_count'),
+    appointmentsCount: optNum(row, 'appointments_count'),
+    completedAppointmentsCount: optNum(row, 'appointments_completed_count'),
+    cancelledAppointmentsCount: optNum(row, 'appointments_cancelled_count'),
+    totalRevenueXof: optNum(row, 'revenue_xof'),
+    collectedGrossXof: optNum(row, 'collected_gross_xof'),
+    refundsXof: optNum(row, 'refunds_xof'),
+    pendingPaymentsXof: optNum(row, 'pending_payments_xof'),
+    rating: optNum(row, 'rating'),
+    reviewCount: optNum(row, 'review_count'),
+    totalReviewCount: optNum(row, 'total_review_count'),
+    publicationDate: optStr(row, 'publication_date'),
+    createdAt: str(row, 'created_at') || str(row, 'publication_date'),
+  };
+}
+
+export function mapAdminReviewRow(row: Record<string, unknown>): MarketplaceReviewItem {
+  return {
+    id: str(row, 'id'),
+    salonId: str(row, 'salon_id'),
+    salonName: str(row, 'salon_name'),
+    salonSlug: optStr(row, 'salon_slug'),
+    salonStatus: row.salon_status === 'suspended' ? 'suspended' : 'active',
+    author: str(row, 'author'),
+    rating: Number(row.rating ?? 0),
+    comment: str(row, 'comment'),
+    createdAt: str(row, 'created_at'),
+    isVerified: row.verified === true,
+    isHidden: row.is_hidden === true,
+    moderatedAt: optStr(row, 'moderated_at'),
+    moderatedBy: optStr(row, 'moderated_by'),
+    moderationReason: optStr(row, 'moderation_reason'),
+  };
+}
+
+export function mapAuditLogRow(row: Record<string, unknown>): AuditLogEntry {
+  const details =
+    row.details && typeof row.details === 'object' ? (row.details as Record<string, unknown>) : {};
+  const beforeValues =
+    row.before_values && typeof row.before_values === 'object'
+      ? (row.before_values as Record<string, unknown>)
+      : null;
+  const afterValues =
+    row.after_values && typeof row.after_values === 'object'
+      ? (row.after_values as Record<string, unknown>)
+      : null;
+  return {
+    id: str(row, 'id'),
+    timestamp: str(row, 'created_at'),
+    actorUserId: optStr(row, 'actor_user_id'),
+    actorRole: optStr(row, 'actor_role'),
+    actorEmail: optStr(row, 'actor_email'),
+    action: str(row, 'action'),
+    targetType: str(row, 'target_type'),
+    targetId: str(row, 'target_id'),
+    beforeValues,
+    afterValues,
+    reason: optStr(row, 'reason'),
+    details,
+  };
+}
+
+async function callAdminRpc<T>(
+  fn: string,
+  params: Record<string, unknown> | undefined,
+  clientOverride?: AdminRpcClient,
+): Promise<T> {
+  const client = resolveRpcClient(clientOverride);
+  const { data, error } = await client.rpc(fn, params);
+  if (error) {
+    throw new Error(error.message || `Échec de l’opération serveur (${fn}).`);
+  }
+  return data as T;
+}
+
 /**
- * Liste consolidée des salons pour l'administration.
- *
- * Aucune donnée n'est inventée : seuls les champs renvoyés par la base sont repris.
- * Les champs absents (organisation, téléphone, formule, indicateurs) restent vides ou
- * `undefined` et l'interface l'indique explicitement.
+ * Liste consolidée de tous les salons locataires (publiés, brouillons et suspendus) depuis Supabase.
  */
-export function getAdminSalonsList(baseSalons: Salon[]): SalonAdminDetail[] {
-  const overrides = getSalonAdminOverrides();
+export async function getAdminSalonsList(clientOverride?: AdminRpcClient): Promise<SalonAdminDetail[]> {
+  const data = await callAdminRpc<unknown>('admin_list_salons', undefined, clientOverride);
+  if (!Array.isArray(data)) return [];
+  return data.map((row) => mapAdminSalonRow(row as Record<string, unknown>));
+}
 
-  return baseSalons.map((salon) => {
-    const plan = salon.subscriptionPlanId ? OFFICIAL_PLANS[salon.subscriptionPlanId] : undefined;
-    const base: SalonAdminDetail = {
-      id: salon.id,
-      name: salon.name,
-      organizationName: '',
-      commune: salon.commune ?? '',
-      phone: salon.phone ?? '',
-      email: salon.email,
-      isPublished: salon.isPublishedOnMarketplace === true,
-      isVerified: salon.isVerified === true,
-      planId: salon.subscriptionPlanId ?? '',
-      planName: plan?.name ?? '',
-      priceAtSubscription: plan?.priceXof ?? 0,
-      status: 'active',
-      appointmentsCount: undefined,
-      totalRevenueXof: undefined,
-      createdAt: salon.publicationDate ?? '',
-    };
+export async function setSalonPublicationByAdmin(
+  salonId: string,
+  published: boolean,
+  reason: string,
+  clientOverride?: AdminRpcClient,
+): Promise<SalonAdminDetail> {
+  const validReason = validateAuditReason(reason);
+  const data = await callAdminRpc<Record<string, unknown>>(
+    'admin_set_salon_publication',
+    { p_salon_id: salonId, p_published: published, p_reason: validReason },
+    clientOverride,
+  );
+  return mapAdminSalonRow(data);
+}
 
-    if (overrides[salon.id]) {
-      return { ...base, ...overrides[salon.id] };
-    }
-    return base;
+export async function setSalonVerificationByAdmin(
+  salonId: string,
+  verified: boolean,
+  reason: string,
+  clientOverride?: AdminRpcClient,
+): Promise<SalonAdminDetail> {
+  const validReason = validateAuditReason(reason);
+  const data = await callAdminRpc<Record<string, unknown>>(
+    'admin_set_salon_verification',
+    { p_salon_id: salonId, p_verified: verified, p_reason: validReason },
+    clientOverride,
+  );
+  return mapAdminSalonRow(data);
+}
+
+export async function setSalonStatusByAdmin(
+  salonId: string,
+  status: 'active' | 'suspended',
+  reason: string,
+  clientOverride?: AdminRpcClient,
+): Promise<SalonAdminDetail> {
+  const validReason = validateAuditReason(reason);
+  const data = await callAdminRpc<Record<string, unknown>>(
+    'admin_set_salon_status',
+    { p_salon_id: salonId, p_status: status, p_reason: validReason },
+    clientOverride,
+  );
+  return mapAdminSalonRow(data);
+}
+
+export async function updateSalonDetailsByAdmin(
+  salonId: string,
+  updates: {
+    name?: string;
+    organizationName?: string;
+    commune?: string;
+    phone?: string;
+    email?: string;
+  },
+  reason: string,
+  clientOverride?: AdminRpcClient,
+): Promise<SalonAdminDetail> {
+  const validReason = validateAuditReason(reason);
+  const payload: Record<string, unknown> = {};
+  if (updates.name !== undefined) payload.name = updates.name;
+  if (updates.organizationName !== undefined) payload.organization_name = updates.organizationName;
+  if (updates.commune !== undefined) payload.commune = updates.commune;
+  if (updates.phone !== undefined) payload.phone = updates.phone;
+  if (updates.email !== undefined) payload.email = updates.email;
+
+  const data = await callAdminRpc<Record<string, unknown>>(
+    'admin_update_salon_details',
+    { p_salon_id: salonId, p_updates: payload, p_reason: validReason },
+    clientOverride,
+  );
+  return mapAdminSalonRow(data);
+}
+
+export async function getAdminReviews(
+  options?: { salonId?: string; includeHidden?: boolean },
+  clientOverride?: AdminRpcClient,
+): Promise<MarketplaceReviewItem[]> {
+  const data = await callAdminRpc<unknown>(
+    'admin_list_reviews',
+    {
+      p_salon_id: options?.salonId ?? null,
+      p_include_hidden: options?.includeHidden ?? true,
+    },
+    clientOverride,
+  );
+  if (!Array.isArray(data)) return [];
+  return data.map((row) => mapAdminReviewRow(row as Record<string, unknown>));
+}
+
+export async function moderateReviewByAdmin(
+  reviewId: string,
+  action: 'hide' | 'restore' | 'delete',
+  reason: string,
+  clientOverride?: AdminRpcClient,
+): Promise<{
+  id: string;
+  salonId: string;
+  action: 'hide' | 'restore' | 'delete';
+  isHidden: boolean;
+  deleted: boolean;
+}> {
+  const validReason = validateAuditReason(reason);
+  const data = await callAdminRpc<Record<string, unknown>>(
+    'admin_moderate_review',
+    { p_review_id: reviewId, p_action: action, p_reason: validReason },
+    clientOverride,
+  );
+  return {
+    id: str(data, 'id'),
+    salonId: str(data, 'salon_id'),
+    action: (str(data, 'action') as 'hide' | 'restore' | 'delete') || action,
+    isHidden: data.is_hidden === true,
+    deleted: data.deleted === true,
+  };
+}
+
+export async function getPlatformAuditLogs(
+  options?: { limit?: number; targetType?: string },
+  clientOverride?: AdminRpcClient,
+): Promise<AuditLogEntry[]> {
+  const data = await callAdminRpc<unknown>(
+    'admin_list_audit_logs',
+    {
+      p_limit: options?.limit ?? 100,
+      p_target_type: options?.targetType ?? null,
+    },
+    clientOverride,
+  );
+  if (!Array.isArray(data)) return [];
+  return data.map((row) => mapAuditLogRow(row as Record<string, unknown>));
+}
+
+export async function getPlatformNotificationHealth(
+  clientOverride?: AdminRpcClient,
+): Promise<PlatformNotificationHealthSummary> {
+  const data = await callAdminRpc<unknown>('platform_get_notification_health', {}, clientOverride);
+  return mapPlatformNotificationHealth(data);
+}
+
+export async function probePlatformNotificationDispatcher(options?: {
+  checkWhatsappApi?: boolean;
+}): Promise<NotificationProbeResult> {
+  if (!isSupabaseConfigured()) {
+    throw new Error(ADMIN_DB_NOT_CONFIGURED);
+  }
+  const { data, error } = await getSupabaseClient().functions.invoke('notifications-dispatcher', {
+    body: {
+      mode: 'health',
+      scope: 'platform',
+      check_whatsapp_api: options?.checkWhatsappApi === true,
+    },
   });
-}
-
-/**
- * Met à jour le statut ou le forfait d'un salon depuis le superadmin
- */
-export function updateSalonByAdmin(salonId: string, updates: Partial<SalonAdminDetail>, adminEmail: string) {
-  if (typeof window === 'undefined') return;
-  try {
-    const raw = localStorage.getItem(SALON_ADMIN_OVERRIDE_KEY);
-    const overrides = raw ? JSON.parse(raw) : {};
-    overrides[salonId] = { ...(overrides[salonId] || {}), ...updates };
-    localStorage.setItem(SALON_ADMIN_OVERRIDE_KEY, JSON.stringify(overrides));
-
-    const actionDesc = updates.status
-      ? `Modification statut : ${updates.status}`
-      : updates.isPublished !== undefined
-        ? `Visibilité marketplace : ${updates.isPublished ? 'Publié' : 'Masqué'}`
-        : updates.isVerified !== undefined
-          ? `Certification : ${updates.isVerified ? 'accordée' : 'retirée'}`
-          : updates.planName
-            ? `Changement de formule : ${updates.planName}`
-            : 'Mise à jour des paramètres salon';
-
-    logAdminAction(
-      actionDesc,
-      `Salon ${salonId}`,
-      adminEmail,
-      updates.status === 'suspended' ? 'warning' : 'info',
+  if (error) {
+    throw new Error(
+      `Expéditeur injoignable : ${error.message}. Vérifiez le déploiement de « notifications-dispatcher ».`,
     );
-    window.dispatchEvent(new CustomEvent(SALON_ADMIN_OVERRIDES_EVENT));
-  } catch {
-    // ignore
   }
-}
-
-/**
- * Liste des avis modérables
- */
-export function getMarketplaceReviews(): MarketplaceReviewItem[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = localStorage.getItem(REVIEWS_MODERATION_KEY);
-    if (!raw) return [];
-    return JSON.parse(raw);
-  } catch {
-    return [];
+  const payload = (data ?? {}) as { error?: string };
+  if (payload.error) {
+    throw new Error(payload.error);
   }
-}
-
-/**
- * Suppression / modération d'un avis
- */
-export function deleteReviewByAdmin(reviewId: string, adminEmail: string) {
-  if (typeof window === 'undefined') return;
-  try {
-    const list = getMarketplaceReviews().filter((r) => r.id !== reviewId);
-    localStorage.setItem(REVIEWS_MODERATION_KEY, JSON.stringify(list));
-    logAdminAction(`Suppression de l’avis ${reviewId}`, 'Modération Avis', adminEmail, 'warning');
-    window.dispatchEvent(new CustomEvent('admin_reviews_updated'));
-  } catch {
-    // ignore
-  }
+  return mapNotificationProbe(data);
 }
