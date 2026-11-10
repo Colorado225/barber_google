@@ -1,3 +1,4 @@
+import type { getSupabaseClient } from '../../lib/supabase';
 import type {
   Appointment,
   AppointmentBalance,
@@ -527,3 +528,6 @@ export interface StaffAbsence {
 }
 
 export type Availability = Record<string, { startsAt: string; available: boolean }[]>;
+
+/** Client Supabase tel qu'obtenu par `getSupabaseClient()`, passé aux modules d'accès aux données. */
+export type SalonApiClient = ReturnType<typeof getSupabaseClient>;

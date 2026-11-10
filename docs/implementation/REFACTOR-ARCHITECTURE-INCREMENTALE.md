@@ -66,11 +66,17 @@ refusée avant l'envoi, avec un message. Auparavant, elle partait vers la base.
 2. **À faire** : fidélité (chargement, échanges, points, notifications) ; rendez-vous ; finances (caisse).
    Les finances dépendent des rendez-vous (`syncAfterFinance`) : elles viennent après. Pour les clients, sortir
    `loyaltyTransactions` du contexte permettra de déplacer aussi l'état.
-3. **Fait (partiel)** : `lib/api.ts` (1 289 lignes) : les helpers, les mappers ligne → domaine et les types d'entrée
-   sont déplacés dans `src/services/api/shared.ts` (529 lignes, sans accès réseau). `lib/api.ts` (824 lignes) garde
-   `salonApi` et réexporte `ApiError` et les types d'entrée, pour que les imports existants restent valides.
-   Tests des mappers et des erreurs : `tests/api-mappers.test.tsx` (9).
-   **Reste** : découper `salonApi` en modules par domaine (clients, prestations, personnel, rendez-vous, caisse,
-   stock, fidélité…) qui reçoivent `supabase` et `salonId`.
+3. **Fait (partiel)** : `lib/api.ts` (1 289 lignes) découpé en deux temps.
+   - Étape 1 (commit `9302222`) : helpers, mappers ligne → domaine et types d'entrée dans
+     `src/services/api/shared.ts` (sans accès réseau). Tests des mappers et des erreurs : `tests/api-mappers.test.tsx` (9).
+   - Étape 2 (ce commit) : `salonApi` réparti en modules `src/services/api/<domaine>.ts` (clients, services,
+     branches, staff, appointments, expenses, finance, stock, rewards, notifications, loyalty, reviews). Chaque module
+     exporte une fabrique `createXApi(supabase, salonId)` et, quand le contexte en a besoin, un listeur `listX(...)`.
+     `workspace()` reste dans `lib/api.ts`, qui compose les fabriques. `lib/api.ts` passe à 60 lignes et réexporte
+     `ApiError` et les types d'entrée, pour que les imports existants restent valides.
+     Vérification : surface publique comparée à l'ancienne (69 fonctions, aucune différence) sur un test temporaire
+     supprimé ensuite.
+     **Reste** : rendez-vous, finances et fidélité sont découpés dans leurs modules, mais leurs hooks de contexte
+     ne le sont pas encore (étapes de la section 2).
 4. **À faire** : fonction serveur d'ajustement atomique du stock avant toute interface d'ajustement.
 5. **À faire** : découper les composants de plus de 650 lignes lorsqu'on touche à leur domaine.
