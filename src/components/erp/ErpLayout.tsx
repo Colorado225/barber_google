@@ -1,4 +1,4 @@
-import React, { Suspense, useEffect, useRef, useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useOptionalApp } from '../../context/AppContext';
 import { useOptionalAuth } from '../../context/AuthContext';
 import {
@@ -11,35 +11,10 @@ import { isRepeatedNotificationFailure } from '../../lib/notifications';
 import { DEFAULT_BUSINESS_TIMEZONE } from '../../lib/businessTime';
 import { parsePlanSelectionFromSearch, savePlanSelectionIntent } from '../../lib/saasPricing';
 import { Appointment } from '../../types';
-import { SectionLoadingFallback, lazyNamed } from '../common/ViewLoader';
 
-const DashboardView = lazyNamed(() => import('./DashboardView'), 'DashboardView');
-const CashRegisterView = lazyNamed(() => import('./CashRegisterView'), 'CashRegisterView');
-const ServicesView = lazyNamed(() => import('./ServicesView'), 'ServicesView');
-const StaffView = lazyNamed(() => import('./StaffView'), 'StaffView');
-const FinanceExpensesView = lazyNamed(() => import('./FinanceExpensesView'), 'FinanceExpensesView');
-const InventoryView = lazyNamed(() => import('./InventoryView'), 'InventoryView');
-const SalonProfileSettingsView = lazyNamed(
-  () => import('./SalonProfileSettingsView'),
-  'SalonProfileSettingsView',
-);
-const MarketplaceShowcaseView = lazyNamed(
-  () => import('./MarketplaceShowcaseView'),
-  'MarketplaceShowcaseView',
-);
-const SaaSPlanView = lazyNamed(() => import('./SaaSPlanView'), 'SaaSPlanView');
-const SalonQrCodeView = lazyNamed(() => import('./SalonQrCodeView'), 'SalonQrCodeView');
-const ReportsView = lazyNamed(() => import('./ReportsView'), 'ReportsView');
-const ClientsView = lazyNamed(() => import('./ClientsView'), 'ClientsView');
-const PlanningView = lazyNamed(() => import('./PlanningView'), 'PlanningView');
-const LoyaltyView = lazyNamed(() => import('./LoyaltyView'), 'LoyaltyView');
-const NewAppointmentModal = lazyNamed(() => import('./NewAppointmentModal'), 'NewAppointmentModal');
-const NewPaymentModal = lazyNamed(() => import('./NewPaymentModal'), 'NewPaymentModal');
-const WalkInModal = lazyNamed(() => import('./WalkInModal'), 'WalkInModal');
-const WalkInView = lazyNamed(() => import('./WalkInView'), 'WalkInView');
-const OnlineRequestsView = lazyNamed(() => import('./OnlineRequestsView'), 'OnlineRequestsView');
-const NotificationsView = lazyNamed(() => import('./NotificationsView'), 'NotificationsView');
 import {
+  Wifi,
+  WifiOff,
   LayoutDashboard,
   Calendar,
   CreditCard,
@@ -50,8 +25,6 @@ import {
   Package,
   Store,
   Sparkles,
-  ChevronDown,
-  ArrowLeft,
   Globe,
   QrCode,
   BarChart3,
@@ -59,11 +32,11 @@ import {
   UserPlus,
   Inbox,
   Send,
-  RefreshCw,
-  Wifi,
-  WifiOff,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import { ErpSidebar } from './layout/ErpSidebar';
+import { ErpTopbar } from './layout/ErpTopbar';
+import { ErpWorkspace } from './layout/ErpWorkspace';
 
 export type ErpTab =
   | 'dashboard'
@@ -112,7 +85,6 @@ function readTabFromPathname(pathname?: string): ErpTab {
   const match = (Object.entries(TAB_PATHS) as [ErpTab, string][]).find(([, p]) => p === segment);
   return match ? match[0] : 'dashboard';
 }
-
 export const ErpLayout: React.FC = () => {
   const {
     activeSalon,
@@ -385,356 +357,83 @@ export const ErpLayout: React.FC = () => {
     : activeSalon.commune || 'Établissement actif';
 
   return (
-    <div className="min-h-screen bg-[#0d0d0e] flex flex-col md:flex-row text-stone-200">
-      {/* SIDEBAR */}
-      <aside className="w-full md:w-64 bg-[#121214] border-r border-[#222226] flex flex-col shrink-0">
-        {/* Salon Selector Header */}
-        <div className="p-4 border-b border-[#222226] relative">
-          {switchableOptions.length > 1 ? (
-            <>
-              <button
-                type="button"
-                data-testid="erp-salon-switcher"
-                aria-haspopup="listbox"
-                aria-expanded={salonDropdownOpen}
-                onClick={() => setSalonDropdownOpen((open) => !open)}
-                className="w-full p-2.5 rounded-xl bg-[#18181b] hover:bg-[#1f1f23] border border-[#2a2a2e] flex items-center justify-between transition-colors text-left cursor-pointer"
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-[#201d16] border border-[#C9A45C]/40 flex items-center justify-center text-[#C9A45C] shrink-0 font-bold text-xs">
-                    {activeSalon.name.slice(0, 2).toUpperCase()}
-                  </div>
-                  <div className="truncate">
-                    <div className="text-xs font-bold text-white truncate">{activeSalon.name}</div>
-                    <div className="text-[10px] text-stone-400 truncate">{activeSubtitle}</div>
-                  </div>
-                </div>
-                <ChevronDown className="w-3.5 h-3.5 text-stone-400 shrink-0" />
-              </button>
-
-              {salonDropdownOpen && (
-                <div
-                  role="listbox"
-                  aria-label="Changer d’établissement"
-                  className="absolute left-4 right-4 top-18 bg-[#18181b] border border-[#2d2d33] rounded-xl shadow-2xl p-1.5 z-50 animate-in fade-in zoom-in-95"
-                  onMouseLeave={() => setSalonDropdownOpen(false)}
-                >
-                  <div className="px-2.5 py-1 text-[10px] uppercase font-bold text-stone-500">
-                    Vos Établissements ({switchableOptions.length})
-                  </div>
-                  {switchableOptions.map((option) => {
-                    const isSelected = activeSalon.id === option.salonId;
-                    const meta = [option.roleLabel, option.branchName || option.organizationName]
-                      .filter(Boolean)
-                      .join(' · ');
-                    return (
-                      <button
-                        key={option.salonId}
-                        type="button"
-                        role="option"
-                        aria-selected={isSelected}
-                        onClick={() => handleSelectSalon(option.salonId)}
-                        className={`w-full text-left p-2 rounded-lg text-xs flex items-center justify-between gap-2 hover:bg-[#232328] transition-colors cursor-pointer ${
-                          isSelected ? 'text-[#C9A45C] font-bold bg-[#232328]/50' : 'text-stone-300'
-                        }`}
-                      >
-                        <span className="truncate">{option.salonName}</span>
-                        {meta && <span className="text-[10px] text-stone-400 shrink-0">{meta}</span>}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </>
-          ) : (
-            <div
-              data-testid="erp-salon-single"
-              className="w-full p-2.5 rounded-xl bg-[#18181b] border border-[#2a2a2e] flex items-center gap-2.5"
-              title="Un seul établissement est rattaché à ce compte"
-            >
-              <div className="w-8 h-8 rounded-lg bg-[#201d16] border border-[#C9A45C]/40 flex items-center justify-center text-[#C9A45C] shrink-0 font-bold text-xs">
-                {activeSalon.name.slice(0, 2).toUpperCase()}
-              </div>
-              <div className="min-w-0">
-                <div className="text-xs font-bold text-white truncate">{activeSalon.name}</div>
-                <div className="text-[10px] text-stone-400 truncate">{activeSubtitle}</div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Navigation Items */}
-        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-          {visibleNavItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = visibleActiveTab === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => {
-                  setActiveTab(item.id);
-                  const nextUrl = buildErpUrl(
-                    TAB_PATHS[item.id],
-                    expectedSalonId,
-                    activeMemberships.length > 0,
-                  );
-                  if (window.location.pathname + window.location.search !== nextUrl) {
-                    window.history.pushState({}, '', nextUrl);
-                  }
-                }}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                  isActive
-                    ? 'bg-[#C9A45C] text-[#101010] shadow-sm font-bold'
-                    : 'text-stone-400 hover:text-white hover:bg-[#1a1a1d]'
-                }`}
-              >
-                <Icon className={`w-4 h-4 ${isActive ? 'text-[#101010]' : 'text-stone-400'}`} />
-                <span className="flex-1 text-left">{item.label}</span>
-                {navBadge(item.id) > 0 && (
-                  <span
-                    data-testid={
-                      item.id === 'notifications' && hasCriticalNotificationAlert
-                        ? 'notifications-critical-badge'
-                        : undefined
-                    }
-                    title={
-                      item.id === 'notifications' && hasCriticalNotificationAlert
-                        ? 'Alerte : échecs répétés sur les notifications'
-                        : undefined
-                    }
-                    className={`ml-auto rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                      item.id === 'notifications' && hasCriticalNotificationAlert
-                        ? 'bg-red-500 text-white'
-                        : isActive
-                          ? 'bg-[#101010] text-[#C9A45C]'
-                          : 'bg-[#C9A45C] text-[#101010]'
-                    }`}
-                  >
-                    {navBadge(item.id)}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </nav>
-
-        {/* Sidebar Footer: Cash Register status indicator */}
-        <div className="p-3 border-t border-[#222226] space-y-2">
-          <div className="p-3 rounded-xl bg-[#161619] border border-[#242428] text-xs">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-[11px] font-semibold text-stone-400">Tiroir Caisse :</span>
-              <span
-                className={`text-[10px] font-bold ${cashSession?.status === 'open' ? 'text-emerald-400' : 'text-stone-500'}`}
-              >
-                {cashSession ? (cashSession.status === 'open' ? 'Ouverte' : 'Fermée') : 'Non configurée'}
-              </span>
-            </div>
-            <div className="font-extrabold text-[#E5C378] text-sm">
-              {cashSession ? formatPrice(cashSession.theoreticalBalance) : '—'}
-            </div>
-          </div>
-
-          <button
-            onClick={() => setMode('marketplace')}
-            className="w-full py-2 px-3 rounded-xl bg-[#18181b] hover:bg-[#202025] text-stone-400 hover:text-white text-xs flex items-center justify-center gap-1.5 transition-colors"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Retour Marketplace</span>
-          </button>
-        </div>
-      </aside>
-
-      {/* MAIN ERP WORKSPACE */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-        {/* Top Header */}
-        <header className="h-16 bg-[#121214] border-b border-[#222226] px-6 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3">
-            <h1 className="text-base font-bold text-white capitalize">
-              {navItems.find((n) => n.id === activeTab)?.label}
-            </h1>
-            <span className="text-xs text-stone-500 hidden sm:inline">• {activeSalon.name}</span>
-            {realtimeBadge && (
-              <div
-                data-testid="erp-realtime-status"
-                className={`hidden md:inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${realtimeBadge.tone}`}
-                title="Synchronisation multi-postes active pour cet établissement"
-              >
-                <realtimeBadge.icon className="w-3 h-3" />
-                <span>{realtimeBadge.label}</span>
-              </div>
-            )}
-          </div>
-
-          <div className="flex items-center gap-3">
-            {memberships.length > 0 && (
-              <button
-                type="button"
-                onClick={() => void syncNow()}
-                title="Synchroniser immédiatement les données du salon"
-                aria-label="Synchroniser les données"
-                className="p-2 rounded-xl bg-[#18181c] hover:bg-[#24242a] text-stone-300 hover:text-white border border-[#2a2a32] transition-colors cursor-pointer"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-              </button>
-            )}
-            {(memberships.length === 0 || canSee('appointments.write')) && (
-              <button
-                onClick={() => setIsWalkInOpen(true)}
-                className="bg-[#C9A45C]/15 hover:bg-[#C9A45C]/25 text-[#E5C378] border border-[#C9A45C]/40 font-semibold text-xs px-3.5 py-2 rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
-              >
-                <UserPlus className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">+ Client de passage</span>
-              </button>
-            )}
-            <button
-              onClick={() => {
-                setNewAppointmentSlot({});
-                setIsNewAppointmentOpen(true);
-              }}
-              className="bg-[#242429] hover:bg-[#2d2d34] text-white border border-[#3b3b44] font-semibold text-xs px-3.5 py-2 rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
-            >
-              <Calendar className="w-3.5 h-3.5 text-[#C9A45C]" />
-              <span className="hidden sm:inline">+ Nouveau RDV</span>
-            </button>
-
-            {(memberships.length === 0 || canSee('payments.record')) && (
-              <button
-                onClick={() => {
-                  setPreselectedAppointment(null);
-                  setIsNewPaymentOpen(true);
-                }}
-                className="bg-[#C9A45C] hover:bg-[#d8b56d] text-[#101010] font-bold text-xs px-4 py-2 rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
-              >
-                <CreditCard className="w-3.5 h-3.5" />
-                <span>Encaisser</span>
-              </button>
-            )}
-          </div>
-        </header>
-
-        {/* Dynamic Tab Body */}
-        <main key={activeSalon.id} className="p-4 sm:p-6 lg:p-8 flex-1">
-          {syncError && (
-            <div
-              role="alert"
-              className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-amber-800/60 bg-amber-950/40 px-4 py-2.5 text-xs text-amber-200"
-            >
-              <span>{syncError}</span>
-              <button
-                type="button"
-                onClick={() => void syncNow()}
-                className="px-3 py-1 rounded-lg bg-amber-900/60 hover:bg-amber-800/60 text-white font-semibold cursor-pointer"
-              >
-                Synchroniser
-              </button>
-            </div>
-          )}
-          {activeSalon.status === 'suspended' && (
-            <div
-              role="alert"
-              className="mb-6 rounded-2xl border border-red-800/60 bg-red-950/40 px-4 py-3 text-xs text-red-200"
-            >
-              <p className="font-bold">
-                Salon suspendu par l’administration : la vitrine marketplace et les réservations publiques
-                sont désactivées.
-              </p>
-              {activeSalon.suspensionReason && (
-                <p className="text-red-300/90 mt-1">Motif : {activeSalon.suspensionReason}</p>
-              )}
-            </div>
-          )}
-          <Suspense fallback={<SectionLoadingFallback label="Chargement de la vue ERP…" />}>
-            {visibleActiveTab === 'dashboard' && (
-              <DashboardView
-                onOpenNewAppointment={() => {
-                  setNewAppointmentSlot({});
-                  setIsNewAppointmentOpen(true);
-                }}
-                onOpenWalkIn={() => setIsWalkInOpen(true)}
-                onOpenNewPayment={() => {
-                  setPreselectedAppointment(null);
-                  setIsNewPaymentOpen(true);
-                }}
-              />
-            )}
-
-            {visibleActiveTab === 'walk_in' && (
-              <WalkInView
-                onOpenNewWalkIn={() => setIsWalkInOpen(true)}
-                onOpenPayment={(apt) => {
-                  setPreselectedAppointment(apt);
-                  setIsNewPaymentOpen(true);
-                }}
-              />
-            )}
-
-            {visibleActiveTab === 'online_requests' && <OnlineRequestsView />}
-            {visibleActiveTab === 'notifications' && <NotificationsView />}
-            {visibleActiveTab === 'calendar' && <PlanningView onOpenWalkIn={() => setIsWalkInOpen(true)} />}
-
-            {visibleActiveTab === 'cash' && <CashRegisterView />}
-
-            {visibleActiveTab === 'loyalty' && <LoyaltyView />}
-
-            {visibleActiveTab === 'crm' && <ClientsView />}
-
-            {visibleActiveTab === 'services' && <ServicesView />}
-
-            {visibleActiveTab === 'staff' && <StaffView />}
-
-            {visibleActiveTab === 'expenses' && <FinanceExpensesView />}
-
-            {visibleActiveTab === 'inventory' && <InventoryView />}
-
-            {visibleActiveTab === 'marketplace_showcase' && <MarketplaceShowcaseView />}
-
-            {visibleActiveTab === 'reports' && <ReportsView />}
-
-            {visibleActiveTab === 'qr_code' && <SalonQrCodeView />}
-
-            {visibleActiveTab === 'storefront' && <SalonProfileSettingsView />}
-
-            {visibleActiveTab === 'saas' && <SaaSPlanView />}
-          </Suspense>
-        </main>
-      </div>
-
-      {/* ACCUEIL CLIENT SANS RENDEZ-VOUS */}
-      {isWalkInOpen && (
-        <Suspense fallback={null}>
-          <WalkInModal onClose={() => setIsWalkInOpen(false)} onCreated={() => setActiveTab('walk_in')} />
-        </Suspense>
-      )}
-
-      {/* QUICK NEW APPOINTMENT MODAL */}
-      {isNewAppointmentOpen && (
-        <Suspense fallback={null}>
-          <NewAppointmentModal
-            onClose={() => {
-              setIsNewAppointmentOpen(false);
-              setNewAppointmentSlot({});
-            }}
-            initialDate={newAppointmentSlot.date}
-            initialTime={newAppointmentSlot.time}
-            initialStaffId={newAppointmentSlot.staffId}
-          />
-        </Suspense>
-      )}
-
-      {/* QUICK NEW PAYMENT MODAL */}
-      {isNewPaymentOpen && (
-        <Suspense fallback={null}>
-          <NewPaymentModal
-            onClose={() => {
-              setIsNewPaymentOpen(false);
-              setPreselectedAppointment(null);
-            }}
-            preselectedAppointmentId={preselectedAppointment?.id}
-            defaultAmount={preselectedAppointment?.price}
-            defaultClientName={preselectedAppointment?.clientName || ''}
-          />
-        </Suspense>
-      )}
-    </div>
+    <ErpSidebar
+      activeSalon={activeSalon}
+      activeSubtitle={activeSubtitle}
+      switchableOptions={switchableOptions}
+      dropdownOpen={salonDropdownOpen}
+      onToggleDropdown={() => setSalonDropdownOpen((open) => !open)}
+      onCloseDropdown={() => setSalonDropdownOpen(false)}
+      onSelectSalon={handleSelectSalon}
+      navItems={visibleNavItems}
+      visibleActiveTab={visibleActiveTab}
+      onSelectTab={(item) => {
+        setActiveTab(item);
+        const nextUrl = buildErpUrl(TAB_PATHS[item], expectedSalonId, activeMemberships.length > 0);
+        if (window.location.pathname + window.location.search !== nextUrl) {
+          window.history.pushState({}, '', nextUrl);
+        }
+      }}
+      navBadge={navBadge}
+      hasCriticalNotificationAlert={hasCriticalNotificationAlert}
+      cashSession={cashSession}
+      formatPrice={formatPrice}
+      onBackToMarketplace={() => setMode('marketplace')}
+    >
+      <ErpTopbar
+        activeTab={visibleActiveTab}
+        tabLabel={navItems.find((n) => n.id === visibleActiveTab)?.label ?? ''}
+        salonName={activeSalon.name}
+        realtimeBadge={realtimeBadge}
+        hasMemberships={memberships.length > 0}
+        canWriteAppointments={memberships.length === 0 || canSee('appointments.write')}
+        canRecordPayments={memberships.length === 0 || canSee('payments.record')}
+        isSyncing={isSyncing}
+        onSyncNow={() => void syncNow()}
+        onOpenWalkIn={() => setIsWalkInOpen(true)}
+        onOpenNewAppointment={() => {
+          setNewAppointmentSlot({});
+          setIsNewAppointmentOpen(true);
+        }}
+        onOpenNewPayment={() => {
+          setPreselectedAppointment(null);
+          setIsNewPaymentOpen(true);
+        }}
+      />
+      <ErpWorkspace
+        activeSalon={activeSalon}
+        visibleActiveTab={visibleActiveTab}
+        syncError={syncError}
+        onSyncNow={() => void syncNow()}
+        reopenAppointment={() => {
+          setNewAppointmentSlot({});
+          setIsNewAppointmentOpen(true);
+        }}
+        openWalkIn={() => setIsWalkInOpen(true)}
+        openPayment={() => {
+          setPreselectedAppointment(null);
+          setIsNewPaymentOpen(true);
+        }}
+        openPaymentWith={(apt) => {
+          setPreselectedAppointment(apt);
+          setIsNewPaymentOpen(true);
+        }}
+        isWalkInOpen={isWalkInOpen}
+        onCloseWalkIn={() => setIsWalkInOpen(false)}
+        onWalkInCreated={() => setActiveTab('walk_in')}
+        isNewAppointmentOpen={isNewAppointmentOpen}
+        onCloseAppointment={() => {
+          setIsNewAppointmentOpen(false);
+          setNewAppointmentSlot({});
+        }}
+        newAppointmentSlot={newAppointmentSlot}
+        isNewPaymentOpen={isNewPaymentOpen}
+        onClosePayment={() => {
+          setPreselectedAppointment(null);
+          setIsNewPaymentOpen(false);
+        }}
+        preselectedAppointment={preselectedAppointment}
+      />
+    </ErpSidebar>
   );
 };

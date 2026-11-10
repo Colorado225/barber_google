@@ -16,6 +16,10 @@ test('router, App, ErpLayout et AdminDashboard utilisent lazy() et Suspense pour
   const routerSrc = fs.readFileSync(path.join(ROOT_DIR, 'src/router.tsx'), 'utf8');
   const appSrc = fs.readFileSync(path.join(ROOT_DIR, 'src/App.tsx'), 'utf8');
   const erpSrc = fs.readFileSync(path.join(ROOT_DIR, 'src/components/erp/ErpLayout.tsx'), 'utf8');
+  const erpWorkspaceSrc = fs.readFileSync(
+    path.join(ROOT_DIR, 'src/components/erp/layout/ErpWorkspace.tsx'),
+    'utf8',
+  );
   const adminSrc = fs.readFileSync(path.join(ROOT_DIR, 'src/components/admin/AdminDashboard.tsx'), 'utf8');
 
   assert.match(routerSrc, /Suspense/);
@@ -27,11 +31,13 @@ test('router, App, ErpLayout et AdminDashboard utilisent lazy() et Suspense pour
   assert.match(appSrc, /Suspense/);
   assert.match(appSrc, /lazyNamed\(\s*\(\) => import\('\.\/components\/marketplace\/SalonDetailModal'\)/);
 
-  assert.match(erpSrc, /Suspense/);
-  assert.match(erpSrc, /lazyNamed\(\s*\(\) => import\('\.\/DashboardView'\)/);
-  assert.match(erpSrc, /lazyNamed\(\s*\(\) => import\('\.\/SalonQrCodeView'\)/);
-  assert.match(erpSrc, /lazyNamed\(\s*\(\) => import\('\.\/NotificationsView'\)/);
-  assert.doesNotMatch(erpSrc, /import \{ AppointmentsCalendarView \}/);
+  // Les vues lazy et le Suspense vivent désormais dans l'espace de travail extrait.
+  assert.match(erpSrc, /ErpWorkspace/);
+  assert.match(erpWorkspaceSrc, /Suspense/);
+  assert.match(erpWorkspaceSrc, /lazyNamed\(\s*\(\) => import\('\.\.\/DashboardView'\)/);
+  assert.match(erpWorkspaceSrc, /lazyNamed\(\s*\(\) => import\('\.\.\/SalonQrCodeView'\)/);
+  assert.match(erpWorkspaceSrc, /lazyNamed\(\s*\(\) => import\('\.\.\/NotificationsView'\)/);
+  assert.doesNotMatch(erpWorkspaceSrc, /import \{ AppointmentsCalendarView \}/);
 
   assert.match(adminSrc, /Suspense/);
   assert.match(adminSrc, /lazyNamed\(\s*\(\) => import\('\.\/AdminOverviewPanel'\)/);
