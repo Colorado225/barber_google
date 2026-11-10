@@ -83,7 +83,17 @@ refusée avant l'envoi, avec un message. Auparavant, elle partait vers la base.
      `loyaltyTransactions` le lit. Tests de charge utile dans `tests/team-and-client-rules.test.tsx` (3).
      `AppContext.tsx` : 1 393 → 1 175 lignes. Les hooks eux-mêmes ne sont pas testés directement (pas de rendu
      interactif dans le harnais actuel).
-2. **À faire** : réservation publique et annulation publique (marketplace) restées dans le contexte ; stock (RPC atomique, D10).
+2. **Stock (étape 4, fait)** : `adjust_stock_quantity` (migration `20261112090000_stock_atomic_adjustment.sql`)
+   verrouille la ligne (`FOR UPDATE`), contrôle la permission `stock.write` et les bornes, puis met à jour la
+   quantité dans la même transaction. Le client n'envoie que le delta. 9 tests PGlite
+   (`database/tests/supabase-stock-adjustment.test.mjs`) et 3 tests du client (`tests/stock-adjustment-api.test.tsx`).
+   Non testé : la concurrence réelle (PGlite est mono-connexion) ; le verrou est une garantie de PostgreSQL.
+   **Décision à prendre (D11)** : `stock_items.quantity` est un entier, mais la règle client accepte les quantités
+   fractionnaires (kg, litres). Le serveur refuse les fractions. Options : (a) unités entières (recommandé, le
+   schéma reste inchangé) ; (b) colonne `numeric` par migration dédiée, avec revue des totaux et alertes.
+   **Reste** : `stock.update` envoie encore la quantité complète. Non utilisé par l'interface aujourd'hui ; à
+   retirer ou à restreindre aux champs non quantitatifs lors du prochain travail sur le stock.
+   **Reste dans le contexte** : réservation publique et annulation publique (marketplace), avis, salons.
    Les finances dépendent des rendez-vous (`syncAfterFinance`) : elles viennent après. Pour les clients, sortir
    `loyaltyTransactions` du contexte permettra de déplacer aussi l'état.
 3. **Fait (partiel)** : `lib/api.ts` (1 289 lignes) découpé en deux temps.
@@ -98,5 +108,5 @@ refusée avant l'envoi, avec un message. Auparavant, elle partait vers la base.
      supprimé ensuite.
      **Reste** : rendez-vous, finances et fidélité sont découpés dans leurs modules, mais leurs hooks de contexte
      ne le sont pas encore (étapes de la section 2).
-4. **À faire** : fonction serveur d'ajustement atomique du stock avant toute interface d'ajustement.
+4. **Fait** : fonction serveur d'ajustement atomique du stock avant toute interface d'ajustement (voir point 2).
 5. **À faire** : découper les composants de plus de 650 lignes lorsqu'on touche à leur domaine.

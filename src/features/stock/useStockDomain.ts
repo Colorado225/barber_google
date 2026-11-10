@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { salonApi } from '../../lib/api';
 import type { Salon, StockItem } from '../../types';
-import { planStockAdjustment, toStockPayload } from './stockRules';
+import { planStockAdjustment } from './stockRules';
 
 export interface StockDomainDeps {
   requireActiveSalon: () => Salon;
@@ -44,10 +44,8 @@ export function useStockDomain({ requireActiveSalon, remote, addToast }: StockDo
       return;
     }
     void remote(async () => {
-      const saved = await salonApi(requireActiveSalon().id).stock.update(
-        id,
-        toStockPayload({ ...item, quantity: plan.value }),
-      );
+      // Contrôle local indicatif : la base refait le calcul sous verrou et fait foi.
+      const saved = await salonApi(requireActiveSalon().id).stock.adjust(id, delta);
       setStocks((prev) => prev.map((entry) => (entry.id === id ? saved : entry)));
       addToast('Stock ajusté.', 'info');
     }, 'Ajustement du stock impossible');
