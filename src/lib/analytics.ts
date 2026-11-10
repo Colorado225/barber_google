@@ -62,6 +62,11 @@ export function paymentSignedAmount(t: PaymentTransaction): number {
   return t.kind === 'refund' || t.kind === 'payment_reversal' ? -t.amount : t.amount;
 }
 
+/** Signe comptable d'une écriture de dépense : contrepassation en négatif. */
+export function expenseSignedAmount(e: Pick<Expense, 'amount' | 'entryKind'>): number {
+  return e.entryKind === 'expense_reversal' ? -e.amount : e.amount;
+}
+
 /** Seules les écritures confirmées entrent dans les revenus réalisés. */
 export function isConfirmedPayment(t: PaymentTransaction): boolean {
   return t.status === 'completed';
@@ -106,7 +111,7 @@ export function buildRevenueSeries(
       const count = appointments.filter((a) => a.date >= b.start && a.date <= b.end).length;
       const spent = expenses
         .filter((e) => e.date >= b.start && e.date <= b.end)
-        .reduce((acc, e) => acc + e.amount, 0);
+        .reduce((acc, e) => acc + expenseSignedAmount(e), 0);
       return {
         label: b.label,
         shortLabel: b.shortLabel,
@@ -135,7 +140,9 @@ export function buildRevenueSeries(
       .filter((t) => isConfirmedPayment(t) && t.date.startsWith(key))
       .reduce((acc, t) => acc + paymentSignedAmount(t), 0);
     const count = appointments.filter((a) => a.date.startsWith(key)).length;
-    const spent = expenses.filter((e) => e.date.startsWith(key)).reduce((acc, e) => acc + e.amount, 0);
+    const spent = expenses
+      .filter((e) => e.date.startsWith(key))
+      .reduce((acc, e) => acc + expenseSignedAmount(e), 0);
 
     const isCurrent = offset === 0;
     points.push({

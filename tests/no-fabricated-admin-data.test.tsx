@@ -1,25 +1,36 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { getAdminSalonsList } from '../src/lib/superadmin';
-import { getPlatformMetrics } from '../src/lib/saas';
+import { readFile } from 'node:fs/promises';
+import { getAdminSalonsList, mapAdminSalonRow } from '../src/lib/superadmin';
+import { getPlatformMetrics, mapPlatformMetricsRow } from '../src/lib/saas';
 import { DEMO_SALONS } from '../src/lib/marketplace-demo';
-import type { Salon } from '../src/types';
 
-const realSalon: Salon = {
+const rawSalonRow = {
   id: 'real-1',
   name: 'Salon réel test',
   commune: 'Cocody',
-  isPublishedOnMarketplace: true,
-  isVerified: true,
-  subscriptionPlanId: 'pro',
+  is_published: true,
+  is_verified: true,
+  status: 'active',
+  subscription_plan_id: 'pro',
+  subscription_plan_name: 'Pro Équipe',
+  subscription_price_xof: 35000,
+  subscription_billing_period: 'monthly',
+  subscription_status: 'active',
+  subscription_current_period_end: '2026-12-10T10:00:00Z',
+  subscription_payment_id: 'pay-1',
+  subscription_payment_status: 'confirmed',
+  subscription_payment_amount_xof: 35000,
+  subscription_payment_method: 'mobile_money',
+  subscription_payment_reference: 'MM-2026-01',
 };
 
-test('admin list returns only salons received from the database (no invented rows)', () => {
-  assert.deepEqual(getAdminSalonsList([]), []);
+test('admin list rejects when Supabase is not configured (no invented rows)', async () => {
+  await assert.rejects(getAdminSalonsList(), /base de données n’est pas configurée/);
 });
 
-test('admin list does not invent contact, plan, metrics or organisation for a real salon', () => {
-  const [row] = getAdminSalonsList([realSalon]);
+test('mapAdminSalonRow does not invent contact, metrics or organisation for a real salon', () => {
+  const row = mapAdminSalonRow(rawSalonRow);
   assert.equal(row.id, 'real-1');
   assert.equal(row.name, 'Salon réel test');
   assert.equal(row.isPublished, true);
@@ -29,21 +40,62 @@ test('admin list does not invent contact, plan, metrics or organisation for a re
   assert.equal(row.organizationName, '');
   assert.equal(row.planName, 'Pro Équipe');
   assert.equal(row.priceAtSubscription, 35000);
+  assert.equal(row.subscriptionStatus, 'active');
+  assert.equal(row.currentPeriodEnd, '2026-12-10T10:00:00Z');
+  assert.equal(row.latestPayment?.reference, 'MM-2026-01');
   assert.equal(row.appointmentsCount, undefined);
   assert.equal(row.totalRevenueXof, undefined);
 });
 
-test('a salon without subscription data shows an empty plan, not a default one', () => {
-  const [row] = getAdminSalonsList([{ id: 'x', name: 'Sans formule' }]);
+test('a salon without subscription data shows missing fields (undefined/null), not 0 or calculated dates', () => {
+  const row = mapAdminSalonRow({ id: 'x', name: 'Sans formule' });
   assert.equal(row.planName, '');
   assert.equal(row.planId, '');
-  assert.equal(row.priceAtSubscription, 0);
+  assert.equal(row.priceAtSubscription, undefined);
+  assert.equal(row.subscriptionStatus, undefined);
+  assert.equal(row.subscriptionBillingPeriod, undefined);
+  assert.equal(row.currentPeriodEnd, undefined);
+  assert.equal(row.latestPayment, null);
+  assert.equal(row.pendingSubscription, null);
   assert.equal(row.isPublished, false);
   assert.equal(row.isVerified, false);
+
+  // Même si un brouillon/demande en attente portait une date technique, aucune échéance n'est exposée
+  const pendingRow = mapAdminSalonRow({
+    id: 'p',
+    name: 'En attente',
+    subscription_plan_id: 'starter',
+    subscription_plan_name: 'Starter Solo',
+    subscription_status: 'pending_payment',
+    subscription_price_xof: 15000,
+    subscription_current_period_end: '2026-11-10T10:00:00Z',
+  });
+  assert.equal(pendingRow.currentPeriodEnd, undefined);
 });
 
-test('known invented values from the former fallbacks never reach the admin list', () => {
-  const serialized = JSON.stringify(getAdminSalonsList([realSalon]));
+test('administration subscription code contains no OFFICIAL_PLANS, no +25d date calculation and no local override', async () => {
+  const files = [
+    '../src/lib/superadmin.ts',
+    '../src/components/admin/AdminDashboard.tsx',
+    '../src/components/admin/AdminOverviewPanel.tsx',
+    '../src/components/admin/AdminSubscriptionsPanel.tsx',
+    '../src/components/admin/SalonManagement.tsx',
+  ];
+  for (const rel of files) {
+    const source = await readFile(new URL(rel, import.meta.url), 'utf8');
+    assert.equal(source.includes('OFFICIAL_PLANS'), false, `OFFICIAL_PLANS présent dans ${rel}`);
+    assert.equal(source.includes('86400000'), false, `calcul +25j présent dans ${rel}`);
+    assert.equal(source.includes('updateSalonAdminOverride'), false, `override local présent dans ${rel}`);
+    assert.equal(
+      source.includes('assignSalonSubscriptionByAdmin'),
+      false,
+      `contournement de forfait présent dans ${rel}`,
+    );
+  }
+});
+
+test('known invented values from the former fallbacks never reach the mapped admin row', () => {
+  const serialized = JSON.stringify(mapAdminSalonRow(rawSalonRow));
   for (const forbidden of ['Palace', 'Empire Cuts', 'Roi du Dégradé', '1120000', '185000', '142']) {
     assert.equal(serialized.includes(forbidden), false, `valeur inventée détectée : ${forbidden}`);
   }
@@ -51,6 +103,12 @@ test('known invented values from the former fallbacks never reach the admin list
 
 test('platform metrics return null without a configured backend (no fallback figures)', async () => {
   assert.equal(await getPlatformMetrics(), null);
+  const emptyMapped = mapPlatformMetricsRow({});
+  assert.equal(emptyMapped.estimatedMrrXof, 0);
+  assert.equal(emptyMapped.completedAppointments, 0);
+  assert.equal(emptyMapped.cancelledAppointments, 0);
+  assert.equal(emptyMapped.refundsXof, 0);
+  assert.equal(emptyMapped.pendingPaymentsXof, 0);
 });
 
 test('demo salons are fully fictional, labelled and carry no metrics or bookable data', () => {

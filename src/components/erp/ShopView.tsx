@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
+import { buildErpUrl } from '../../lib/erpSalonSelection';
 import {
   Store,
   Globe,
@@ -19,7 +20,8 @@ export const ShopView: React.FC = () => {
 
   const salonServices = services.filter((s) => s.salonId === activeSalon.id);
   const salonReviews = reviews.filter((r) => r.salonId === activeSalon.id);
-  const isPublished = activeSalon.isPublishedOnMarketplace === true;
+  const isSuspended = activeSalon.status === 'suspended';
+  const isPublished = activeSalon.isPublishedOnMarketplace === true && !isSuspended;
 
   const checks = [
     {
@@ -57,14 +59,28 @@ export const ShopView: React.FC = () => {
 
         <span
           className={`self-start text-xs font-bold px-3 py-1.5 rounded-full border ${
-            isPublished
-              ? 'bg-emerald-950/80 text-emerald-400 border-emerald-600/40'
-              : 'bg-amber-950/80 text-amber-300 border-amber-600/40'
+            isSuspended
+              ? 'bg-red-950/80 text-red-300 border-red-600/40'
+              : isPublished
+                ? 'bg-emerald-950/80 text-emerald-400 border-emerald-600/40'
+                : 'bg-amber-950/80 text-amber-300 border-amber-600/40'
           }`}
         >
-          {isPublished ? 'Publiée' : 'Brouillon'}
+          {isSuspended ? 'Suspendue' : isPublished ? 'Publiée' : 'Brouillon'}
         </span>
       </div>
+
+      {isSuspended && (
+        <div
+          role="alert"
+          className="rounded-xl border border-red-800/60 bg-red-950/30 p-4 text-sm text-red-200"
+        >
+          <p className="font-semibold">Vitrine suspendue par l’administration de la plateforme.</p>
+          {activeSalon.suspensionReason && (
+            <p className="text-xs text-red-300/90 mt-1">Motif : {activeSalon.suspensionReason}</p>
+          )}
+        </div>
+      )}
 
       {/* Readiness checklist — real salon data */}
       <div className="bg-[#151516] rounded-xl border border-[#2a2a2b] p-6">
@@ -131,7 +147,7 @@ export const ShopView: React.FC = () => {
 
         <button
           onClick={async () => {
-            if (!isPublished && !checks.every((c) => c.ok)) {
+            if (isSuspended || (!isPublished && !checks.every((c) => c.ok))) {
               return;
             }
             setPublishing(true);
@@ -143,7 +159,7 @@ export const ShopView: React.FC = () => {
               setPublishing(false);
             }
           }}
-          disabled={publishing || (!isPublished && !checks.every((c) => c.ok))}
+          disabled={publishing || isSuspended || (!isPublished && !checks.every((c) => c.ok))}
           className={`w-full flex items-center justify-between p-3.5 rounded-lg border transition-colors text-sm font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
             isPublished
               ? 'bg-[#18181b] border-[#2a2a2b] text-[#f7f6f2] hover:border-red-500/50'
@@ -162,7 +178,7 @@ export const ShopView: React.FC = () => {
         </button>
 
         <Link
-          to="/app/qr-code"
+          to={buildErpUrl('qr-code', activeSalon.id, Boolean(activeSalon.id))}
           className="w-full flex items-center justify-between p-3.5 rounded-lg bg-[#18181b] border border-[#2a2a2b] hover:border-[#C9A45C]/50 transition-colors text-sm text-[#f7f6f2]"
         >
           <span className="flex items-center gap-2">

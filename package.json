@@ -5,8 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
-    "build": "vite build",
+    "build": "vite build && node scripts/prerender-public.mjs",
     "preview": "vite preview",
+    "perf:check": "node scripts/measure-bundles.mjs --throttle-check",
+    "perf:report": "node scripts/measure-bundles.mjs --throttle-check --report reports/bundle-metrics.json",
     "clean": "rm -rf dist",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",

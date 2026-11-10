@@ -1,32 +1,54 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import { Outlet, useInRouterContext, useLocation } from 'react-router-dom';
 import { AppProvider, useOptionalApp } from './context/AppContext';
 import { Navbar } from './components/common/Navbar';
 import { ToastContainer } from './components/common/ToastContainer';
 import { MarketplaceHome } from './components/marketplace/MarketplaceHome';
-import { SalonDetailModal } from './components/marketplace/SalonDetailModal';
 import { SiteAnnouncementBar } from './components/common/SiteAnnouncementBar';
+import { lazyNamed } from './components/common/ViewLoader';
 import { useMarketplaceContent } from './lib/marketplace-content';
 import { useSiteMetadata } from './hooks/useSiteMetadata';
+import { isBookingSecretRoute } from './lib/portalIsolation';
 
-/** Synchronise titre et meta description avec la configuration, hors pages /admin (rendu dans le routeur uniquement). */
+const SalonDetailModal = lazyNamed(
+  () => import('./components/marketplace/SalonDetailModal'),
+  'SalonDetailModal',
+);
+
+/** Synchronise langue et métadonnées SEO avec la route courante, hors /admin, portail réservation et fiches salon. */
 const SiteMetadataSync: React.FC<{ metadata: Parameters<typeof useSiteMetadata>[0] }> = ({ metadata }) => {
   const { pathname } = useLocation();
-  useSiteMetadata(metadata, { skip: pathname.startsWith('/admin') });
+  useSiteMetadata(metadata, {
+    skip: pathname.startsWith('/admin') || isBookingSecretRoute(pathname) || pathname.startsWith('/salons/'),
+    pathname,
+  });
   return null;
+};
+
+/** Masque le bandeau d'annonce global (et ses liens tiers éventuels) sur le portail secret de réservation. */
+const RoutedAnnouncementBar: React.FC<{
+  announcement: Parameters<typeof SiteAnnouncementBar>[0]['announcement'];
+}> = ({ announcement }) => {
+  const { pathname } = useLocation();
+  if (isBookingSecretRoute(pathname)) return null;
+  return <SiteAnnouncementBar announcement={announcement} />;
 };
 
 const AppContent: React.FC = () => {
   // `useInRouterContext` permet de rendre le shell hors routeur (tests SSR).
   const routed = useInRouterContext();
-  const { mode, selectedSalonForModal, setSelectedSalonForModal } = useOptionalApp();
+  const { selectedSalonForModal, setSelectedSalonForModal } = useOptionalApp();
   // Configuration globale (annonce, SEO) gérée par le SuperAdmin : mise à jour en direct.
   const { config } = useMarketplaceContent();
 
   return (
     <div className="min-h-screen bg-[#0d0d0e] text-[#f7f6f2] flex flex-col font-sans selection:bg-[#C9A45C] selection:text-[#101010]">
-      {/* Bandeau d'annonce global (désactivé par défaut) */}
-      <SiteAnnouncementBar announcement={config.announcement} />
+      {/* Bandeau d'annonce global (désactivé par défaut et isolé hors portail réservation) */}
+      {routed ? (
+        <RoutedAnnouncementBar announcement={config.announcement} />
+      ) : (
+        <SiteAnnouncementBar announcement={config.announcement} />
+      )}
 
       {routed && <SiteMetadataSync metadata={config.siteMetadata} />}
 
@@ -38,7 +60,9 @@ const AppContent: React.FC = () => {
 
       {/* Global Overlays & Modals */}
       {selectedSalonForModal && (
-        <SalonDetailModal salon={selectedSalonForModal} onClose={() => setSelectedSalonForModal(null)} />
+        <Suspense fallback={null}>
+          <SalonDetailModal salon={selectedSalonForModal} onClose={() => setSelectedSalonForModal(null)} />
+        </Suspense>
       )}
 
       <ToastContainer />

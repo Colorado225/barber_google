@@ -1,9 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useOptionalApp } from '../../context/AppContext';
-import { bookingPortalPath, bookingPortalUrl, saveBookingLink } from '../../lib/bookingVault';
+import {
+  bookingPortalUrl,
+  forgetBookingLink,
+  saveBookingLink,
+  setActiveBookingToken,
+} from '../../lib/bookingVault';
 import { Salon } from '../../types';
-import { applySalonAdminOverrides, useSalonAdminOverrides } from '../../lib/superadmin';
 import {
   getMarketplaceSalonDetail,
   getMarketplaceAvailability,
@@ -31,6 +35,26 @@ import {
 interface SalonDetailModalProps {
   salon: Salon;
   onClose: () => void;
+  initialDetail?: PublicSalonDetail;
+  initialServiceId?: string;
+  initialStaffId?: string;
+  initialSlots?: PublicAvailabilitySlot[];
+  onBookAppointment?: (input: {
+    salonId: string;
+    serviceId: string;
+    startsAt: string;
+    clientName: string;
+    clientPhone: string;
+    clientEmail?: string | null;
+    staffId?: string | null;
+    notes?: string;
+  }) => Promise<{ success: boolean; booking?: PublicBooking; error?: string }>;
+  onCancelBooking?: (
+    salonId: string,
+    appointmentId: string,
+    cancelToken: string,
+    reason?: string,
+  ) => Promise<{ success: boolean; booking?: PublicBooking; error?: string }>;
 }
 
 function abidjanDate(offsetDays: number): string {
@@ -43,21 +67,36 @@ function abidjanDate(offsetDays: number): string {
   }).format(d);
 }
 
-export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({ salon, onClose }) => {
+export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({
+  salon,
+  onClose,
+  initialDetail,
+  initialServiceId,
+  initialStaffId,
+  initialSlots,
+  onBookAppointment,
+  onCancelBooking,
+}) => {
   // Fiche de démonstration (opt-in) : contenu fictif local, sans aucun appel RPC ni réservation.
   const demoFiche = import.meta.env?.VITE_MARKETPLACE_DEMO === 'true' && salon.isDemo === true;
   const { formatPrice, bookPublicAppointment, cancelPublicBooking, addToast } = useOptionalApp();
+  const runBookAppointment = onBookAppointment ?? bookPublicAppointment;
+  const runCancelBooking = onCancelBooking ?? cancelPublicBooking;
 
-  const [detail, setDetail] = useState<PublicSalonDetail | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [detail, setDetail] = useState<PublicSalonDetail | null>(initialDetail ?? null);
+  const [loading, setLoading] = useState(!initialDetail);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'prestations' | 'equipe' | 'avis' | 'infos'>('prestations');
-  const [activeImage, setActiveImage] = useState<string>(salon.coverImage ?? '');
+  const [activeImage, setActiveImage] = useState<string>(
+    initialDetail?.salon.coverImage ?? salon.coverImage ?? '',
+  );
 
-  const [selectedServiceId, setSelectedServiceId] = useState<string>('');
-  const [selectedStaffId, setSelectedStaffId] = useState<string>('any');
+  const [selectedServiceId, setSelectedServiceId] = useState<string>(
+    initialServiceId ?? initialDetail?.services[0]?.id ?? '',
+  );
+  const [selectedStaffId, setSelectedStaffId] = useState<string>(initialStaffId ?? 'any');
   const [selectedDate, setSelectedDate] = useState<string>(abidjanDate(0));
-  const [slots, setSlots] = useState<PublicAvailabilitySlot[]>([]);
+  const [slots, setSlots] = useState<PublicAvailabilitySlot[]>(initialSlots ?? []);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<PublicAvailabilitySlot | null>(null);
   const [clientName, setClientName] = useState('');
@@ -67,6 +106,7 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({ salon, onClo
   const [booking, setBooking] = useState<PublicBooking | null>(null);
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [rememberOnDevice, setRememberOnDevice] = useState(false);
 
   const dateOptions = useMemo(
     () =>
@@ -88,6 +128,7 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({ salon, onClo
   );
 
   useEffect(() => {
+    if (initialDetail) return;
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -112,9 +153,10 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({ salon, onClo
     return () => {
       cancelled = true;
     };
-  }, [salon, salon.id, salon.slug, demoFiche]);
+  }, [salon, salon.id, salon.slug, demoFiche, initialDetail]);
 
   useEffect(() => {
+    if (initialSlots) return;
     if (!detail || !selectedServiceId || demoFiche) return;
     let cancelled = false;
     setSlotsLoading(true);
@@ -139,12 +181,7 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({ salon, onClo
     };
   }, [detail, selectedServiceId, selectedDate, selectedStaffId, demoFiche]);
 
-  // La certification décidée par le SuperAdmin prime sur la donnée de base.
-  const salonAdminOverrides = useSalonAdminOverrides();
-  const publicSalon = useMemo(
-    () => applySalonAdminOverrides([detail?.salon ?? salon], salonAdminOverrides)[0],
-    [detail?.salon, salon, salonAdminOverrides],
-  );
+  const publicSalon = detail?.salon ?? salon;
   const services = detail?.services ?? [];
   const staff = detail?.staff ?? [];
   const reviews = detail?.reviews ?? [];
@@ -175,7 +212,7 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({ salon, onClo
       return;
     }
     setSubmitting(true);
-    const result = await bookPublicAppointment({
+    const result = await runBookAppointment({
       salonId: publicSalon.id,
       serviceId: selectedService.id,
       startsAt: selectedSlot.startsAt,
@@ -188,25 +225,36 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({ salon, onClo
     setSubmitting(false);
     if (result.success && result.booking) {
       setBooking(result.booking);
-      // Le lien de survit à la fermeture de cette fenêtre : suivi, annulation
-      // puis avis vérifié restent possibles sans compte client.
-      saveBookingLink({
-        token: result.booking.cancelToken,
-        appointmentId: result.booking.id,
-        salonId: result.booking.salonId,
-        salonName: publicSalon.name,
-        serviceName: result.booking.serviceName,
-        startsAt: result.booking.startsAt,
-      });
+      // Garde le jeton uniquement dans la session d'onglet par défaut (pas de
+      // persistance silencieuse dans localStorage sans consentement explicite).
+      setActiveBookingToken(result.booking.cancelToken);
+      setRememberOnDevice(false);
       addToast('Réservation envoyée au salon (en attente de confirmation).', 'success');
     } else {
       setBookingError(result.error || 'Réservation impossible.');
     }
   };
 
+  const handleToggleRememberDevice = (checked: boolean) => {
+    setRememberOnDevice(checked);
+    if (!booking) return;
+    if (checked) {
+      saveBookingLink({
+        token: booking.cancelToken,
+        appointmentId: booking.id,
+        salonId: booking.salonId,
+        salonName: publicSalon.name,
+        serviceName: booking.serviceName,
+        startsAt: booking.startsAt,
+      });
+    } else {
+      forgetBookingLink(booking.cancelToken, booking.id);
+    }
+  };
+
   const handleCancel = async () => {
     if (!booking) return;
-    const result = await cancelPublicBooking(
+    const result = await runCancelBooking(
       booking.salonId,
       booking.id,
       booking.cancelToken,
@@ -227,7 +275,7 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({ salon, onClo
       setLinkCopied(true);
       window.setTimeout(() => setLinkCopied(false), 2000);
     } catch {
-      addToast('Copie impossible : ouvrez le lien puis copiez la barre d’adresse.', 'error');
+      addToast('Copie impossible sur ce navigateur.', 'error');
     }
   };
 
@@ -329,14 +377,20 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({ salon, onClo
                       </p>
                     )}
                     <p className="text-sm text-stone-300 mt-3">{publicSalon.description}</p>
+                    <a
+                      href="#booking-panel"
+                      className="mt-4 lg:hidden inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#C9A45C] hover:bg-[#d8b56d] text-[#101010] font-bold text-sm py-3 px-4"
+                    >
+                      <CalendarIcon className="w-4 h-4" /> Réserver un créneau
+                    </a>
                   </div>
 
-                  <div className="flex gap-2 border-b border-[#26262a] pb-2">
+                  <div className="flex gap-2 overflow-x-auto border-b border-[#26262a] pb-2">
                     {(['prestations', 'equipe', 'avis', 'infos'] as const).map((tab) => (
                       <button
                         key={tab}
                         onClick={() => setActiveTab(tab)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize ${activeTab === tab ? 'bg-[#C9A45C] text-[#101010]' : 'text-stone-400 hover:text-white'}`}
+                        className={`px-3 py-2 rounded-lg text-xs font-semibold capitalize whitespace-nowrap ${activeTab === tab ? 'bg-[#C9A45C] text-[#101010]' : 'text-stone-400 hover:text-white'}`}
                       >
                         {tab}
                       </button>
@@ -363,7 +417,7 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({ salon, onClo
                     </div>
                   )}
                   {activeTab === 'equipe' && (
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {staff.map((m) => (
                         <div key={m.id} className="p-3 rounded-xl bg-[#18181b] border border-[#26262a]">
                           <p className="text-sm font-bold text-white">{m.name}</p>
@@ -424,8 +478,8 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({ salon, onClo
                   )}
                 </div>
 
-                <div className="lg:col-span-5">
-                  <div className="sticky top-0 bg-[#18181b] border border-[#2a2a2e] rounded-2xl p-5 space-y-4">
+                <div id="booking-panel" className="lg:col-span-5">
+                  <div className="sticky top-0 bg-[#18181b] border border-[#2a2a2e] rounded-2xl p-4 sm:p-5 space-y-4">
                     <h3 className="text-lg font-bold text-white flex items-center gap-2">
                       <CalendarIcon className="w-5 h-5 text-[#C9A45C]" /> Réserver en ligne
                     </h3>
@@ -484,7 +538,7 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({ salon, onClo
                       <label className="text-xs font-semibold text-stone-300 block mb-1">
                         Créneau {slotsLoading && <Loader2 className="inline w-3 h-3 animate-spin" />}
                       </label>
-                      <div className="grid grid-cols-4 gap-1.5 max-h-36 overflow-y-auto">
+                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5 max-h-40 overflow-y-auto">
                         {timeSlots.map((slot) => (
                           <button
                             key={slot.startsAt + slot.staffId}
@@ -549,8 +603,8 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({ salon, onClo
         </div>
 
         {booking && (
-          <div className="absolute inset-0 bg-[#0e0e10]/95 backdrop-blur-lg z-30 flex items-center justify-center p-6">
-            <div className="max-w-md w-full bg-[#18181b] border border-[#C9A45C]/40 rounded-3xl p-6 text-center space-y-4">
+          <div className="absolute inset-0 bg-[#0e0e10]/95 backdrop-blur-lg z-30 overflow-y-auto flex items-start sm:items-center justify-center p-4 sm:p-6">
+            <div className="max-w-md w-full bg-[#18181b] border border-[#C9A45C]/40 rounded-3xl p-5 sm:p-6 text-center space-y-4 my-auto">
               <div
                 className={`w-16 h-16 rounded-full border mx-auto flex items-center justify-center ${booking.status === 'cancelled' ? 'bg-red-950 border-red-500/40 text-red-400' : 'bg-emerald-950 border-emerald-500/40 text-emerald-400'}`}
               >
@@ -599,23 +653,28 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({ salon, onClo
                   <span className="font-mono text-stone-300">#{booking.id.slice(0, 8)}</span>
                 </div>
               </div>
-              <div className="bg-[#111113] border border-[#C9A45C]/30 rounded-2xl p-3 text-left space-y-2">
+              <div className="bg-[#111113] border border-[#C9A45C]/30 rounded-2xl p-3 text-left space-y-2.5">
                 <p className="text-[11px] font-bold text-[#C9A45C] uppercase tracking-wider">
-                  Ma réservation — lien de suivi
+                  Ma réservation — lien d’accès secret
                 </p>
-                <p className="text-[11px] text-stone-400">
-                  Gardez ce lien : il permet de suivre, annuler, puis noter votre prestation, même après
-                  fermeture de cette fenêtre.
+                <p className="text-[11px] text-amber-200/90 leading-relaxed">
+                  Toute personne possédant ce lien secret peut consulter, annuler ou noter votre réservation
+                  sans mot de passe. Copiez-le en lieu sûr et ne le partagez pas.
                 </p>
                 <div className="flex gap-2">
                   <Link
-                    to={bookingPortalPath(booking.cancelToken)}
-                    onClick={onClose}
+                    to="/reservation"
+                    state={{ bookingToken: booking.cancelToken }}
+                    onClick={() => {
+                      setActiveBookingToken(booking.cancelToken);
+                      onClose();
+                    }}
                     className="flex-1 py-2 px-3 rounded-xl bg-[#C9A45C] hover:bg-[#d8b46c] text-[#101010] font-bold text-xs flex items-center justify-center gap-2"
                   >
                     <ExternalLink className="w-4 h-4" /> Suivre ma réservation
                   </Link>
                   <button
+                    type="button"
                     onClick={() => void copyBookingLink()}
                     className="py-2 px-3 rounded-xl bg-[#232328] hover:bg-[#2c2c32] text-stone-300 text-xs font-semibold flex items-center gap-1"
                   >
@@ -624,15 +683,28 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({ salon, onClo
                     ) : (
                       <Copy className="w-4 h-4" />
                     )}
-                    {linkCopied ? 'Copié' : 'Copier'}
+                    {linkCopied ? 'Copié' : 'Copier le lien'}
                   </button>
                 </div>
+                <label className="flex items-start gap-2 pt-1 text-[11px] text-stone-400 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={rememberOnDevice}
+                    onChange={(e) => handleToggleRememberDevice(e.target.checked)}
+                    className="mt-0.5 rounded border-stone-600 bg-[#18181b] text-[#C9A45C]"
+                  />
+                  <span>
+                    Mémoriser ce lien sur cet appareil (déconseillé sur un appareil partagé : toute personne
+                    utilisant ce navigateur pourra agir sur la réservation).
+                  </span>
+                </label>
               </div>
               {booking.status !== 'cancelled' && publicSalon.whatsapp && (
                 <a
                   href={`https://wa.me/${publicSalon.whatsapp.replace(/[^0-9]/g, '')}?text=${whatsappText}`}
                   target="_blank"
                   rel="noopener noreferrer"
+                  referrerPolicy="no-referrer"
                   className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-2"
                 >
                   <Send className="w-4 h-4" /> Contacter le salon sur WhatsApp

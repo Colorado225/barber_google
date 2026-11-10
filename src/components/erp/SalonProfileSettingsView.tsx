@@ -4,6 +4,7 @@ import { PaymentMethod, SalonType, OpeningHour } from '../../types';
 import { BranchHoursManager } from './BranchHoursManager';
 import { useOptionalAuth } from '../../context/AuthContext';
 import { listSalonBranches, type SalonBranch } from '../../lib/branch-hours';
+import { uploadSalonMedia } from '../../lib/storage';
 import {
   Store,
   CheckCircle2,
@@ -17,10 +18,12 @@ import {
   MessageCircle,
   Mail,
   Info,
+  Trash2,
+  Upload,
 } from 'lucide-react';
 
 export const SalonProfileSettingsView: React.FC = () => {
-  const { activeSalon, updateSalonDetails, setSelectedSalonForModal, formatPrice } = useApp();
+  const { activeSalon, updateSalonDetails, setSelectedSalonForModal, formatPrice, addToast } = useApp();
   const { isAuthenticated } = useOptionalAuth();
 
   // Basic Info
@@ -29,9 +32,14 @@ export const SalonProfileSettingsView: React.FC = () => {
   const [description, setDescription] = useState(activeSalon.description ?? '');
   const [salonType, setSalonType] = useState<SalonType | ''>(activeSalon.type ?? '');
 
-  // Logo & Branding
+  // Logo, Branding & Gallery
   const [logo, setLogo] = useState(activeSalon.logo ?? '');
   const [coverImage, setCoverImage] = useState(activeSalon.coverImage ?? '');
+  const [galleryUrls, setGalleryUrls] = useState<string[]>(
+    () => activeSalon.gallery ?? activeSalon.galleryItems?.map((item) => item.url) ?? [],
+  );
+  const [newGalleryUrl, setNewGalleryUrl] = useState('');
+  const [uploadingSlot, setUploadingSlot] = useState<'logo' | 'cover' | 'gallery' | null>(null);
 
   // Contacts
   const [phone, setPhone] = useState(activeSalon.phone ?? '');
@@ -119,9 +127,52 @@ export const SalonProfileSettingsView: React.FC = () => {
     });
   };
 
-  // Les images sont persistées sous forme d'URL HTTPS (pas de base64 en base).
+  // Les images sont persistées sous forme d'URL HTTPS (upload Supabase Storage ou URL externe).
   const handleLogoUrl = (value: string) => setLogo(value.trim());
   const handleCoverUrl = (value: string) => setCoverImage(value.trim());
+
+  const handleUploadMedia = async (slot: 'logo' | 'cover' | 'gallery', file: File | undefined) => {
+    if (!file || !activeSalon) return;
+    setUploadingSlot(slot);
+    try {
+      const { publicUrl } = await uploadSalonMedia(activeSalon.id, slot, file);
+      if (slot === 'logo') {
+        setLogo(publicUrl);
+        addToast('Logo importé dans Supabase Storage. Pensez à enregistrer la fiche.', 'success');
+      } else if (slot === 'cover') {
+        setCoverImage(publicUrl);
+        addToast('Couverture importée dans Supabase Storage. Pensez à enregistrer la fiche.', 'success');
+      } else {
+        setGalleryUrls((prev) => {
+          if (prev.length >= 12) {
+            addToast('Maximum 12 photos dans la galerie.', 'error');
+            return prev;
+          }
+          return [...prev, publicUrl];
+        });
+        addToast('Photo ajoutée à la galerie. Pensez à enregistrer la fiche.', 'success');
+      }
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : "Échec de l'envoi vers Supabase Storage.", 'error');
+    } finally {
+      setUploadingSlot(null);
+    }
+  };
+
+  const handleAddGalleryUrl = () => {
+    const trimmed = newGalleryUrl.trim();
+    if (!trimmed) return;
+    if (galleryUrls.length >= 12) {
+      addToast('La galerie est limitée à 12 photos.', 'error');
+      return;
+    }
+    setGalleryUrls((prev) => [...prev, trimmed]);
+    setNewGalleryUrl('');
+  };
+
+  const handleRemoveGalleryAt = (index: number) => {
+    setGalleryUrls((prev) => prev.filter((_, idx) => idx !== index));
+  };
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -132,6 +183,13 @@ export const SalonProfileSettingsView: React.FC = () => {
       type: salonType || activeSalon.type,
       logo,
       coverImage,
+      gallery: galleryUrls,
+      galleryItems: galleryUrls.map((url, idx) => ({
+        id: `gal-${idx}`,
+        url,
+        title: `Photo ${idx + 1}`,
+        description: '',
+      })),
       phone,
       whatsapp,
       email,
@@ -194,10 +252,25 @@ export const SalonProfileSettingsView: React.FC = () => {
 
             {/* Logo Controls */}
             <div className="flex-1 space-y-2 text-center sm:text-left">
-              <h4 className="text-sm font-bold text-white">Logo de l'établissement</h4>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h4 className="text-sm font-bold text-white">Logo de l'établissement</h4>
+                <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#C9A45C]/15 hover:bg-[#C9A45C]/25 border border-[#C9A45C]/30 text-[#E5C378] text-xs font-semibold cursor-pointer">
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>{uploadingSlot === 'logo' ? 'Import...' : 'Importer un logo'}</span>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    disabled={uploadingSlot !== null}
+                    className="hidden"
+                    onChange={(e) => {
+                      void handleUploadMedia('logo', e.target.files?.[0]);
+                      e.target.value = '';
+                    }}
+                  />
+                </label>
+              </div>
               <p className="text-xs text-stone-400">
-                Collez l'URL HTTPS de votre logo (hébergement public ou Supabase Storage). Les fichiers base64
-                ne sont pas persistés.
+                Importez une image (JPG, PNG, WebP · max 5 Mo) vers Supabase Storage ou collez une URL HTTPS.
               </p>
               <input
                 type="url"
@@ -211,29 +284,119 @@ export const SalonProfileSettingsView: React.FC = () => {
 
           {/* Photo de couverture */}
           <div className="pt-4 border-t border-[#232328] space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
                 <h4 className="text-xs font-bold text-white">Bannière / Photo de couverture</h4>
                 <p className="text-[11px] text-stone-400">Arrière-plan principal de votre établissement</p>
               </div>
 
-              <input
-                type="url"
-                value={coverImage}
-                onChange={(e) => handleCoverUrl(e.target.value)}
-                placeholder="https://…/couverture.jpg"
-                className="w-full max-w-xs bg-[#121214] border border-[#2d2d33] rounded-lg px-3 py-1.5 text-xs text-white"
-              />
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#C9A45C]/15 hover:bg-[#C9A45C]/25 border border-[#C9A45C]/30 text-[#E5C378] text-xs font-semibold cursor-pointer">
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>{uploadingSlot === 'cover' ? 'Import...' : 'Importer photo'}</span>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    disabled={uploadingSlot !== null}
+                    className="hidden"
+                    onChange={(e) => {
+                      void handleUploadMedia('cover', e.target.files?.[0]);
+                      e.target.value = '';
+                    }}
+                  />
+                </label>
+                <input
+                  type="url"
+                  value={coverImage}
+                  onChange={(e) => handleCoverUrl(e.target.value)}
+                  placeholder="https://…/couverture.jpg"
+                  className="w-full sm:w-56 bg-[#121214] border border-[#2d2d33] rounded-lg px-3 py-1.5 text-xs text-white"
+                />
+              </div>
             </div>
 
             <div className="relative aspect-[21/9] sm:aspect-[24/8] rounded-xl overflow-hidden bg-black/50 border border-[#28282d]">
-              <img src={coverImage} alt="Couverture" className="w-full h-full object-cover" />
+              {coverImage ? (
+                <img src={coverImage} alt="Couverture" className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-xs text-stone-500">
+                  Aucune image de couverture définie
+                </div>
+              )}
               <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent flex items-end p-4">
                 <span className="text-[11px] font-bold text-white bg-black/60 backdrop-blur-md px-3 py-1 rounded-full border border-white/10">
                   Aperçu de la couverture actuelle
                 </span>
               </div>
             </div>
+          </div>
+
+          {/* Galerie du salon */}
+          <div className="pt-4 border-t border-[#232328] space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h4 className="text-xs font-bold text-white">
+                  Galerie photos du salon ({galleryUrls.length}/12)
+                </h4>
+                <p className="text-[11px] text-stone-400">
+                  Ajoutez des photos réelles de vos coupes et de votre espace (hébergées sur Supabase
+                  Storage).
+                </p>
+              </div>
+              <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#C9A45C]/15 hover:bg-[#C9A45C]/25 border border-[#C9A45C]/30 text-[#E5C378] text-xs font-semibold cursor-pointer">
+                <Upload className="w-3.5 h-3.5" />
+                <span>{uploadingSlot === 'gallery' ? 'Import...' : 'Importer vers la galerie'}</span>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  disabled={uploadingSlot !== null || galleryUrls.length >= 12}
+                  className="hidden"
+                  onChange={(e) => {
+                    void handleUploadMedia('gallery', e.target.files?.[0]);
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+            </div>
+
+            <div className="flex gap-2">
+              <input
+                type="url"
+                value={newGalleryUrl}
+                onChange={(e) => setNewGalleryUrl(e.target.value)}
+                placeholder="Ou coller une URL HTTPS de photo..."
+                className="flex-1 bg-[#121214] border border-[#2d2d33] rounded-lg px-3 py-1.5 text-xs text-white"
+              />
+              <button
+                type="button"
+                onClick={handleAddGalleryUrl}
+                disabled={!newGalleryUrl.trim() || galleryUrls.length >= 12}
+                className="px-3 py-1.5 rounded-lg bg-[#242429] hover:bg-[#2e2e34] disabled:opacity-50 text-xs font-semibold text-white cursor-pointer"
+              >
+                Ajouter URL
+              </button>
+            </div>
+
+            {galleryUrls.length > 0 && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {galleryUrls.map((url, idx) => (
+                  <div
+                    key={`${url}-${idx}`}
+                    className="relative group aspect-[4/3] rounded-xl overflow-hidden bg-black border border-[#28282d]"
+                  >
+                    <img src={url} alt={`Galerie ${idx + 1}`} className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveGalleryAt(idx)}
+                      title="Retirer de la galerie"
+                      className="absolute top-1.5 right-1.5 p-1.5 rounded-lg bg-black/75 text-red-300 hover:text-red-200 cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 

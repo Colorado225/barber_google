@@ -1,0 +1,14 @@
+User-agent: *
+Allow: /
+Allow: /salons/
+Allow: /tarifs
+Allow: /inscription
+Disallow: /app/
+Disallow: /admin
+Disallow: /reservation
+Disallow: /mes-reservations
+Disallow: /connexion
+Disallow: /verifier-email
+Disallow: /mot-de-passe-oublie
+Disallow: /reinitialiser
+Disallow: /vitrine

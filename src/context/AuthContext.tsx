@@ -1,22 +1,21 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { getSupabaseClient, isSupabaseConfigured } from '../lib/supabase';
 import { getRolePermissions } from '../lib/permissions';
+import {
+  type SalonMembership,
+  getActiveMemberships,
+  persistSelectedSalonId,
+  readErpSalonFromSearch,
+  readStoredSalonId,
+  resolveSelectedMembership,
+} from '../lib/erpSalonSelection';
+
+export type { SalonMembership };
 
 interface SessionContext {
   user: AuthUser;
-  memberships: Array<{
-    id: string;
-    salonId: string;
-    salonName: string;
-    organizationId: string;
-    organizationName: string;
-    branchId: string | null;
-    branchName: string | null;
-    role: string;
-    status: string;
-    permissions: string[];
-  }>;
+  memberships: SalonMembership[];
   onboarding: {
     currentStep: 'email_verification' | 'salon_creation' | 'setup' | 'completed';
     emailVerified: boolean;
@@ -34,16 +33,19 @@ export interface AuthUser {
 
 export type SignUpResult = { status: 'confirmation-required' } | { status: 'authenticated' };
 
-interface AuthContextType {
+export interface AuthContextType {
   user: AuthUser | null;
   memberships: SessionContext['memberships'];
+  activeMembership: SalonMembership | null;
+  activeSalonId: string | null;
   onboarding: SessionContext['onboarding'];
   loading: boolean;
   error: string | null;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (name: string, email: string, password: string) => Promise<SignUpResult>;
   signOut: () => Promise<void>;
-  refreshSession: () => Promise<void>;
+  refreshSession: (preferredSalonId?: string) => Promise<void>;
+  selectSalon: (salonId: string) => boolean;
   verifyEmail: (tokenHash: string) => Promise<void>;
   resendVerification: (email: string) => Promise<void>;
   requestPasswordReset: (email: string) => Promise<void>;
@@ -55,7 +57,7 @@ interface AuthContextType {
   hasPermission: (permission: string, salonId?: string) => boolean;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const normalizeEmail = (email: string) => email.trim().toLowerCase();
 
@@ -77,7 +79,8 @@ async function loadMemberships(userId: string): Promise<SessionContext['membersh
     .from('memberships')
     .select('id, role, status, salon_id')
     .eq('user_id', userId)
-    .eq('status', 'active');
+    .eq('status', 'active')
+    .order('created_at', { ascending: true });
 
   if (membershipsError) throw membershipsError;
 
@@ -136,63 +139,92 @@ async function loadMemberships(userId: string): Promise<SessionContext['membersh
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [memberships, setMemberships] = useState<SessionContext['memberships']>([]);
+  const [selectedSalonId, setSelectedSalonId] = useState<string | null>(null);
   const [onboarding, setOnboarding] = useState<SessionContext['onboarding']>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const applySession = useCallback((context: SessionContext) => {
+  const userRef = useRef<AuthUser | null>(null);
+  userRef.current = user;
+  const membershipsRef = useRef<SessionContext['memberships']>([]);
+  membershipsRef.current = memberships;
+  const selectedSalonIdRef = useRef<string | null>(null);
+  selectedSalonIdRef.current = selectedSalonId;
+
+  const applySession = useCallback((context: SessionContext, preferredSalonId?: string) => {
+    const nextMemberships = context.memberships ?? [];
+    const urlSalonId = typeof window !== 'undefined' ? readErpSalonFromSearch(window.location.search) : null;
+    const storedSalonId = readStoredSalonId(context.user.id);
+    const resolved = resolveSelectedMembership(nextMemberships, {
+      requestedSalonId: preferredSalonId ?? selectedSalonIdRef.current,
+      urlSalonId,
+      storedSalonId,
+    });
+    const nextSelectedSalonId = resolved?.salonId ?? null;
+
     setUser(context.user);
-    setMemberships(context.memberships ?? []);
+    setMemberships(nextMemberships);
     setOnboarding(context.onboarding ?? null);
+    setSelectedSalonId(nextSelectedSalonId);
+    if (nextSelectedSalonId) {
+      persistSelectedSalonId(context.user.id, nextSelectedSalonId);
+    }
   }, []);
 
   const clearSessionState = useCallback(() => {
     setUser(null);
     setMemberships([]);
     setOnboarding(null);
+    setSelectedSalonId(null);
   }, []);
 
-  const refreshSession = useCallback(async () => {
-    const supabase = getSupabaseClient();
-    const {
-      data: { user: authUser },
-      error: userError,
-    } = await supabase.auth.getUser();
-    if (userError) throw userError;
-    if (!authUser) {
-      clearSessionState();
-      setError(null);
-      return;
-    }
+  const refreshSession = useCallback(
+    async (preferredSalonId?: string) => {
+      const supabase = getSupabaseClient();
+      const {
+        data: { user: authUser },
+        error: userError,
+      } = await supabase.auth.getUser();
+      if (userError) throw userError;
+      if (!authUser) {
+        clearSessionState();
+        setError(null);
+        return;
+      }
 
-    const nextUser = normalizeUserFromSupabase(authUser);
-    if (!nextUser) {
-      clearSessionState();
-      setError(null);
-      return;
-    }
+      const nextUser = normalizeUserFromSupabase(authUser);
+      if (!nextUser) {
+        clearSessionState();
+        setError(null);
+        return;
+      }
 
-    const nextMemberships = await loadMemberships(nextUser.id);
-    const { data: onboardingData, error: onboardingError } = await supabase
-      .from('onboarding_state')
-      .select('current_step, email_verified, salon_created, setup_completed')
-      .eq('user_id', nextUser.id)
-      .maybeSingle();
-    if (onboardingError) throw onboardingError;
-    applySession({
-      user: nextUser,
-      memberships: nextMemberships,
-      onboarding: onboardingData
-        ? {
-            currentStep: onboardingData.current_step,
-            emailVerified: onboardingData.email_verified,
-            salonCreated: onboardingData.salon_created,
-            setupCompleted: onboardingData.setup_completed,
-          }
-        : null,
-    });
-    setError(null);
-  }, [applySession, clearSessionState]);
+      const nextMemberships = await loadMemberships(nextUser.id);
+      const { data: onboardingData, error: onboardingError } = await supabase
+        .from('onboarding_state')
+        .select('current_step, email_verified, salon_created, setup_completed')
+        .eq('user_id', nextUser.id)
+        .maybeSingle();
+      if (onboardingError) throw onboardingError;
+      applySession(
+        {
+          user: nextUser,
+          memberships: nextMemberships,
+          onboarding: onboardingData
+            ? {
+                currentStep: onboardingData.current_step,
+                emailVerified: onboardingData.email_verified,
+                salonCreated: onboardingData.salon_created,
+                setupCompleted: onboardingData.setup_completed,
+              }
+            : null,
+        },
+        preferredSalonId,
+      );
+      setError(null);
+    },
+    [applySession, clearSessionState],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -332,8 +364,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const created = Array.isArray(result) ? result[0] : result;
       if (!created?.salon_id) throw new Error('La création du salon n’a pas retourné son identifiant.');
 
-      await refreshSession();
-      return created.salon_id as string;
+      const createdSalonId = created.salon_id as string;
+      await refreshSession(createdSalonId);
+      return createdSalonId;
     });
 
   const completeOnboarding = () =>
@@ -341,17 +374,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await refreshSession();
     });
 
-  const hasPermission = (permission: string, salonId?: string) =>
-    memberships.some(
-      (membership) =>
-        (!salonId || membership.salonId === salonId) && membership.permissions.includes(permission),
-    );
+  const selectSalon = useCallback((salonId: string): boolean => {
+    const active = getActiveMemberships(membershipsRef.current);
+    const match = active.find((membership) => membership.salonId === salonId);
+    if (!match) return false;
+    setSelectedSalonId(match.salonId);
+    if (userRef.current?.id) {
+      persistSelectedSalonId(userRef.current.id, match.salonId);
+    }
+    return true;
+  }, []);
+
+  const activeMemberships = useMemo(() => getActiveMemberships(memberships), [memberships]);
+
+  const activeMembership = useMemo(
+    () =>
+      resolveSelectedMembership(memberships, {
+        requestedSalonId: selectedSalonId,
+        urlSalonId: typeof window !== 'undefined' ? readErpSalonFromSearch(window.location.search) : null,
+        storedSalonId: user?.id ? readStoredSalonId(user.id) : null,
+      }),
+    [memberships, selectedSalonId, user?.id],
+  );
+
+  const hasPermission = useCallback(
+    (permission: string, salonId?: string) => {
+      const targetSalonId = salonId ?? activeMembership?.salonId;
+      if (!targetSalonId) return false;
+      return activeMemberships.some(
+        (membership) => membership.salonId === targetSalonId && membership.permissions.includes(permission),
+      );
+    },
+    [activeMemberships, activeMembership?.salonId],
+  );
 
   return (
     <AuthContext.Provider
       value={{
         user,
         memberships,
+        activeMembership,
+        activeSalonId: activeMembership?.salonId ?? null,
         onboarding,
         loading,
         error,
@@ -359,6 +422,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signUp,
         signOut,
         refreshSession,
+        selectSalon,
         verifyEmail,
         resendVerification,
         requestPasswordReset,
@@ -366,7 +430,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         createSalon,
         completeOnboarding,
         isAuthenticated: !!user,
-        hasWorkspace: memberships.length > 0,
+        hasWorkspace: activeMemberships.length > 0,
         hasPermission,
       }}
     >
@@ -387,6 +451,8 @@ export const useOptionalAuth = (): AuthContextType => {
     context ?? {
       user: null,
       memberships: [],
+      activeMembership: null,
+      activeSalonId: null,
       onboarding: null,
       loading: false,
       error: null,
@@ -394,6 +460,7 @@ export const useOptionalAuth = (): AuthContextType => {
       signUp: async (): Promise<SignUpResult> => ({ status: 'confirmation-required' }),
       signOut: async () => {},
       refreshSession: async () => {},
+      selectSalon: () => false,
       verifyEmail: async () => {},
       resendVerification: async () => {},
       requestPasswordReset: async () => {},

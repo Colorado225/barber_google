@@ -12,6 +12,8 @@ const METHOD_LABELS: Record<string, string> = {
 interface SaasPaymentReviewPanelProps {
   formatPrice: (amount: number) => string;
   onDecision?: () => void;
+  listPayments?: typeof getSaasPaymentsForReview;
+  decidePayment?: typeof reviewSaasPayment;
 }
 
 /**
@@ -22,6 +24,8 @@ interface SaasPaymentReviewPanelProps {
 export const SaasPaymentReviewPanel: React.FC<SaasPaymentReviewPanelProps> = ({
   formatPrice,
   onDecision,
+  listPayments = getSaasPaymentsForReview,
+  decidePayment = reviewSaasPayment,
 }) => {
   const [items, setItems] = useState<SaaSPaymentReviewItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,13 +38,13 @@ export const SaasPaymentReviewPanel: React.FC<SaasPaymentReviewPanelProps> = ({
     setLoading(true);
     setError(null);
     try {
-      setItems(await getSaasPaymentsForReview());
+      setItems(await listPayments());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Chargement impossible.');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [listPayments]);
 
   useEffect(() => {
     load();
@@ -54,7 +58,7 @@ export const SaasPaymentReviewPanel: React.FC<SaasPaymentReviewPanelProps> = ({
     setBusyId(item.id);
     setError(null);
     try {
-      await reviewSaasPayment(item.id, decision, decision === 'reject' ? reason.trim() : undefined);
+      await decidePayment(item.id, decision, decision === 'reject' ? reason.trim() : undefined);
       setRejectingId(null);
       setReason('');
       await load();

@@ -2,7 +2,6 @@ import React, { useMemo, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { useOptionalAuth } from '../../context/AuthContext';
 import { Appointment } from '../../types';
-import { bookingPortalPath } from '../../lib/bookingVault';
 import {
   Inbox,
   CheckCircle2,
@@ -216,9 +215,9 @@ export const OnlineRequestsView: React.FC = () => {
 
       <p className="text-[11px] text-stone-500 flex items-center gap-1">
         <ExternalLink className="h-3 w-3" />
-        Le client suit sa demande depuis son lien personnel
-        <code className="text-stone-400">{bookingPortalPath('<jeton>')}</code> : toute confirmation ou
-        annulation y est visible immédiatement.
+        Le client suit sa demande depuis son lien secret personnel
+        <code className="text-stone-400">/reservation#&lt;jeton&gt;</code> : toute confirmation ou annulation
+        y est visible immédiatement.
       </p>
     </section>
   );

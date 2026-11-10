@@ -6,18 +6,20 @@
 //    résultat via mark_notification_result ;
 //  - un message n'est marqué « sent » que si le fournisseur a répondu 2xx avec
 //    un identifiant ; sinon « failed » + message d'erreur du fournisseur ;
-//  - si aucun fournisseur n'est configuré, le message est « skipped » avec
-//    l'erreur provider_not_configured : on ne prétend jamais envoyer.
+//  - si aucun fournisseur n'est configuré, la file d'attente reste intacte et
+//    l'état exact des canaux/secrets est remonté sans jamais exposer de clé ;
+//  - le canal SMS est explicitement non pris en charge (channel_not_supported: sms).
 //
 // Deux modes d'appel :
 //  1. Automatique (cron) : en-tête `x-dispatch-token` = NOTIFICATIONS_DISPATCH_TOKEN,
 //     ou Authorization: Bearer <service_role_key>. Traite tous les salons.
-//  2. Manuel (ERP) : Authorization: Bearer <JWT utilisateur> + body { salon_id }.
-//     Le droit appointments.write du salon est vérifié côté base.
+//  2. Manuel / Sonde santé (ERP ou SuperAdmin) : Authorization: Bearer <JWT utilisateur>
+//     + body { salon_id } (ou { mode: 'health', scope: 'platform' } pour SuperAdmin).
 //
 // Secrets à définir (Dashboard Supabase > Edge Functions > Secrets) :
 //   RESEND_API_KEY, NOTIFICATIONS_EMAIL_FROM
-//   WHATSAPP_TOKEN, WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_TEMPLATE_PREFIX (optionnel)
+//   WHATSAPP_TOKEN, WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_TEMPLATE_PREFIX (recommandé hors 24 h),
+//   WHATSAPP_BUSINESS_ACCOUNT_ID (optionnel, pour auditer le statut des modèles Meta)
 //   PUBLIC_APP_URL (origine du site, pour le lien « Ma réservation »)
 //   NOTIFICATIONS_DISPATCH_TOKEN (jeton du planificateur)
 
@@ -32,16 +34,25 @@ const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') ?? '';
 const EMAIL_FROM = Deno.env.get('NOTIFICATIONS_EMAIL_FROM') ?? '';
 const WHATSAPP_TOKEN = Deno.env.get('WHATSAPP_TOKEN') ?? '';
 const WHATSAPP_PHONE_ID = Deno.env.get('WHATSAPP_PHONE_NUMBER_ID') ?? '';
+const WHATSAPP_WABA_ID = Deno.env.get('WHATSAPP_BUSINESS_ACCOUNT_ID') ?? '';
 const WHATSAPP_TEMPLATE_PREFIX = Deno.env.get('WHATSAPP_TEMPLATE_PREFIX') ?? '';
 const WHATSAPP_TEMPLATE_LANG = Deno.env.get('WHATSAPP_TEMPLATE_LANG') ?? 'fr';
 const WHATSAPP_COUNTRY_CODE = Deno.env.get('WHATSAPP_DEFAULT_COUNTRY_CODE') ?? '225';
 const PUBLIC_APP_URL = (Deno.env.get('PUBLIC_APP_URL') ?? '').replace(/\/$/, '');
 const DISPATCH_TOKEN = Deno.env.get('NOTIFICATIONS_DISPATCH_TOKEN') ?? '';
 
+const WHATSAPP_TEMPLATE_KINDS = [
+  'booking_received',
+  'booking_confirmed',
+  'booking_cancelled',
+  'reminder_24h',
+  'review_request',
+] as const;
+
 const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-dispatch-token',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 };
 
 type Notification = {
@@ -58,6 +69,53 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
 
 const str = (value: unknown, fallback = '') => (typeof value === 'string' ? value : fallback);
+
+function getCapabilities() {
+  const emailHasApiKey = Boolean(RESEND_API_KEY);
+  const emailHasSender = Boolean(EMAIL_FROM);
+  const emailConfigured = emailHasApiKey && emailHasSender;
+
+  const waHasToken = Boolean(WHATSAPP_TOKEN);
+  const waHasPhoneId = Boolean(WHATSAPP_PHONE_ID);
+  const waConfigured = waHasToken && waHasPhoneId;
+  const waTemplateMode = Boolean(WHATSAPP_TEMPLATE_PREFIX);
+
+  return {
+    email: {
+      provider: 'resend',
+      supported: true,
+      configured: emailConfigured,
+      hasApiKey: emailHasApiKey,
+      hasSender: emailHasSender,
+    },
+    whatsapp: {
+      provider: 'meta_cloud_api',
+      supported: true,
+      configured: waConfigured,
+      hasToken: waHasToken,
+      hasPhoneNumberId: waHasPhoneId,
+      hasBusinessAccountId: Boolean(WHATSAPP_WABA_ID),
+      templateModeEnabled: waTemplateMode,
+      templatePrefixConfigured: waTemplateMode,
+      templateLang: WHATSAPP_TEMPLATE_LANG,
+      defaultCountryCode: WHATSAPP_COUNTRY_CODE,
+      expectedTemplates: waTemplateMode
+        ? WHATSAPP_TEMPLATE_KINDS.map((kind) => `${WHATSAPP_TEMPLATE_PREFIX}_${kind}`)
+        : [],
+    },
+    sms: {
+      provider: null,
+      supported: false,
+      configured: false,
+      reason: 'channel_not_supported: sms',
+      message: 'Le canal SMS n’est pas disponible tant qu’il n’a pas de fournisseur raccordé.',
+    },
+    scheduler: {
+      dispatchTokenConfigured: Boolean(DISPATCH_TOKEN),
+      publicAppUrlConfigured: Boolean(PUBLIC_APP_URL),
+    },
+  };
+}
 
 function money(amount: unknown): string {
   const value = Number(amount ?? 0);
@@ -86,7 +144,9 @@ function abidjan(iso: unknown): { date: string; time: string } {
 function portalLink(payload: Record<string, unknown>): string {
   const token = str(payload.booking_token);
   if (!PUBLIC_APP_URL || !token) return '';
-  return `${PUBLIC_APP_URL}/reservation/${token}`;
+  // Le jeton voyage dans le fragment (#) afin de ne jamais être envoyé au
+  // serveur web ni journalisé dans les accès HTTP ou les en-têtes Referer.
+  return `${PUBLIC_APP_URL}/reservation#${token}`;
 }
 
 const TITLES: Record<string, string> = {
@@ -132,6 +192,9 @@ function render(n: Notification) {
       : link
         ? `Suivre, modifier ou annuler : ${link}`
         : '',
+    link
+      ? 'Attention : ce lien est un secret d’accès. Toute personne qui le possède peut agir sur cette réservation ; ne le transférez pas.'
+      : '',
     '',
     `— ${salon}`,
   ].filter((line) => line !== '');
@@ -162,6 +225,34 @@ function whatsappNumber(raw: string): string {
   return digits;
 }
 
+function formatResendError(status: number, rawBody: string): string {
+  try {
+    const parsed = JSON.parse(rawBody) as { name?: string; message?: string };
+    const code = parsed.name ? ` (${parsed.name})` : '';
+    const detail = parsed.message ?? rawBody;
+    return `resend ${status}${code}: ${String(detail).slice(0, 260)}`;
+  } catch {
+    return `resend ${status}: ${rawBody.slice(0, 280)}`;
+  }
+}
+
+function formatWhatsappError(status: number, rawBody: string): string {
+  try {
+    const parsed = JSON.parse(rawBody) as {
+      error?: { code?: number; message?: string; error_subcode?: number };
+    };
+    const code = parsed?.error?.code;
+    const msg = parsed?.error?.message ?? rawBody;
+    let hint = '';
+    if (code === 131047) hint = ' / template_required_24h';
+    else if (code === 132000 || code === 132001 || code === 132012) hint = ' / template_not_approved';
+    else if (code === 190) hint = ' / token_invalid_or_expired';
+    return `whatsapp ${status}${code ? ` (code ${code}${hint})` : ''}: ${String(msg).slice(0, 240)}`;
+  } catch {
+    return `whatsapp ${status}: ${rawBody.slice(0, 280)}`;
+  }
+}
+
 async function sendEmail(
   n: Notification,
 ): Promise<{ ok: boolean; id?: string; error?: string; skipped?: boolean }> {
@@ -185,7 +276,7 @@ async function sendEmail(
     }),
   });
   const body = await res.text();
-  if (!res.ok) return { ok: false, error: `resend ${res.status}: ${body.slice(0, 300)}` };
+  if (!res.ok) return { ok: false, error: formatResendError(res.status, body) };
   try {
     return { ok: true, id: str(JSON.parse(body).id) };
   } catch {
@@ -245,13 +336,105 @@ async function sendWhatsapp(
     body: JSON.stringify(payload),
   });
   const body = await res.text();
-  if (!res.ok) return { ok: false, error: `whatsapp ${res.status}: ${body.slice(0, 300)}` };
+  if (!res.ok) return { ok: false, error: formatWhatsappError(res.status, body) };
   try {
     const parsed = JSON.parse(body);
     return { ok: true, id: str(parsed?.messages?.[0]?.id) };
   } catch {
     return { ok: false, error: 'whatsapp: réponse illisible' };
   }
+}
+
+async function auditWhatsappConfig() {
+  if (!WHATSAPP_TOKEN || !WHATSAPP_PHONE_ID) {
+    return {
+      checked: false,
+      phoneVerified: false,
+      templatesChecked: false,
+      approvedTemplates: [] as Array<{ name: string; status: string; language: string }>,
+      missingTemplates: WHATSAPP_TEMPLATE_PREFIX
+        ? WHATSAPP_TEMPLATE_KINDS.map((k) => `${WHATSAPP_TEMPLATE_PREFIX}_${k}`)
+        : [],
+      error: 'WHATSAPP_TOKEN ou WHATSAPP_PHONE_NUMBER_ID absent.',
+    };
+  }
+
+  let phoneVerified = false;
+  let verifiedName = '';
+  let displayPhoneNumber = '';
+  let qualityRating = '';
+  let error: string | null = null;
+
+  try {
+    const phoneRes = await fetch(
+      `https://graph.facebook.com/v20.0/${WHATSAPP_PHONE_ID}?fields=verified_name,display_phone_number,quality_rating`,
+      { headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}` } },
+    );
+    const phoneBody = await phoneRes.text();
+    if (phoneRes.ok) {
+      const parsed = JSON.parse(phoneBody) as {
+        verified_name?: string;
+        display_phone_number?: string;
+        quality_rating?: string;
+      };
+      phoneVerified = true;
+      verifiedName = str(parsed.verified_name);
+      displayPhoneNumber = str(parsed.display_phone_number);
+      qualityRating = str(parsed.quality_rating);
+    } else {
+      error = formatWhatsappError(phoneRes.status, phoneBody);
+    }
+  } catch (err) {
+    error = `whatsapp_probe_exception: ${(err as Error).message}`.slice(0, 240);
+  }
+
+  let templatesChecked = false;
+  const approvedTemplates: Array<{ name: string; status: string; language: string }> = [];
+  const expectedNames = WHATSAPP_TEMPLATE_PREFIX
+    ? WHATSAPP_TEMPLATE_KINDS.map((k) => `${WHATSAPP_TEMPLATE_PREFIX}_${k}`)
+    : [];
+  const foundNames = new Set<string>();
+
+  if (WHATSAPP_WABA_ID) {
+    try {
+      const tplRes = await fetch(
+        `https://graph.facebook.com/v20.0/${WHATSAPP_WABA_ID}/message_templates?fields=name,status,language,category&limit=100`,
+        { headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}` } },
+      );
+      const tplBody = await tplRes.text();
+      if (tplRes.ok) {
+        templatesChecked = true;
+        const parsed = JSON.parse(tplBody) as {
+          data?: Array<{ name?: string; status?: string; language?: string }>;
+        };
+        for (const tpl of parsed.data ?? []) {
+          const name = str(tpl.name);
+          const status = str(tpl.status);
+          const language = str(tpl.language);
+          if (!WHATSAPP_TEMPLATE_PREFIX || name.startsWith(WHATSAPP_TEMPLATE_PREFIX)) {
+            approvedTemplates.push({ name, status, language });
+            if (status.toUpperCase() === 'APPROVED') foundNames.add(name);
+          }
+        }
+      } else if (!error) {
+        error = formatWhatsappError(tplRes.status, tplBody);
+      }
+    } catch (err) {
+      if (!error) error = `whatsapp_templates_exception: ${(err as Error).message}`.slice(0, 240);
+    }
+  }
+
+  return {
+    checked: true,
+    phoneVerified,
+    verifiedName,
+    displayPhoneNumber,
+    qualityRating,
+    templatesChecked,
+    approvedTemplates,
+    missingTemplates: expectedNames.filter((name) => !foundNames.has(name)),
+    error,
+  };
 }
 
 // Appel PostgREST d'une RPC. `bearer` porte soit la clé service, soit le JWT
@@ -279,20 +462,57 @@ async function rpc<T>(
   }
 }
 
-async function authorize(
-  req: Request,
-  body: Record<string, unknown>,
-): Promise<{ salonId: string | null } | Response> {
+async function recordRun(params: {
+  salonId: string | null;
+  triggerSource: 'cron' | 'manual' | 'probe';
+  capabilities: ReturnType<typeof getCapabilities>;
+  processed?: number;
+  sent?: number;
+  failed?: number;
+  skipped?: number;
+  error?: string | null;
+  details?: Record<string, unknown>;
+}) {
+  if (!SUPABASE_URL || !SERVICE_KEY) return;
+  await rpc(
+    'record_notification_dispatch_run',
+    {
+      p_salon_id: params.salonId,
+      p_trigger_source: params.triggerSource,
+      p_provider_configured: params.capabilities.email.configured || params.capabilities.whatsapp.configured,
+      p_email_configured: params.capabilities.email.configured,
+      p_whatsapp_configured: params.capabilities.whatsapp.configured,
+      p_whatsapp_template_mode: params.capabilities.whatsapp.templateModeEnabled,
+      p_processed: params.processed ?? 0,
+      p_sent: params.sent ?? 0,
+      p_failed: params.failed ?? 0,
+      p_skipped: params.skipped ?? 0,
+      p_error: params.error ?? null,
+      p_details: params.details ?? {},
+    },
+    SERVICE_KEY,
+  ).catch(() => null);
+}
+
+type AuthContext = {
+  salonId: string | null;
+  triggerSource: 'cron' | 'manual' | 'probe';
+};
+
+async function authorize(req: Request, body: Record<string, unknown>): Promise<AuthContext | Response> {
+  const mode = str(body.mode);
+  const scope = str(body.scope);
   const token = req.headers.get('x-dispatch-token') ?? '';
-  if (DISPATCH_TOKEN && token === DISPATCH_TOKEN) return { salonId: null };
+  if (DISPATCH_TOKEN && token === DISPATCH_TOKEN) {
+    return { salonId: null, triggerSource: mode === 'health' ? 'probe' : 'cron' };
+  }
 
   const auth = req.headers.get('authorization') ?? '';
   const bearer = auth.replace(/^Bearer\s+/i, '');
   if (!bearer) return json({ error: 'unauthorized' }, 401);
-  if (SERVICE_KEY && bearer === SERVICE_KEY) return { salonId: null };
-
-  const salonId = str(body.salon_id);
-  if (!salonId) return json({ error: 'salon_id required for user-triggered dispatch' }, 400);
+  if (SERVICE_KEY && bearer === SERVICE_KEY) {
+    return { salonId: null, triggerSource: mode === 'health' ? 'probe' : 'cron' };
+  }
 
   // Le JWT doit être un utilisateur réel, pas une clé anon quelconque.
   const userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
@@ -302,15 +522,34 @@ async function authorize(
   const user = await userRes.json().catch(() => null);
   if (!user?.id) return json({ error: 'unauthorized' }, 401);
 
+  if (mode === 'health' && scope === 'platform') {
+    const isAdmin = await rpc<boolean>('can_administer_notifications', {}, bearer);
+    if (isAdmin.error) return json({ error: isAdmin.error }, 400);
+    if (isAdmin.data !== true) return json({ error: 'forbidden' }, 403);
+    return { salonId: null, triggerSource: 'probe' };
+  }
+
+  const salonId = str(body.salon_id);
+  if (!salonId) return json({ error: 'salon_id required for user-triggered dispatch' }, 400);
+
   const allowed = await rpc<boolean>('can_manage_notifications', { p_salon_id: salonId }, bearer);
   if (allowed.error) return json({ error: allowed.error }, 400);
   if (allowed.data !== true) return json({ error: 'forbidden' }, 403);
-  return { salonId };
+  return { salonId, triggerSource: mode === 'health' ? 'probe' : 'manual' };
 }
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
-  if (req.method === 'GET') return json({ service: 'notifications-dispatcher', ok: true });
+
+  const capabilities = getCapabilities();
+  if (req.method === 'GET') {
+    return json({
+      service: 'notifications-dispatcher',
+      ok: true,
+      capabilities,
+      checkedAt: new Date().toISOString(),
+    });
+  }
   if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
   if (!SUPABASE_URL || !SERVICE_KEY) return json({ error: 'server_misconfigured' }, 500);
 
@@ -325,18 +564,53 @@ Deno.serve(async (req: Request) => {
   const auth = await authorize(req, body);
   if (auth instanceof Response) return auth;
 
+  if (str(body.mode) === 'health') {
+    const whatsappAudit = body.check_whatsapp_api === true ? await auditWhatsappConfig() : null;
+    await recordRun({
+      salonId: auth.salonId,
+      triggerSource: 'probe',
+      capabilities,
+      details: {
+        scope: str(body.scope, auth.salonId ? 'salon' : 'cron'),
+        whatsappAudit,
+      },
+    });
+    return json({
+      service: 'notifications-dispatcher',
+      ok: true,
+      mode: 'health',
+      provider_configured: capabilities.email.configured || capabilities.whatsapp.configured,
+      capabilities,
+      whatsappAudit,
+      checkedAt: new Date().toISOString(),
+    });
+  }
+
   // Aucun fournisseur configuré : on ne réserve RIEN. La file reste intacte et
   // repartira toute seule dès qu'une clé sera posée, sans relance manuelle.
-  const emailReady = Boolean(RESEND_API_KEY && EMAIL_FROM);
-  const whatsappReady = Boolean(WHATSAPP_TOKEN && WHATSAPP_PHONE_ID);
+  const emailReady = capabilities.email.configured;
+  const whatsappReady = capabilities.whatsapp.configured;
   if (!emailReady && !whatsappReady) {
+    const message = 'Aucun fournisseur configuré : la file est conservée telle quelle.';
+    await recordRun({
+      salonId: auth.salonId,
+      triggerSource: auth.triggerSource,
+      capabilities,
+      processed: 0,
+      sent: 0,
+      failed: 0,
+      skipped: 0,
+      error: 'provider_not_configured',
+    });
     return json({
       processed: 0,
       sent: 0,
       failed: 0,
       skipped: 0,
       provider_configured: false,
-      message: 'Aucun fournisseur configuré : la file est conservée telle quelle.',
+      trigger_source: auth.triggerSource,
+      capabilities,
+      message,
     });
   }
 
@@ -396,5 +670,26 @@ Deno.serve(async (req: Request) => {
     results.push({ id: n.id, channel: n.channel, kind: n.kind, status, error: outcome.error ?? null });
   }
 
-  return json({ processed: rows.length, sent, failed, skipped, provider_configured: true, results });
+  await recordRun({
+    salonId: auth.salonId,
+    triggerSource: auth.triggerSource,
+    capabilities,
+    processed: rows.length,
+    sent,
+    failed,
+    skipped,
+    error: failed > 0 ? `${failed} notification(s) en échec` : null,
+    details: { results: results.slice(0, 20) },
+  });
+
+  return json({
+    processed: rows.length,
+    sent,
+    failed,
+    skipped,
+    provider_configured: true,
+    trigger_source: auth.triggerSource,
+    capabilities,
+    results,
+  });
 });

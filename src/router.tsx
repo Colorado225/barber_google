@@ -1,47 +1,53 @@
+import React, { Suspense } from 'react';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import App from './App';
-import { MarketplaceHome } from './components/marketplace/MarketplaceHome';
-import { SalonPublicPage } from './components/marketplace/salon/SalonPublicPage';
-import { BookingPortalView } from './components/marketplace/BookingPortalView';
-import { MyBookingsView } from './components/marketplace/MyBookingsView';
-import { ErpLayout } from './components/erp/ErpLayout';
 import { SalonProvider } from './context/SalonContext';
-import { DashboardView } from './components/erp/DashboardView';
-import { TodayView } from './components/erp/TodayView';
-import { PlanningView } from './components/erp/PlanningView';
-import { ClientsView } from './components/erp/ClientsView';
-import { ServicesView } from './components/erp/ServicesView';
-import { StaffView } from './components/erp/StaffView';
-import { CashRegisterView } from './components/erp/CashRegisterView';
-import { InventoryView } from './components/erp/InventoryView';
-import { ReportsView } from './components/erp/ReportsView';
-import { LoyaltyView } from './components/erp/LoyaltyView';
-import { ShopView } from './components/erp/ShopView';
-import { SalonQrCodeView } from './components/erp/SalonQrCodeView';
-import { PricingView } from './components/marketplace/PricingView';
-import { AdminDashboard } from './components/admin/AdminDashboard';
-import { LoginPage } from './components/auth/LoginPage';
-import { SignupPage } from './components/auth/SignupPage';
-import { VerifyEmailPage } from './components/auth/VerifyEmailPage';
-import { ForgotPasswordPage } from './components/auth/ForgotPasswordPage';
-import { ResetPasswordPage } from './components/auth/ResetPasswordPage';
-import { OnboardingGate } from './components/auth/OnboardingGate';
 import { AppProvider } from './context/AppContext';
 import { ToastContainer } from './components/common/ToastContainer';
+import { RouteLoadingFallback, lazyNamed } from './components/common/ViewLoader';
+import { MarketplaceHome } from './components/marketplace/MarketplaceHome';
+
+const SalonPublicPage = lazyNamed(
+  () => import('./components/marketplace/salon/SalonPublicPage'),
+  'SalonPublicPage',
+);
+const BookingPortalView = lazyNamed(
+  () => import('./components/marketplace/BookingPortalView'),
+  'BookingPortalView',
+);
+const MyBookingsView = lazyNamed(() => import('./components/marketplace/MyBookingsView'), 'MyBookingsView');
+const PricingView = lazyNamed(() => import('./components/marketplace/PricingView'), 'PricingView');
+const ShopView = lazyNamed(() => import('./components/erp/ShopView'), 'ShopView');
+const ErpLayout = lazyNamed(() => import('./components/erp/ErpLayout'), 'ErpLayout');
+const OnboardingGate = lazyNamed(() => import('./components/auth/OnboardingGate'), 'OnboardingGate');
+const AdminDashboard = lazyNamed(() => import('./components/admin/AdminDashboard'), 'AdminDashboard');
+const LoginPage = lazyNamed(() => import('./components/auth/LoginPage'), 'LoginPage');
+const SignupPage = lazyNamed(() => import('./components/auth/SignupPage'), 'SignupPage');
+const VerifyEmailPage = lazyNamed(() => import('./components/auth/VerifyEmailPage'), 'VerifyEmailPage');
+const ForgotPasswordPage = lazyNamed(
+  () => import('./components/auth/ForgotPasswordPage'),
+  'ForgotPasswordPage',
+);
+const ResetPasswordPage = lazyNamed(() => import('./components/auth/ResetPasswordPage'), 'ResetPasswordPage');
+
+const withSuspense = (element: React.ReactNode, label?: string) => (
+  <Suspense fallback={<RouteLoadingFallback label={label} />}>{element}</Suspense>
+);
 
 const router = createBrowserRouter([
   // L'ERP vit hors du shell marketplace : son propre garde d'accès s'applique
   // AVANT tout rendu métier (session, e-mail vérifié, membership actif).
   {
     path: '/app/*',
-    element: (
+    element: withSuspense(
       <OnboardingGate>
         <AppProvider>
           <ErpLayout />
           {/* Les toasts de l'ERP vivent hors du shell marketplace. */}
           <ToastContainer />
         </AppProvider>
-      </OnboardingGate>
+      </OnboardingGate>,
+      'Chargement de votre espace professionnel…',
     ),
   },
   {
@@ -58,69 +64,75 @@ const router = createBrowserRouter([
       },
       {
         path: 'salons/:slug',
-        element: <SalonPublicPage />,
+        element: withSuspense(<SalonPublicPage />, 'Chargement de la vitrine du salon…'),
       },
       {
-        // Portail client persistant : le jeton secret de la réservation suffit,
-        // aucun compte n'est nécessaire pour suivre, annuler ou noter.
+        // Portail client persistant : le jeton secret voyage par fragment (#)
+        // ou état mémoire pour ne pas être journalisé dans les URL HTTP.
+        path: 'reservation',
+        element: withSuspense(<BookingPortalView />, 'Chargement de votre réservation…'),
+      },
+      {
+        // Compatibilité ascendante avec d'anciens e-mails (/reservation/:token),
+        // immédiatement nettoyée côté navigateur vers /reservation.
         path: 'reservation/:token',
-        element: <BookingPortalView />,
+        element: withSuspense(<BookingPortalView />, 'Chargement de votre réservation…'),
       },
       {
         path: 'mes-reservations',
-        element: <MyBookingsView />,
+        element: withSuspense(<MyBookingsView />, 'Chargement de vos réservations…'),
       },
       {
         path: 'connexion',
-        element: <LoginPage />,
+        element: withSuspense(<LoginPage />, 'Chargement de la connexion…'),
       },
       {
         path: 'inscription',
-        element: <SignupPage />,
+        element: withSuspense(<SignupPage />, 'Chargement de l’inscription…'),
       },
       {
         path: 'register',
-        element: <SignupPage />,
+        element: withSuspense(<SignupPage />, 'Chargement de l’inscription…'),
       },
       {
         path: 'verifier-email',
-        element: <VerifyEmailPage />,
+        element: withSuspense(<VerifyEmailPage />, 'Vérification en cours…'),
       },
       {
         path: 'mot-de-passe-oublie',
-        element: <ForgotPasswordPage />,
+        element: withSuspense(<ForgotPasswordPage />),
       },
       {
         path: 'reinitialiser',
-        element: <ResetPasswordPage />,
+        element: withSuspense(<ResetPasswordPage />),
       },
       {
         path: 'vitrine',
-        element: <ShopView />,
+        element: withSuspense(<ShopView />),
       },
       {
         path: 'tarifs',
-        element: <PricingView />,
+        element: withSuspense(<PricingView />, 'Chargement des tarifs…'),
       },
       {
         path: 'pricing',
-        element: <PricingView />,
+        element: withSuspense(<PricingView />, 'Chargement des tarifs…'),
       },
       {
         path: 'admin',
-        element: <AdminDashboard />,
+        element: withSuspense(<AdminDashboard />, 'Chargement de la console SuperAdmin…'),
       },
       {
         path: 'admin/console',
-        element: <AdminDashboard />,
+        element: withSuspense(<AdminDashboard />, 'Chargement de la console SuperAdmin…'),
       },
       {
         path: 'admin/dashboard',
-        element: <AdminDashboard />,
+        element: withSuspense(<AdminDashboard />, 'Chargement de la console SuperAdmin…'),
       },
       {
         path: 'admin/login',
-        element: <AdminDashboard />,
+        element: withSuspense(<AdminDashboard />, 'Chargement de la console SuperAdmin…'),
       },
     ],
   },

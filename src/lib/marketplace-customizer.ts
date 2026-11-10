@@ -6,7 +6,7 @@ import type {
   SalonCardStyle,
 } from '../types';
 import { getSupabaseClient } from './supabase';
-import { ApiError } from './api';
+import { ApiError } from './apiError';
 
 type DbRow = Record<string, unknown>;
 
