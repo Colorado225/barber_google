@@ -107,3 +107,37 @@ apparaissent comme « à appliquer ». Toute autre ligne bloque le déploiement.
 - Ne pas supprimer de lignes de `schema_migrations` à la main : utiliser `migration repair` pour corriger un statut.
 - En cas d'échec d'une migration : restaurer la sauvegarde de l'étape 3 sur un projet de test, analyser, puis
   décider. Ne pas improviser sur la production.
+
+## 7. Second constat (lecture seule, 2026-11-09) : aucune migration appliquée
+
+Demande : « appliquer toutes les migrations ». Décision : **non appliquée**. Motifs, tous vérifiés en lecture seule
+sur `rozsykrjrncbupzmauzj` (`list_migrations`, `execute_query` sur `pg_proc`, `information_schema`) :
+
+- L'historique distant compte **32 versions** (et non 26 comme au premier constat). Les migrations SaaS, de
+  drafts, de vérification et de réglages sont présentes, sous des horodatages différents du dépôt
+  (ex. `saas_plan_drafts` : dépôt `20261109120000`, distant `20261110110523`).
+- **Manquant en production** (dépôt seul) : `adjust_stock_quantity` (`20261112090000`), toutes les RPC
+  `platform_*` de `20261111090000` et `20261111100000` (`platform_dashboard_overview`, `platform_get_salon_360`,
+  `platform_search_audit_logs`, `platform_list_salons`, etc.). Conséquence : l'écran d'ajustement de stock du
+  dépôt appelle une RPC absente en production.
+- **Implémentations parallèles sous les mêmes noms** : la production a `private.record_platform_audit`,
+  `private.require_platform_role`, `private.require_audit_reason`, `public.subscribe_salon_to_plan` à trois
+  paramètres (`p_billing_period`) ; le dépôt a `private.write_platform_audit`, `private.assert_platform_superadmin`
+  et une version à deux paramètres. `private.write_platform_audit` et `private.assert_platform_superadmin` sont
+  **absents** de la production. Rejouer le dépôt écraserait des fonctions en service.
+- `public.get_platform_metrics` existe en production (`p_from`, `p_to`). La migration `20261111100000` la remplace
+  par une version « corrigée » : changement de comportement sur des métriques en service.
+- Sauvegarde : aucune sauvegarde vérifiable avec les outils disponibles (pas d'outil de dump). Elle relève du
+  tableau de bord Supabase et de la confirmation de l'équipe.
+
+**Options (décision à prendre) :**
+
+1. **Minimal et sûr** : appliquer uniquement `20261112090000_stock_atomic_adjustment.sql` (fonction nouvelle, sans
+   collision de nom, dépendances présentes : `has_salon_permission`, `stock_items`). Préalable : sauvegarde confirmée.
+2. **Réconciliation d'abord** (option A du §2) : extraire les définitions distantes (`pg_get_functiondef`) dans le
+   dépôt, choisir l'implémentation canonique pour la console SuperAdmin et la vérification SaaS, puis écrire une
+   migration de rattrapage. Aucune écriture distante avant validation sur une base de test.
+3. **Tout appliquer maintenant** : déconseillé (collisions de fonctions, métriques modifiées, trigger de
+   suspension sur `salons` nouveau pour les salons existants).
+
+Aucune commande d'écriture n'a été lancée sur la production dans ce constat.
