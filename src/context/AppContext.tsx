@@ -1,9 +1,10 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useServicesDomain } from '../features/services/useServicesDomain';
 import { useStaffDomain } from '../features/staff/useStaffDomain';
 import { useClientCommands } from '../features/clients/useClientCommands';
 import { useLoyaltyRewardsDomain } from '../features/loyalty/useLoyaltyRewardsDomain';
 import { useLoyaltyProgramDomain } from '../features/loyalty/useLoyaltyProgramDomain';
+import { useNotificationsDomain } from '../features/notifications/useNotificationsDomain';
 import { useExpensesDomain } from '../features/expenses/useExpensesDomain';
 import { useStockDomain } from '../features/stock/useStockDomain';
 import {
@@ -266,8 +267,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // User registration in ERP (used to conditionally show 'Admin Total')
 
-  const [notifications, setNotifications] = useState<AppointmentNotification[]>([]);
-
   const addToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
     const id = Date.now().toString() + Math.random().toString(36).substring(2, 5);
     setToasts((prev) => [...prev, { id, message, type }]);
@@ -346,14 +345,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCashSessions(sessions);
     setCashSession(sessions.find((s) => s.status === 'open') ?? null);
     setFinancialSummary(summary);
-  };
-
-  const loadNotifications = async (salonId: string) => {
-    if (!hasPermission('appointments.read', salonId)) {
-      setNotifications([]);
-      return;
-    }
-    setNotifications(await salonApi(salonId).notifications.list(200));
   };
 
   const reloadWorkspace = async (salonId: string) => {
@@ -623,46 +614,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     reloadWorkspace,
   });
 
-  const refreshNotifications = async () => {
-    if (!activeSalonId) return;
-    await loadNotifications(activeSalonId);
-  };
-
-  const dispatchNotifications = async (): Promise<NotificationDispatchResult | null> => {
-    const salonId = requireActiveSalon().id;
-    try {
-      const result = await salonApi(salonId).notifications.dispatch(50);
-      await loadNotifications(salonId);
-      if (!result.providerConfigured) {
-        addToast(
-          'Aucun fournisseur d’envoi configuré : la file est conservée. Ajoutez RESEND_API_KEY ou WHATSAPP_TOKEN dans les secrets Supabase.',
-          'error',
-        );
-      } else if (result.processed === 0) {
-        addToast('Aucun message à envoyer pour le moment.', 'info');
-      } else {
-        addToast(
-          `${result.processed} message(s) traité(s) : ${result.sent} envoyé(s), ${result.failed} échec(s), ${result.skipped} ignoré(s).`,
-          result.failed > 0 ? 'error' : result.sent > 0 ? 'success' : 'info',
-        );
-      }
-      return result;
-    } catch (error) {
-      addToast(error instanceof ApiError ? error.message : 'Traitement de la file impossible.', 'error');
-      return null;
-    }
-  };
-
-  const retryNotification = async (id: string) => {
-    const salonId = requireActiveSalon().id;
-    try {
-      await salonApi(salonId).notifications.retry(id);
-      await loadNotifications(salonId);
-      addToast('Message replacé dans la file d’envoi.', 'success');
-    } catch (error) {
-      addToast(error instanceof ApiError ? error.message : 'Relance impossible.', 'error');
-    }
-  };
+  // Notifications : file d'envoi, déclenchement serveur et relance (features/notifications).
+  const { notifications, loadNotifications, refreshNotifications, dispatchNotifications, retryNotification } =
+    useNotificationsDomain({ hasPermission, requireActiveSalon, addToast, activeSalonId });
 
   const newIdempotencyKey = (): string => {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {

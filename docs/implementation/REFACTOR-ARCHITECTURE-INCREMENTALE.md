@@ -61,6 +61,10 @@ refusée avant l'envoi, avec un message. Auparavant, elle partait vers la base.
      (`loyaltyCommands.ts`) ; sans permission `loyalty.read`, aucune requête n'est émise. 7 tests
      (`tests/loyalty-domain-rules.test.tsx`). Les soldes et le journal restent lus seulement : aucun calcul
      côté client. Aucune validation nouvelle n'a été ajoutée aux points (comportement inchangé).
+   - notifications (`features/notifications/useNotificationsDomain.ts`) : file d'envoi, déclenchement serveur et
+     relance. Libellé du déclenchement dans `notificationRules.ts` (fournisseur absent, file vide, échecs réels) ;
+     commandes sur port injecté (`notificationCommands.ts`) ; sans permission `appointments.read`, aucune requête.
+     7 tests (`tests/notification-domain-rules.test.tsx`). Aucun libellé modifié.
    - prestations (`features/services`) : état et commandes ; règles de charge utile et contrôles avant envoi
      (nom requis, prix et durées entiers) ; 6 tests. Changement de comportement : une prestation invalide est
      refusée avant envoi, avec un message.
@@ -68,7 +72,7 @@ refusée avant l'envoi, avec un message. Auparavant, elle partait vers la base.
      `loyaltyTransactions` le lit. Tests de charge utile dans `tests/team-and-client-rules.test.tsx` (3).
      `AppContext.tsx` : 1 393 → 1 175 lignes. Les hooks eux-mêmes ne sont pas testés directement (pas de rendu
      interactif dans le harnais actuel).
-2. **À faire** : notifications ; rendez-vous ; finances (caisse).
+2. **À faire** : rendez-vous ; finances (caisse).
    Les finances dépendent des rendez-vous (`syncAfterFinance`) : elles viennent après. Pour les clients, sortir
    `loyaltyTransactions` du contexte permettra de déplacer aussi l'état.
 3. **Fait (partiel)** : `lib/api.ts` (1 289 lignes) découpé en deux temps.
