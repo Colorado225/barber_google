@@ -50,13 +50,15 @@ refusée avant l'envoi, avec un message. Auparavant, elle partait vers la base.
 
 ## Avancement du plan incrémental
 
-1. **Fait (partiel)** : `AppContext` découpé pour deux domaines. `features/stock/useStockDomain.ts` et
-   `features/expenses/useExpensesDomain.ts` portent leur état et leurs commandes. `AppContext` les déstructure avec les
-   mêmes noms ; les composants ne changent pas. `AppContext.tsx` : 1 393 → 1 345 lignes. Les règles du stock
-   (`stockRules.ts`) sont testées (5 tests). Le hook lui-même n'est pas testé (pas de rendu interactif dans le
-   harnais actuel).
-2. **À faire** : domaines fidélité, services/personnel/clients, rendez-vous, finances (caisse). Les finances
-   dépendent des rendez-vous (`syncAfterFinance`) : ils viennent après.
+1. **Fait (partiel)** : `AppContext` découpé pour trois domaines, chacun dans `features/` avec ses règles pures et
+   son hook. Le contexte les déstructure avec les mêmes noms ; les composants ne changent pas.
+   - stock (`features/stock`) : 5 tests de règles ;
+   - dépenses (`features/expenses`) : hook seul ;
+   - catalogue de récompenses (`features/loyalty`) : 2 tests de règles.
+     `AppContext.tsx` : 1 393 → 1 306 lignes. Les hooks eux-mêmes ne sont pas testés directement (pas de rendu
+     interactif dans le harnais actuel).
+2. **À faire** : fidélité (chargement, échanges, points, notifications) ; clients et personnel ; rendez-vous ;
+   finances (caisse). Les finances dépendent des rendez-vous (`syncAfterFinance`) : elles viennent après.
 3. **À faire** : découper `lib/api.ts` en services par domaine, avec un barrel de compatibilité.
 4. **À faire** : fonction serveur d'ajustement atomique du stock avant toute interface d'ajustement.
 5. **À faire** : découper les composants de plus de 650 lignes lorsqu'on touche à leur domaine.

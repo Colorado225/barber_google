@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import { useLoyaltyRewardsDomain } from '../features/loyalty/useLoyaltyRewardsDomain';
 import { useExpensesDomain } from '../features/expenses/useExpensesDomain';
 import { useStockDomain } from '../features/stock/useStockDomain';
 import {
@@ -264,7 +265,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // User registration in ERP (used to conditionally show 'Admin Total')
 
   // Loyalty Program State
-  const [loyaltyRewards, setLoyaltyRewards] = useState<LoyaltyReward[]>(INITIAL_LOYALTY_REWARDS);
   const [loyaltySettings, setLoyaltySettings] = useState<LoyaltySettings | null>(null);
   const [loyaltyAccounts, setLoyaltyAccounts] = useState<LoyaltyAccount[]>([]);
   const [loyaltyLedger, setLoyaltyLedger] = useState<LoyaltyLedgerEntry[]>([]);
@@ -640,48 +640,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Loyalty Program Handlers
-  const addLoyaltyReward = (reward: Omit<LoyaltyReward, 'id' | 'timesRedeemed' | 'createdAt'>) => {
-    void remote(async () => {
-      const created = await salonApi(requireActiveSalon().id).rewards.create({
-        name: reward.name,
-        description: reward.description,
-        pointsCost: reward.pointsCost,
-        category: reward.category,
-        discountPercentage: reward.discountPercentage,
-        freeServiceName: reward.freeServiceName,
-        isActive: reward.isActive,
-      });
-      setLoyaltyRewards((prev) => [created, ...prev]);
-      addToast(`Récompense "${created.name}" ajoutée au catalogue !`, 'success');
-    }, 'Ajout de la récompense impossible');
-  };
-
-  const updateLoyaltyReward = (id: string, updates: Partial<LoyaltyReward>) => {
-    void remote(async () => {
-      const current = loyaltyRewards.find((r) => r.id === id);
-      if (!current) return;
-      const merged = { ...current, ...updates };
-      const saved = await salonApi(requireActiveSalon().id).rewards.update(id, {
-        name: merged.name,
-        description: merged.description,
-        pointsCost: merged.pointsCost,
-        category: merged.category,
-        discountPercentage: merged.discountPercentage,
-        freeServiceName: merged.freeServiceName,
-        isActive: merged.isActive,
-      });
-      setLoyaltyRewards((prev) => prev.map((r) => (r.id === id ? saved : r)));
-      addToast('Récompense mise à jour.', 'success');
-    }, 'Modification de la récompense impossible');
-  };
-
-  const deleteLoyaltyReward = (id: string) => {
-    void remote(async () => {
-      await salonApi(requireActiveSalon().id).rewards.remove(id);
-      setLoyaltyRewards((prev) => prev.filter((r) => r.id !== id));
-      addToast('Récompense supprimée.', 'info');
-    }, 'Suppression de la récompense impossible');
-  };
+  // Catalogue de récompenses extrait (features/loyalty) : même API, déstructurée ici.
+  const { loyaltyRewards, setLoyaltyRewards, addLoyaltyReward, updateLoyaltyReward, deleteLoyaltyReward } =
+    useLoyaltyRewardsDomain({ requireActiveSalon, remote, addToast });
 
   const updateLoyaltySettings = async (updates: Partial<LoyaltySettings>) => {
     const salonId = requireActiveSalon().id;
