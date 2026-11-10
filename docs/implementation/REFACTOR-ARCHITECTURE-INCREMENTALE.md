@@ -56,11 +56,14 @@ refusée avant l'envoi, avec un message. Auparavant, elle partait vers la base.
    - dépenses (`features/expenses`) : état et commandes ;
    - catalogue de récompenses (`features/loyalty`) : état et commandes ; 2 tests ;
    - personnel (`features/staff`) : état et commandes ;
+   - prestations (`features/services`) : état et commandes ; règles de charge utile et contrôles avant envoi
+     (nom requis, prix et durées entiers) ; 6 tests. Changement de comportement : une prestation invalide est
+     refusée avant envoi, avec un message.
    - clients (`features/clients`) : **commandes seulement**. L'état reste dans `AppContext`, car la mémoïsation
      `loyaltyTransactions` le lit. Tests de charge utile dans `tests/team-and-client-rules.test.tsx` (3).
-     `AppContext.tsx` : 1 393 → 1 222 lignes. Les hooks eux-mêmes ne sont pas testés directement (pas de rendu
+     `AppContext.tsx` : 1 393 → 1 175 lignes. Les hooks eux-mêmes ne sont pas testés directement (pas de rendu
      interactif dans le harnais actuel).
-2. **À faire** : fidélité (chargement, échanges, points, notifications) ; services ; rendez-vous ; finances (caisse).
+2. **À faire** : fidélité (chargement, échanges, points, notifications) ; rendez-vous ; finances (caisse).
    Les finances dépendent des rendez-vous (`syncAfterFinance`) : elles viennent après. Pour les clients, sortir
    `loyaltyTransactions` du contexte permettra de déplacer aussi l'état.
 3. **À faire** : découper `lib/api.ts` en services par domaine, avec un barrel de compatibilité.

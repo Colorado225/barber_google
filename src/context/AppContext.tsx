@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import { useServicesDomain } from '../features/services/useServicesDomain';
 import { useStaffDomain } from '../features/staff/useStaffDomain';
 import { useClientCommands } from '../features/clients/useClientCommands';
 import { useLoyaltyRewardsDomain } from '../features/loyalty/useLoyaltyRewardsDomain';
@@ -250,7 +251,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [salons, setSalons] = useState<Salon[]>(INITIAL_SALONS);
   const [marketplaceLoading, setMarketplaceLoading] = useState(false);
   const [marketplaceError, setMarketplaceError] = useState<string | null>(null);
-  const [services, setServices] = useState<Service[]>(INITIAL_SERVICES);
   const [appointments, setAppointments] = useState<Appointment[]>(INITIAL_APPOINTMENTS);
   const [clients, setClients] = useState<Client[]>(INITIAL_CLIENTS);
   const [transactions, setTransactions] = useState<PaymentTransaction[]>(INITIAL_TRANSACTIONS);
@@ -901,60 +901,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // ----- Prestations (persistées dans Supabase) -----
-  /** Lot 3 : une prestation n'est jamais supprimée, elle est désactivée. */
-  const setServiceActive = (id: string, isActive: boolean) => {
-    void remote(async () => {
-      await salonApi(requireActiveSalon().id).services.setActive(id, isActive);
-      setServices((prev) => prev.map((s) => (s.id === id ? { ...s, isActive } : s)));
-      addToast(
-        isActive ? 'Prestation réactivée.' : 'Prestation désactivée (retirée de la réservation).',
-        'info',
-      );
-    }, 'Changement de statut de la prestation impossible');
-  };
-
-  const addService = (data: Omit<Service, 'id'>) => {
-    void remote(async () => {
-      const created = await salonApi(requireActiveSalon().id).services.create({
-        name: data.name,
-        category: data.category,
-        description: data.description,
-        price: data.price,
-        durationMinutes: data.durationMinutes,
-        prepMinutes: data.prepMinutes ?? 0,
-        popular: Boolean(data.popular),
-      });
-      setServices((prev) => [...prev, created]);
-      addToast('Prestation ajoutée au catalogue !', 'success');
-    }, 'Ajout de la prestation impossible');
-  };
-
-  const updateService = (id: string, updates: Partial<Service>) => {
-    void remote(async () => {
-      const current = services.find((s) => s.id === id);
-      if (!current) return;
-      const merged = { ...current, ...updates };
-      const saved = await salonApi(requireActiveSalon().id).services.update(id, {
-        name: merged.name,
-        category: merged.category,
-        description: merged.description,
-        price: merged.price,
-        durationMinutes: merged.durationMinutes,
-        prepMinutes: merged.prepMinutes ?? 0,
-        popular: Boolean(merged.popular),
-      });
-      setServices((prev) => prev.map((s) => (s.id === id ? saved : s)));
-      addToast('Prestation mise à jour.', 'success');
-    }, 'Modification de la prestation impossible');
-  };
-
-  const deleteService = (id: string) => {
-    void remote(async () => {
-      await salonApi(requireActiveSalon().id).services.remove(id);
-      setServices((prev) => prev.filter((s) => s.id !== id));
-      addToast('Prestation supprimée.', 'info');
-    }, 'Suppression de la prestation impossible');
-  };
+  // Catalogue extrait (features/services) : même API, déstructurée ici.
+  const { services, setServices, setServiceActive, addService, updateService, deleteService } =
+    useServicesDomain({
+      requireActiveSalon,
+      remote,
+      addToast,
+    });
 
   // ----- Équipe -----
   // Personnel et commandes clients extraits (features/staff, features/clients). L'état des clients
