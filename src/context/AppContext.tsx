@@ -3,6 +3,7 @@ import { useServicesDomain } from '../features/services/useServicesDomain';
 import { useStaffDomain } from '../features/staff/useStaffDomain';
 import { useClientCommands } from '../features/clients/useClientCommands';
 import { useLoyaltyRewardsDomain } from '../features/loyalty/useLoyaltyRewardsDomain';
+import { useLoyaltyProgramDomain } from '../features/loyalty/useLoyaltyProgramDomain';
 import { useExpensesDomain } from '../features/expenses/useExpensesDomain';
 import { useStockDomain } from '../features/stock/useStockDomain';
 import {
@@ -265,10 +266,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // User registration in ERP (used to conditionally show 'Admin Total')
 
-  // Loyalty Program State
-  const [loyaltySettings, setLoyaltySettings] = useState<LoyaltySettings | null>(null);
-  const [loyaltyAccounts, setLoyaltyAccounts] = useState<LoyaltyAccount[]>([]);
-  const [loyaltyLedger, setLoyaltyLedger] = useState<LoyaltyLedgerEntry[]>([]);
   const [notifications, setNotifications] = useState<AppointmentNotification[]>([]);
 
   const addToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
@@ -323,27 +320,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
 
-  // Journal réel relu depuis Supabase ; le nom du client est résolu localement.
-  const loyaltyTransactions = useMemo<LoyaltyTransaction[]>(() => {
-    const byId = new Map(clients.map((client) => [client.id, client]));
-    return loyaltyLedger.map((entry) => {
-      const client = byId.get(entry.clientId);
-      return {
-        id: entry.id,
-        salonId: entry.salonId,
-        clientId: entry.clientId,
-        clientName: client?.name ?? 'Client',
-        clientPhone: client?.phone,
-        points: entry.points,
-        type: entry.kind,
-        description: entry.reason,
-        rewardId: entry.rewardId ?? undefined,
-        appointmentId: entry.appointmentId ?? undefined,
-        createdAt: entry.createdAt,
-      };
-    });
-  }, [loyaltyLedger, clients]);
-
   const financeRange = () => {
     const now = new Date();
     const to = now.toISOString().slice(0, 10);
@@ -370,24 +346,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCashSessions(sessions);
     setCashSession(sessions.find((s) => s.status === 'open') ?? null);
     setFinancialSummary(summary);
-  };
-
-  // Fidélité : soldes et journal tenus par la base, lecture seule côté client.
-  const loadLoyalty = async (salonId: string) => {
-    if (!hasPermission('loyalty.read', salonId)) {
-      setLoyaltyAccounts([]);
-      setLoyaltyLedger([]);
-      return;
-    }
-    const api = salonApi(salonId);
-    const [program, accounts, ledger] = await Promise.all([
-      api.loyalty.program(),
-      api.loyalty.accounts(),
-      api.loyalty.ledger(150),
-    ]);
-    setLoyaltySettings(program);
-    setLoyaltyAccounts(accounts);
-    setLoyaltyLedger(ledger);
   };
 
   const loadNotifications = async (salonId: string) => {
@@ -645,53 +603,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const { loyaltyRewards, setLoyaltyRewards, addLoyaltyReward, updateLoyaltyReward, deleteLoyaltyReward } =
     useLoyaltyRewardsDomain({ requireActiveSalon, remote, addToast });
 
-  const updateLoyaltySettings = async (updates: Partial<LoyaltySettings>) => {
-    const salonId = requireActiveSalon().id;
-    try {
-      const saved = await salonApi(salonId).loyalty.setProgram(updates);
-      setLoyaltySettings(saved);
-      await loadLoyalty(salonId);
-      addToast('Programme de fidélité enregistré.', 'success');
-    } catch (error) {
-      addToast(
-        error instanceof ApiError ? error.message : 'Enregistrement du programme impossible.',
-        'error',
-      );
-    }
-  };
-
-  const redeemRewardForClient = async (
-    clientId: string,
-    rewardId: string,
-  ): Promise<{ success: boolean; error?: string }> => {
-    const salonId = requireActiveSalon().id;
-    try {
-      const result = await salonApi(salonId).loyalty.redeem(clientId, rewardId);
-      await Promise.all([loadLoyalty(salonId), reloadWorkspace(salonId)]);
-      addToast(`Récompense utilisée. Nouveau solde : ${result.points_balance} points.`, 'success');
-      return { success: true };
-    } catch (error) {
-      const message = error instanceof ApiError ? error.message : 'Utilisation de la récompense impossible.';
-      addToast(message, 'error');
-      return { success: false, error: message };
-    }
-  };
-
-  const creditPointsToClient = async (clientId: string, points: number, reason: string) => {
-    const salonId = requireActiveSalon().id;
-    try {
-      const result = await salonApi(salonId).loyalty.adjust(clientId, points, reason);
-      await loadLoyalty(salonId);
-      addToast(`Solde ajusté : ${result.points_balance} points.`, 'success');
-    } catch (error) {
-      addToast(error instanceof ApiError ? error.message : 'Ajustement des points impossible.', 'error');
-    }
-  };
-
-  const refreshLoyalty = async () => {
-    if (!activeSalonId) return;
-    await loadLoyalty(activeSalonId);
-  };
+  // Fidélité : programme, soldes, journal, échanges et ajustements (features/loyalty).
+  const {
+    loyaltySettings,
+    loyaltyAccounts,
+    loyaltyLedger,
+    loyaltyTransactions,
+    loadLoyalty,
+    updateLoyaltySettings,
+    redeemRewardForClient,
+    creditPointsToClient,
+    refreshLoyalty,
+  } = useLoyaltyProgramDomain({
+    hasPermission,
+    requireActiveSalon,
+    addToast,
+    activeSalonId,
+    clients,
+    reloadWorkspace,
+  });
 
   const refreshNotifications = async () => {
     if (!activeSalonId) return;
