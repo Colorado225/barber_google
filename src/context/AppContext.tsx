@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import { useStaffDomain } from '../features/staff/useStaffDomain';
+import { useClientCommands } from '../features/clients/useClientCommands';
 import { useLoyaltyRewardsDomain } from '../features/loyalty/useLoyaltyRewardsDomain';
 import { useExpensesDomain } from '../features/expenses/useExpensesDomain';
 import { useStockDomain } from '../features/stock/useStockDomain';
@@ -249,7 +251,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [marketplaceLoading, setMarketplaceLoading] = useState(false);
   const [marketplaceError, setMarketplaceError] = useState<string | null>(null);
   const [services, setServices] = useState<Service[]>(INITIAL_SERVICES);
-  const [staff, setStaff] = useState<StaffMember[]>(INITIAL_STAFF);
   const [appointments, setAppointments] = useState<Appointment[]>(INITIAL_APPOINTMENTS);
   const [clients, setClients] = useState<Client[]>(INITIAL_CLIENTS);
   const [transactions, setTransactions] = useState<PaymentTransaction[]>(INITIAL_TRANSACTIONS);
@@ -956,105 +957,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // ----- Équipe -----
-  const addStaff = (data: Omit<StaffMember, 'id'>) => {
-    void remote(async () => {
-      const created = await salonApi(requireActiveSalon().id).staff.create({
-        name: data.name,
-        role: data.role,
-        phone: data.phone,
-        specialties: data.specialties,
-        commissionRate: data.commissionRate,
-        isAvailable: data.isAvailable,
-      });
-      setStaff((prev) => [...prev, created]);
-      addToast(`${created.name} a été ajouté à l'équipe !`, 'success');
-    }, 'Ajout du collaborateur impossible');
-  };
-
-  const updateStaff = (id: string, updates: Partial<StaffMember>) => {
-    void remote(async () => {
-      const current = staff.find((m) => m.id === id);
-      if (!current) return;
-      const merged = { ...current, ...updates };
-      const saved = await salonApi(requireActiveSalon().id).staff.update(id, {
-        name: merged.name,
-        role: merged.role,
-        phone: merged.phone,
-        specialties: merged.specialties,
-        commissionRate: merged.commissionRate,
-        isAvailable: merged.isAvailable,
-      });
-      setStaff((prev) => prev.map((m) => (m.id === id ? saved : m)));
-      addToast('Collaborateur mis à jour.', 'success');
-    }, 'Modification du collaborateur impossible');
-  };
-
-  const deleteStaff = (id: string) => {
-    void remote(async () => {
-      await salonApi(requireActiveSalon().id).staff.remove(id);
-      setStaff((prev) => prev.filter((m) => m.id !== id));
-      addToast('Collaborateur retiré.', 'info');
-    }, 'Suppression du collaborateur impossible');
-  };
-
-  // ----- Clients -----
-  const addClient = (data: Omit<Client, 'id' | 'totalSpent' | 'visitsCount' | 'lastVisit'>) => {
-    void remote(async () => {
-      const created = await salonApi(requireActiveSalon().id).clients.create({
-        name: data.name,
-        phone: data.phone,
-        email: data.email || '',
-        segment: data.segment,
-        favoriteService: data.favoriteService,
-        notes: data.notes,
-      });
-      setClients((prev) => [created, ...prev]);
-      addToast(`Client ${created.name} ajouté au CRM !`, 'success');
-    }, 'Ajout du client impossible');
-  };
-
-  const updateClientNotes = (clientId: string, notes: string) => {
-    const client = clients.find((c) => c.id === clientId);
-    if (!client) return;
-    void remote(async () => {
-      const saved = await salonApi(requireActiveSalon().id).clients.update(clientId, {
-        name: client.name,
-        phone: client.phone,
-        email: client.email || '',
-        segment: client.segment,
-        favoriteService: client.favoriteService,
-        notes,
-      });
-      setClients((prev) => prev.map((c) => (c.id === clientId ? saved : c)));
-      addToast('Fiche client mise à jour.', 'success');
-    }, 'Mise à jour de la note impossible');
-  };
-
-  const updateClient = (clientId: string, updates: Partial<Client>) => {
-    void remote(async () => {
-      const current = clients.find((c) => c.id === clientId);
-      if (!current) return;
-      const merged = { ...current, ...updates };
-      const saved = await salonApi(requireActiveSalon().id).clients.update(clientId, {
-        name: merged.name,
-        phone: merged.phone,
-        email: merged.email || '',
-        segment: merged.segment,
-        favoriteService: merged.favoriteService,
-        notes: merged.notes,
-      });
-      setClients((prev) => prev.map((c) => (c.id === clientId ? saved : c)));
-      addToast('Client mis à jour.', 'success');
-    }, 'Modification du client impossible');
-  };
-
-  const deleteClient = (clientId: string) => {
-    void remote(async () => {
-      await salonApi(requireActiveSalon().id).clients.remove(clientId);
-      setClients((prev) => prev.filter((c) => c.id !== clientId));
-      addToast('Client supprimé.', 'info');
-    }, 'Suppression du client impossible');
-  };
+  // Personnel et commandes clients extraits (features/staff, features/clients). L'état des clients
+  // reste ici : il alimente la fidélité (`loyaltyTransactions`).
+  const { staff, setStaff, addStaff, updateStaff, deleteStaff } = useStaffDomain({
+    requireActiveSalon,
+    remote,
+    addToast,
+  });
+  const { addClient, updateClientNotes, updateClient, deleteClient } = useClientCommands({
+    requireActiveSalon,
+    remote,
+    addToast,
+    clients,
+    setClients,
+  });
 
   /** Les opérations ERP nécessitent une adhésion Supabase active au salon. */
   const hasActiveMembership = memberships.some(

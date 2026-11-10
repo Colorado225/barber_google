@@ -50,15 +50,19 @@ refusée avant l'envoi, avec un message. Auparavant, elle partait vers la base.
 
 ## Avancement du plan incrémental
 
-1. **Fait (partiel)** : `AppContext` découpé pour trois domaines, chacun dans `features/` avec ses règles pures et
-   son hook. Le contexte les déstructure avec les mêmes noms ; les composants ne changent pas.
-   - stock (`features/stock`) : 5 tests de règles ;
-   - dépenses (`features/expenses`) : hook seul ;
-   - catalogue de récompenses (`features/loyalty`) : 2 tests de règles.
-     `AppContext.tsx` : 1 393 → 1 306 lignes. Les hooks eux-mêmes ne sont pas testés directement (pas de rendu
+1. **Fait (partiel)** : `AppContext` découpé par domaine, chacun dans `features/` avec ses règles pures et son hook.
+   Le contexte les déstructure avec les mêmes noms ; les composants ne changent pas.
+   - stock (`features/stock`) : état et commandes ; 5 tests de règles ;
+   - dépenses (`features/expenses`) : état et commandes ;
+   - catalogue de récompenses (`features/loyalty`) : état et commandes ; 2 tests ;
+   - personnel (`features/staff`) : état et commandes ;
+   - clients (`features/clients`) : **commandes seulement**. L'état reste dans `AppContext`, car la mémoïsation
+     `loyaltyTransactions` le lit. Tests de charge utile dans `tests/team-and-client-rules.test.tsx` (3).
+     `AppContext.tsx` : 1 393 → 1 222 lignes. Les hooks eux-mêmes ne sont pas testés directement (pas de rendu
      interactif dans le harnais actuel).
-2. **À faire** : fidélité (chargement, échanges, points, notifications) ; clients et personnel ; rendez-vous ;
-   finances (caisse). Les finances dépendent des rendez-vous (`syncAfterFinance`) : elles viennent après.
+2. **À faire** : fidélité (chargement, échanges, points, notifications) ; services ; rendez-vous ; finances (caisse).
+   Les finances dépendent des rendez-vous (`syncAfterFinance`) : elles viennent après. Pour les clients, sortir
+   `loyaltyTransactions` du contexte permettra de déplacer aussi l'état.
 3. **À faire** : découper `lib/api.ts` en services par domaine, avec un barrel de compatibilité.
 4. **À faire** : fonction serveur d'ajustement atomique du stock avant toute interface d'ajustement.
 5. **À faire** : découper les composants de plus de 650 lignes lorsqu'on touche à leur domaine.
