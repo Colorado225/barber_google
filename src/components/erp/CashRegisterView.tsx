@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { useCashRegisterCommands } from '../../features/cash-register/useCashRegisterCommands';
 import { useOptionalAuth } from '../../context/AuthContext';
 import { CashSession, PaymentTransaction } from '../../types';
 import { paymentSignedAmount } from '../../lib/analytics';
@@ -33,29 +34,15 @@ const KIND_LABELS: Record<string, string> = {
 };
 
 export const CashRegisterView: React.FC = () => {
-  const {
-    activeSalon,
-    cashSession,
-    cashSessions,
-    transactions,
-    branches,
-    formatPrice,
-    openNewCashSession,
-    closeCurrentCashSession,
-    reconcileCashSession,
-    confirmPendingPayment,
-    rejectPendingPayment,
-    recordPaymentCorrection,
-    refreshFinance,
-  } = useApp();
+  const { activeSalon, cashSession, cashSessions, transactions, branches, formatPrice } = useApp();
+  const cash = useCashRegisterCommands();
+  const { busy, error } = cash;
   const { hasPermission } = useOptionalAuth();
   const canOpen = hasPermission('cash.open', activeSalon.id);
   const canClose = hasPermission('cash.close', activeSalon.id);
   const canReconcile = hasPermission('cash.reconcile', activeSalon.id);
   const canCorrect = hasPermission('payments.correct', activeSalon.id);
 
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
   const [openForm, setOpenForm] = useState(false);
   const [branchId, setBranchId] = useState(branches[0]?.id ?? '');
   const [openingBalance, setOpeningBalance] = useState('0');
@@ -86,69 +73,56 @@ export const CashRegisterView: React.FC = () => {
   const pending = salonTransactions.filter((t) => t.status === 'pending');
   const journal = salonTransactions.slice(0, 30);
 
-  const run = async (action: () => Promise<unknown>) => {
-    setError(null);
-    setBusy(true);
-    try {
-      await action();
-      await refreshFinance();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Opération impossible.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const submitOpen = (e: React.FormEvent) => {
+  const submitOpen = async (e: React.FormEvent) => {
     e.preventDefault();
-    void run(async () => {
-      await openNewCashSession(Number(openingBalance), branchId || undefined, openingNote);
-      setOpenForm(false);
-      setOpeningBalance('0');
-      setOpeningNote('');
-    });
+    const saved = await cash.openSession({ openingBalance, branchId, note: openingNote });
+    if (!saved) return;
+    setOpenForm(false);
+    setOpeningBalance('0');
+    setOpeningNote('');
   };
 
-  const submitClose = (e: React.FormEvent) => {
+  const submitClose = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!closeForm) return;
-    void run(async () => {
-      await closeCurrentCashSession(Number(counted), closeNote, closeForm.id);
-      setCloseForm(null);
-      setCounted('');
-      setCloseNote('');
-    });
+    const saved = await cash.closeSession({ sessionId: closeForm.id, counted, note: closeNote });
+    if (!saved) return;
+    setCloseForm(null);
+    setCounted('');
+    setCloseNote('');
   };
 
-  const submitReconcile = (e: React.FormEvent) => {
+  const submitReconcile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!reconcileForm) return;
-    void run(async () => {
-      await reconcileCashSession(reconcileForm.id, reconcileNote);
-      setReconcileForm(null);
-      setReconcileNote('');
-    });
+    const saved = await cash.reconcileSession(reconcileForm.id, reconcileNote);
+    if (!saved) return;
+    setReconcileForm(null);
+    setReconcileNote('');
   };
 
-  const submitConfirm = (e: React.FormEvent) => {
+  const submitConfirm = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!confirmForm) return;
-    void run(async () => {
-      await confirmPendingPayment(confirmForm.id, confirmRef, confirmNote);
-      setConfirmForm(null);
-      setConfirmRef('');
-      setConfirmNote('');
+    const saved = await cash.confirmPayment({
+      paymentId: confirmForm.id,
+      method: confirmForm.method,
+      reference: confirmRef,
+      note: confirmNote,
     });
+    if (!saved) return;
+    setConfirmForm(null);
+    setConfirmRef('');
+    setConfirmNote('');
   };
 
-  const submitReject = (e: React.FormEvent) => {
+  const submitReject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!rejectForm) return;
-    void run(async () => {
-      await rejectPendingPayment(rejectForm.id, rejectReason);
-      setRejectForm(null);
-      setRejectReason('');
-    });
+    const saved = await cash.rejectPayment(rejectForm.id, rejectReason);
+    if (!saved) return;
+    setRejectForm(null);
+    setRejectReason('');
   };
 
   const openCorrection = (t: PaymentTransaction) => {
@@ -160,20 +134,18 @@ export const CashRegisterView: React.FC = () => {
     setCorrectionNote('');
   };
 
-  const submitCorrection = (e: React.FormEvent) => {
+  const submitCorrection = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!correctionForm) return;
-    void run(async () => {
-      await recordPaymentCorrection({
-        originalEntryId: correctionForm.id,
-        kind: correctionKind,
-        amount: Number(correctionAmount),
-        reason: correctionReason,
-        providerReference: correctionForm.method === 'cash' ? undefined : correctionRef,
-        settlementNote: correctionForm.method === 'cash' ? undefined : correctionNote,
-      });
-      setCorrectionForm(null);
+    const saved = await cash.recordCorrection(correctionForm.id, {
+      kind: correctionKind,
+      amount: correctionAmount,
+      reason: correctionReason,
+      method: correctionForm.method,
+      providerReference: correctionRef,
+      settlementNote: correctionNote,
     });
+    if (saved) setCorrectionForm(null);
   };
 
   const statusBadge = (s: CashSession['status']) => {
