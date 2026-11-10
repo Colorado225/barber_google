@@ -63,6 +63,37 @@ afterEach(() => {
 const SALON_ID = 'salon-erp-p1';
 const BRANCH_ID = 'branch-erp-p1';
 
+// Séries mensuelles serveur : un bucket par mois calendaire couvert par la période demandée
+// (le RPC SQL `erp_dashboard_metrics` renvoie exactement cette granularité).
+function buildMonthlySeries(from: string, to: string, restricted: boolean) {
+  const [fromYear, fromMonth] = from.split('-').map(Number);
+  const [toYear, toMonth] = to.split('-').map(Number);
+  const months: string[] = [];
+  let cursorYear = fromYear;
+  let cursorMonth = fromMonth;
+  while (cursorYear < toYear || (cursorYear === toYear && cursorMonth <= toMonth)) {
+    months.push(`${cursorYear}-${String(cursorMonth).padStart(2, '0')}`);
+    cursorMonth += 1;
+    if (cursorMonth > 12) {
+      cursorMonth = 1;
+      cursorYear += 1;
+    }
+  }
+  return months.map((month) => ({
+    month,
+    fromDate: `${month}-01`,
+    toDate: `${month}-28`,
+    revenueCollected: restricted ? null : 7000,
+    revenueBilled: restricted ? null : 8000,
+    revenueRealized: restricted ? null : 5000,
+    expenses: restricted ? null : 1500,
+    margin: restricted ? null : 5500,
+    completedAppointments: 1,
+    activeAppointments: 2,
+    cancelledAppointments: 1,
+  }));
+}
+
 const ActiveSalonGate: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const app = useOptionalApp();
   if (!app?.activeSalon) return <div>Chargement workspace...</div>;
@@ -573,21 +604,7 @@ test('DashboardView & ReportsView : intégration reports.dashboard, filtres unif
       todayAppointmentsNoShow: 1,
     },
     byMethod: restricted ? {} : { cash: 4000, wave: 3000 },
-    monthlySeries: [
-      {
-        month: '2026-11',
-        fromDate: from,
-        toDate: to,
-        revenueCollected: restricted ? null : 7000,
-        revenueBilled: restricted ? null : 8000,
-        revenueRealized: restricted ? null : 5000,
-        expenses: restricted ? null : 1500,
-        margin: restricted ? null : 5500,
-        completedAppointments: 1,
-        activeAppointments: 2,
-        cancelledAppointments: 1,
-      },
-    ],
+    monthlySeries: buildMonthlySeries(from, to, restricted),
     weeklySeries: [
       {
         label: 'Semaine 2',
@@ -734,6 +751,18 @@ test('DashboardView & ReportsView : intégration reports.dashboard, filtres unif
   fireEvent.change(within(view.container).getByRole('combobox'), { target: { value: 'weekday' } });
   await waitFor(() => {
     assert.ok(dashboardCalls.some((c) => c.dayFilter === 'weekday'));
+  });
+
+  // Mode graphique « Mois (semaines) » : la croissance « vs mois précédent » doit rester dérivée
+  // de l'agrégat serveur couvrant explicitement 6 mois (pas de la fenêtre mémoire plafonnée).
+  const sixMonthRange = resolveErpPeriodRange('6m', 'Europe/Paris');
+  fireEvent.click(within(view.container).getByRole('button', { name: 'Mois (semaines)' }));
+  await waitFor(() => {
+    assert.ok(
+      dashboardCalls.some((c) => c.from === sixMonthRange.from && c.to === sixMonthRange.to),
+      'un appel serveur explicite sur 6 mois est requis pour la croissance mensuelle',
+    );
+    assert.ok(within(view.container).getByText(/vs mois précédent/i));
   });
 
   cleanup();
