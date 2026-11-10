@@ -110,7 +110,31 @@ refusée avant l'envoi, avec un message. Auparavant, elle partait vers la base.
      `ApiError` et les types d'entrée, pour que les imports existants restent valides.
      Vérification : surface publique comparée à l'ancienne (69 fonctions, aucune différence) sur un test temporaire
      supprimé ensuite.
-     **Reste** : rendez-vous, finances et fidélité sont découpés dans leurs modules, mais leurs hooks de contexte
-     ne le sont pas encore (étapes de la section 2).
+     **Fait** : les modules d'accès aux données sont en place pour tous les domaines. Les hooks de contexte correspondants
+     sont extraits (voir section 1).
 4. **Fait** : fonction serveur d'ajustement atomique du stock avant toute interface d'ajustement (voir point 2).
 5. **À faire** : découper les composants de plus de 650 lignes lorsqu'on touche à leur domaine.
+
+## Vérification navigateur (build de production)
+
+- Méthode : `vite build`, puis `vite preview`, puis Chromium headless (`@sparticuz/chromium` 131 et
+  `puppeteer-core` 23, installés **hors du dépôt**, dans un dossier temporaire, sans nouvelle dépendance du projet).
+  Routes testées : `/`, `/?mode=marketplace`, `/?mode=erp`. Erreurs de page et de console capturées.
+- Résultat : identique entre la base (`8c60848`, avant le découpage) et `23aedc3`. Aucune exception JavaScript.
+  Seule erreur : le chargement des polices Google est bloqué par le sandbox (pas d'accès externe).
+- Limite : le sandbox ne joint pas Supabase. Le chargement de l'espace ERP (effet d'entrée et `reloadWorkspace`)
+  n'est donc **pas** exercé dans le navigateur. À vérifier sur un environnement connecté avant tout déploiement.
+
+## Orchestration : revue des dépendances (non extraite)
+
+`reloadWorkspace` (dans `AppContext`) est le seul chargeur de l'espace. Il écrit dans presque tous les domaines :
+`setSalons`, `setBranches`, `setClients`, `setServices`, `setStaff`, `setExpenses`, `setStocks`,
+`setLoyaltyRewards`, `setReviews`, `setAppointments`, puis appelle `loadFinance`, `loadLoyalty` et
+`loadNotifications`. Il gère aussi `isSyncing` et `syncError`.
+
+- Appelants : l'effet d'entrée ERP (mode `erp` et adhésion active) et `redeemRewardForClient` du hook fidélité.
+- Contrainte : le hook fidélité est déclaré avant les domaines qui fournissent les setters. Une référence directe
+  est possible (la déclaration de `reloadWorkspace` précède le hook fidélité), mais déplacer le chargeur après les
+  domaines exige une fermeture paresseuse. Cela touche l'ordre des effets et la règle `no-use-before-define`.
+- Recommandation : traiter l'orchestration dans un lot dédié, avec un contrôle de l'espace ERP sur un
+  environnement Supabase connecté. Le choix technique est documenté ici ; aucune modification n'a été faite.
