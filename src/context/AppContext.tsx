@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import { useExpensesDomain } from '../features/expenses/useExpensesDomain';
+import { useStockDomain } from '../features/stock/useStockDomain';
 import {
   Salon,
   Service,
@@ -254,8 +256,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [cashSessions, setCashSessions] = useState<CashSession[]>([]);
   const [branches, setBranches] = useState<{ id: string; name: string }[]>([]);
   const [financialSummary, setFinancialSummary] = useState<FinancialSummary | null>(null);
-  const [expenses, setExpenses] = useState<Expense[]>(INITIAL_EXPENSES);
-  const [stocks, setStocks] = useState<StockItem[]>(INITIAL_STOCKS);
   const [reviews, setReviews] = useState<Review[]>(INITIAL_REVIEWS);
 
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -1140,67 +1140,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, 'Annulation du rendez-vous impossible');
   };
 
-  const addExpense = (data: Omit<Expense, 'id'>) => {
-    void remote(async () => {
-      const salonId = requireActiveSalon().id;
-      const created = await salonApi(salonId).expenses.create({
-        title: data.title,
-        category: data.category,
-        amount: data.amount,
-        date: data.date,
-        notes: data.notes || '',
-        branchId: data.branchId ?? memberships.find((m) => m.salonId === salonId)?.branchId ?? null,
-        receiptRef: data.receiptRef ?? '',
-      });
-      setExpenses((prev) => [created, ...prev]);
-      addToast(`Dépense de ${formatPrice(created.amount)} enregistrée`, 'success');
-    }, 'Enregistrement de la dépense impossible');
-  };
-
-  const deleteExpense = (id: string) => {
-    void id;
-    addToast("La suppression d'une dépense n'est pas prise en charge par l'API.", 'error');
-  };
-
-  const addStockItem = (data: Omit<StockItem, 'id'>) => {
-    void remote(async () => {
-      const created = await salonApi(requireActiveSalon().id).stock.create({
-        name: data.name,
-        category: data.category,
-        quantity: data.quantity,
-        minThreshold: data.minThreshold,
-        unitCost: data.unitCost,
-        supplier: data.supplier,
-      });
-      setStocks((prev) => [...prev, created]);
-      addToast(`Produit ${created.name} ajouté au stock`, 'success');
-    }, 'Ajout du produit impossible');
-  };
-
-  const adjustStockQuantity = (id: string, delta: number) => {
-    const item = stocks.find((entry) => entry.id === id);
-    if (!item) {
-      addToast('Produit introuvable.', 'error');
-      return;
-    }
-    const quantity = item.quantity + delta;
-    if (quantity < 0) {
-      addToast('La quantité ne peut pas être négative.', 'error');
-      return;
-    }
-    void remote(async () => {
-      const saved = await salonApi(requireActiveSalon().id).stock.update(id, {
-        name: item.name,
-        category: item.category,
-        quantity,
-        minThreshold: item.minThreshold,
-        unitCost: item.unitCost,
-        supplier: item.supplier,
-      });
-      setStocks((prev) => prev.map((entry) => (entry.id === id ? saved : entry)));
-      addToast('Stock ajusté.', 'info');
-    }, 'Ajustement du stock impossible');
-  };
+  // Domaines extraits (features/) : même API exposée, déstructurée ci-dessous.
+  const { expenses, setExpenses, addExpense, deleteExpense } = useExpensesDomain({
+    requireActiveSalon,
+    remote,
+    addToast,
+    formatPrice,
+    memberships,
+  });
+  const { stocks, setStocks, addStockItem, adjustStockQuantity } = useStockDomain({
+    requireActiveSalon,
+    remote,
+    addToast,
+  });
 
   const updateSalonDetails = (salonId: string, updates: Partial<Salon>) => {
     void remote(async () => {

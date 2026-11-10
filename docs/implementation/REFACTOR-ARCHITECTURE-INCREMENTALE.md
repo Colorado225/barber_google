@@ -48,11 +48,15 @@ refusée avant l'envoi, avec un message. Auparavant, elle partait vers la base.
 - `npm run build` : OK.
 - Non fait : test de rendu ou visuel de `CashRegisterView` (pas de test existant pour cet écran).
 
-## Plan incrémental suivant (chaque étape reste verte)
+## Avancement du plan incrémental
 
-1. Découper `AppContext` en hooks par domaine (`useStockState`, `useAppointments`…) derrière la même API `useApp`,
-   sans modifier les composants.
-2. Découper `lib/api.ts` en services par domaine (`services/cash.ts`, …) avec un barrel de compatibilité.
-3. Étendre le modèle `features/` (règles, commandes, hook, vue, tests) aux rendez-vous, puis au stock, après la
-   fonction serveur d'ajustement atomique.
-4. Découper les composants de plus de 650 lignes en sous-composants lorsqu'on touche à leur feature.
+1. **Fait (partiel)** : `AppContext` découpé pour deux domaines. `features/stock/useStockDomain.ts` et
+   `features/expenses/useExpensesDomain.ts` portent leur état et leurs commandes. `AppContext` les déstructure avec les
+   mêmes noms ; les composants ne changent pas. `AppContext.tsx` : 1 393 → 1 345 lignes. Les règles du stock
+   (`stockRules.ts`) sont testées (5 tests). Le hook lui-même n'est pas testé (pas de rendu interactif dans le
+   harnais actuel).
+2. **À faire** : domaines fidélité, services/personnel/clients, rendez-vous, finances (caisse). Les finances
+   dépendent des rendez-vous (`syncAfterFinance`) : ils viennent après.
+3. **À faire** : découper `lib/api.ts` en services par domaine, avec un barrel de compatibilité.
+4. **À faire** : fonction serveur d'ajustement atomique du stock avant toute interface d'ajustement.
+5. **À faire** : découper les composants de plus de 650 lignes lorsqu'on touche à leur domaine.
