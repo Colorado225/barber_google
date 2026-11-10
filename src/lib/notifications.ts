@@ -36,11 +36,19 @@ export const HONEST_PRESTIGE_SUPPORT_FEATURE =
   'Accompagnement à l’onboarding multi-sites (support VIP 7j/7 non intégré à l’application)';
 
 export const LEGACY_OVERSTATED_NETWORK_FEATURE = 'Multi-succursales & gestion de réseau centralisée';
+// Précision livrée : quota serveur de succursales + gestion des horaires par succursale dans
+// l'ERP. Il n'existe pas encore de sélecteur ERP filtrant l'ensemble des vues par succursale.
 export const HONEST_MULTI_BRANCH_FEATURE =
+  'Multi-succursales jusqu’à 5 établissements (quota serveur ; horaires et effectifs par succursale)';
+export const LEGACY_OVERSTATED_NETWORK_SELECTOR_FEATURE =
   'Multi-succursales jusqu’à 5 établissements (quota serveur & sélecteur ERP)';
 
 export const LEGACY_OVERSTATED_REPORTS_FEATURE = 'Rapports financiers et bilans comptables consolidés';
-export const HONEST_REPORTS_FEATURE = 'Rapports financiers et indicateurs d’activité par établissement';
+// Les rapports consolident l'ensemble des succursales du salon : aucun rapport détaillé
+// par succursale n'est livré à ce jour.
+export const HONEST_REPORTS_FEATURE = 'Rapports financiers et indicateurs d’activité consolidés du salon';
+export const LEGACY_OVERSTATED_REPORTS_PER_BRANCH_FEATURE =
+  'Rapports financiers et indicateurs d’activité par établissement';
 
 const LEGACY_FEATURE_REPLACEMENTS: Record<string, string> = {
   [LEGACY_FALSE_SMS_FEATURE]: NOTIFICATION_CHANNEL_HONEST_FEATURE,
@@ -51,6 +59,9 @@ const LEGACY_FEATURE_REPLACEMENTS: Record<string, string> = {
   [LEGACY_FALSE_VIP_SUPPORT_FEATURE]: HONEST_PRESTIGE_SUPPORT_FEATURE,
   [LEGACY_OVERSTATED_NETWORK_FEATURE]: HONEST_MULTI_BRANCH_FEATURE,
   [LEGACY_OVERSTATED_REPORTS_FEATURE]: HONEST_REPORTS_FEATURE,
+  // Formulations « honnêtes » antérieures devenues trop généreuses après audit :
+  [LEGACY_OVERSTATED_NETWORK_SELECTOR_FEATURE]: HONEST_MULTI_BRANCH_FEATURE,
+  [LEGACY_OVERSTATED_REPORTS_PER_BRANCH_FEATURE]: HONEST_REPORTS_FEATURE,
 };
 
 export function normalizeSaasPlanFeatures(features: string[]): string[] {
