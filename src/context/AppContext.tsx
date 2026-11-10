@@ -7,6 +7,9 @@ import { useLoyaltyProgramDomain } from '../features/loyalty/useLoyaltyProgramDo
 import { useNotificationsDomain } from '../features/notifications/useNotificationsDomain';
 import { useAppointmentsDomain } from '../features/appointments/useAppointmentsDomain';
 import { useFinanceDomain } from '../features/finance/useFinanceDomain';
+import { bookPublicAppointment, cancelPublicBooking } from '../features/marketplace/publicBookingCommands';
+import { useReviewsDomain } from '../features/reviews/useReviewsDomain';
+import { useSalonProfileDomain } from '../features/salon/useSalonProfileDomain';
 import { newIdempotencyKey } from '../features/shared/idempotency';
 import { useExpensesDomain } from '../features/expenses/useExpensesDomain';
 import { useStockDomain } from '../features/stock/useStockDomain';
@@ -37,10 +40,6 @@ import {
 import { salonApi, ApiError } from '../lib/api';
 import {
   listMarketplaceSalons,
-  bookMarketplaceAppointment,
-  cancelMarketplaceBooking,
-  updateSalonProfile,
-  setSalonPublication,
   mapPublicSalon,
   type PublicBooking,
   type PublicBookingInput,
@@ -258,7 +257,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [marketplaceError, setMarketplaceError] = useState<string | null>(null);
   const [clients, setClients] = useState<Client[]>(INITIAL_CLIENTS);
   const [branches, setBranches] = useState<{ id: string; name: string }[]>([]);
-  const [reviews, setReviews] = useState<Review[]>(INITIAL_REVIEWS);
 
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [selectedSalonForModal, setSelectedSalonForModal] = useState<Salon | null>(null);
@@ -341,22 +339,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setSyncError(error instanceof ApiError ? error.message : 'Le chargement de cet espace a échoué.');
     } finally {
       setIsSyncing(false);
-    }
-  };
-
-  const addReview = async (review: Omit<Review, 'id' | 'date' | 'verified'>): Promise<Review> => {
-    try {
-      const saved = await salonApi(review.salonId).reviews.create({
-        author: review.author,
-        rating: review.rating,
-        comment: review.comment,
-      });
-      setReviews((prev) => [saved, ...prev]);
-      return saved;
-    } catch (error) {
-      const message = error instanceof ApiError ? error.message : "Enregistrement de l'avis impossible";
-      addToast(message, 'error');
-      throw error;
     }
   };
 
@@ -495,6 +477,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAppointments,
   });
 
+  // Profil salon et publication marketplace (features/salon).
+  const { updateSalonDetails, setSalonPublished } = useSalonProfileDomain({ remote, addToast, setSalons });
+
+  // Avis : liste du salon et ajout (features/reviews).
+  const { reviews, setReviews, addReview } = useReviewsDomain({ addToast });
+
   // Domaines extraits (features/) : même API exposée, déstructurée ci-dessous.
   const { expenses, setExpenses, addExpense, deleteExpense } = useExpensesDomain({
     requireActiveSalon,
@@ -508,86 +496,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     remote,
     addToast,
   });
-
-  const updateSalonDetails = (salonId: string, updates: Partial<Salon>) => {
-    void remote(async () => {
-      const profile: Record<string, unknown> = {};
-      if (updates.name !== undefined) profile.name = updates.name;
-      if (updates.slug !== undefined) profile.slug = updates.slug || null;
-      if (updates.tagline !== undefined) profile.tagline = updates.tagline;
-      if (updates.description !== undefined) profile.description = updates.description;
-      if (updates.type !== undefined) profile.type = updates.type;
-      if (updates.logo !== undefined) profile.logo_url = updates.logo || null;
-      if (updates.coverImage !== undefined) profile.cover_url = updates.coverImage || null;
-      if (updates.country !== undefined) profile.country = updates.country;
-      if (updates.city !== undefined) profile.city = updates.city;
-      if (updates.commune !== undefined) profile.commune = updates.commune;
-      if (updates.quarter !== undefined) profile.quarter = updates.quarter;
-      if (updates.address !== undefined) profile.address = updates.address;
-      if (updates.phone !== undefined) profile.phone = updates.phone;
-      if (updates.whatsapp !== undefined) profile.whatsapp = updates.whatsapp;
-      if (updates.email !== undefined) profile.email = updates.email || null;
-      if (updates.paymentMethods !== undefined) profile.payment_methods = updates.paymentMethods;
-      if (updates.featuredPrestations !== undefined)
-        profile.featured_service_ids = updates.featuredPrestations;
-      if (updates.galleryItems !== undefined) {
-        profile.gallery = updates.galleryItems.map((item) => ({
-          url: item.url,
-          title: item.title,
-          description: item.description,
-        }));
-      } else if (updates.gallery !== undefined) {
-        profile.gallery = updates.gallery.map((url) => ({ url, title: '', description: '' }));
-      }
-      const saved = await updateSalonProfile(salonId, profile);
-      setSalons((prev) => prev.map((s) => (s.id === salonId ? saved : s)));
-      addToast('Profil du salon enregistré.', 'success');
-    }, 'Enregistrement du profil impossible');
-  };
-
-  const setSalonPublished = async (salonId: string, published: boolean): Promise<void> => {
-    try {
-      const saved = await setSalonPublication(salonId, published);
-      setSalons((prev) => prev.map((s) => (s.id === salonId ? saved : s)));
-      addToast(published ? 'Salon publié sur la marketplace.' : 'Salon retiré de la marketplace.', 'success');
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Changement de publication impossible.';
-      addToast(message, 'error');
-      throw error;
-    }
-  };
-
-  const bookPublicAppointment = async (
-    input: Omit<PublicBookingInput, 'idempotencyKey'> & { idempotencyKey?: string },
-  ): Promise<{ success: boolean; booking?: PublicBooking; error?: string }> => {
-    try {
-      const idempotencyKey =
-        input.idempotencyKey ??
-        (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-          ? crypto.randomUUID()
-          : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
-      const booking = await bookMarketplaceAppointment({ ...input, idempotencyKey });
-      return { success: true, booking };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Réservation en ligne impossible.';
-      return { success: false, error: message };
-    }
-  };
-
-  const cancelPublicBooking = async (
-    salonId: string,
-    appointmentId: string,
-    cancelToken: string,
-    reason: string,
-  ): Promise<{ success: boolean; booking?: PublicBooking; error?: string }> => {
-    try {
-      const booking = await cancelMarketplaceBooking(salonId, appointmentId, cancelToken, reason);
-      return { success: true, booking };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Annulation impossible.';
-      return { success: false, error: message };
-    }
-  };
 
   return (
     <AppContext.Provider

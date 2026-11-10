@@ -76,6 +76,13 @@ refusée avant l'envoi, avec un message. Auparavant, elle partait vers la base.
      12 mois, statut dérivé du solde, validations d'entiers XOF, succursale d'ouverture) ; commandes sur port
      injecté (`financeCommands.ts`). Chaque écriture est suivie d'un rechargement serveur. Sans permission de
      lecture, aucune requête n'est émise. 14 tests (`tests/finance-domain-rules.test.tsx`). Messages inchangés.
+   - marketplace, avis, profil salon (suite) : réservation et annulation publiques (`features/marketplace/publicBookingCommands.ts`, port
+     injecté ; 7 tests dans `tests/marketplace-public-booking.test.tsx`) ; avis (`features/reviews`, charge utile dans `reviewRules.ts`) ; profil salon et publication
+     (`features/salon`, `toSalonProfilePayload` pure ; 4 tests de profil et 2 tests d'avis dans `tests/salon-reviews-profile-rules.test.tsx`). Comportement conservé, y compris la clé « ?? » et le
+     repli horodaté des anciens navigateurs.
+     Reste dans le contexte : chargement initial (`reloadWorkspace`, `loadAllData`), liste des salons et
+     marketplace (`refreshMarketplace`), états de session. Ce sont des orchestrateurs : leur découpage viendra
+     après une revue des dépendances, pas dans ce lot.
    - prestations (`features/services`) : état et commandes ; règles de charge utile et contrôles avant envoi
      (nom requis, prix et durées entiers) ; 6 tests. Changement de comportement : une prestation invalide est
      refusée avant envoi, avec un message.
@@ -93,13 +100,10 @@ refusée avant l'envoi, avec un message. Auparavant, elle partait vers la base.
    schéma reste inchangé) ; (b) colonne `numeric` par migration dédiée, avec revue des totaux et alertes.
    **Reste** : `stock.update` envoie encore la quantité complète. Non utilisé par l'interface aujourd'hui ; à
    retirer ou à restreindre aux champs non quantitatifs lors du prochain travail sur le stock.
-   **Reste dans le contexte** : réservation publique et annulation publique (marketplace), avis, salons.
-   Les finances dépendent des rendez-vous (`syncAfterFinance`) : elles viennent après. Pour les clients, sortir
-   `loyaltyTransactions` du contexte permettra de déplacer aussi l'état.
 3. **Fait (partiel)** : `lib/api.ts` (1 289 lignes) découpé en deux temps.
    - Étape 1 (commit `9302222`) : helpers, mappers ligne → domaine et types d'entrée dans
      `src/services/api/shared.ts` (sans accès réseau). Tests des mappers et des erreurs : `tests/api-mappers.test.tsx` (9).
-   - Étape 2 (ce commit) : `salonApi` réparti en modules `src/services/api/<domaine>.ts` (clients, services,
+   - Étape 2 (commit `8392803`) : `salonApi` réparti en modules `src/services/api/<domaine>.ts` (clients, services,
      branches, staff, appointments, expenses, finance, stock, rewards, notifications, loyalty, reviews). Chaque module
      exporte une fabrique `createXApi(supabase, salonId)` et, quand le contexte en a besoin, un listeur `listX(...)`.
      `workspace()` reste dans `lib/api.ts`, qui compose les fabriques. `lib/api.ts` passe à 60 lignes et réexporte
