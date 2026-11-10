@@ -5,15 +5,18 @@ import {
   ExternalLink,
   Globe2,
   LayoutTemplate,
+  Loader2,
   Megaphone,
   Plus,
   Save,
+  ShieldCheck,
   Sparkles,
   Trash2,
   Undo2,
 } from 'lucide-react';
 import {
   useMarketplaceContent,
+  useMarketplaceContentStatus,
   type MarketplaceAnnouncementConfig,
   type MarketplaceContentConfig,
   type MarketplaceFeaturedSection,
@@ -191,18 +194,28 @@ interface SaveBarProps {
   dirty: boolean;
   onDiscard: () => void;
   saveLabel: string;
+  publishing?: boolean;
 }
 
-const SaveBar: React.FC<SaveBarProps> = ({ dirty, onDiscard, saveLabel }) => (
+const SaveBar: React.FC<SaveBarProps> = ({ dirty, onDiscard, saveLabel, publishing = false }) => (
   <div className="flex flex-col sm:flex-row sm:items-center justify-end gap-3 pt-4 border-t border-[#1f1f28]">
     {dirty && <span className="text-[11px] text-[#E5C378] sm:mr-auto">Modifications non enregistrées</span>}
-    <button type="button" onClick={onDiscard} disabled={!dirty} className={SECONDARY_BUTTON_CLASS}>
+    <button
+      type="button"
+      onClick={onDiscard}
+      disabled={!dirty || publishing}
+      className={SECONDARY_BUTTON_CLASS}
+    >
       <Undo2 className="w-3.5 h-3.5" aria-hidden="true" />
       <span>Annuler les modifications</span>
     </button>
-    <button type="submit" disabled={!dirty} className={PRIMARY_BUTTON_CLASS}>
-      <Save className="w-3.5 h-3.5" aria-hidden="true" />
-      <span>{saveLabel}</span>
+    <button type="submit" disabled={!dirty || publishing} className={PRIMARY_BUTTON_CLASS}>
+      {publishing ? (
+        <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+      ) : (
+        <Save className="w-3.5 h-3.5" aria-hidden="true" />
+      )}
+      <span>{publishing ? 'Publication…' : saveLabel}</span>
     </button>
   </div>
 );
@@ -212,10 +225,33 @@ const SaveBar: React.FC<SaveBarProps> = ({ dirty, onDiscard, saveLabel }) => (
  * Chaque enregistrement met à jour le store partagé : la marketplace, la navbar et le
  * titre de l'onglet reflètent la nouvelle configuration immédiatement.
  */
-export const MarketplaceConfigManager: React.FC<MarketplaceConfigManagerProps> = ({ adminEmail }) => {
+export const MarketplaceConfigManager: React.FC<MarketplaceConfigManagerProps> = () => {
   const { addToast } = useOptionalApp();
   const { config, updateConfig } = useMarketplaceContent();
+  const { source: contentSource, serverUpdatedAt } = useMarketplaceContentStatus();
   const [subTab, setSubTab] = useState<ConfigSubTab>('banners');
+  const [publishReason, setPublishReason] = useState('');
+  const [publishing, setPublishing] = useState(false);
+  const [publishError, setPublishError] = useState<string | null>(null);
+
+  // Publication centralisée : motif obligatoire (journal d'audit serveur), retour source explicite.
+  const publish = async (next: MarketplaceContentConfig, successLabel: string) => {
+    setPublishing(true);
+    setPublishError(null);
+    try {
+      const status = await updateConfig(next, publishReason);
+      addToast(
+        status.source === 'server'
+          ? `${successLabel} : publié en base, partagé entre administrateurs et appliqué à la marketplace publique.`
+          : `${successLabel} : aperçu local enregistré (Supabase non configuré sur cet appareil, rien n'est publié).`,
+        'success',
+      );
+    } catch (err) {
+      setPublishError(err instanceof Error ? err.message : 'Publication impossible côté serveur.');
+    } finally {
+      setPublishing(false);
+    }
+  };
 
   // Brouillons locaux : rien n'est publié avant « Enregistrer ».
   const [bannerDraft, setBannerDraft] = useState<BannerDraft>(() => pickBanners(config));
@@ -261,7 +297,7 @@ export const MarketplaceConfigManager: React.FC<MarketplaceConfigManagerProps> =
       return;
     }
 
-    updateConfig(
+    void publish(
       {
         ...config,
         announcement: trimStrings(announcement),
@@ -269,10 +305,8 @@ export const MarketplaceConfigManager: React.FC<MarketplaceConfigManagerProps> =
         promoBanner: { ...promoBanner, ...trimStrings(promoBanner) },
         proCta: { ...proCta, ...trimStrings(proCta) },
       },
-      adminEmail,
-      'Mise à jour des bannières Marketplace',
+      'Bannières enregistrées',
     );
-    addToast('Bannières enregistrées : visibles immédiatement sur la marketplace.', 'success');
   };
 
   // ---------- SECTIONS À LA UNE ----------
@@ -325,13 +359,8 @@ export const MarketplaceConfigManager: React.FC<MarketplaceConfigManagerProps> =
     }
 
     const normalized = withSequentialOrder(featuredDraft.map((feature) => trimStrings(feature)));
-    updateConfig(
-      { ...config, featuredSections: normalized },
-      adminEmail,
-      'Mise à jour des sections à la une',
-    );
+    void publish({ ...config, featuredSections: normalized }, 'Sections à la une enregistrées');
     setFeaturedDraft(normalized);
-    addToast('Sections à la une enregistrées : elles apparaissent sur la marketplace.', 'success');
   };
 
   // ---------- MÉTADONNÉES ----------
@@ -360,12 +389,7 @@ export const MarketplaceConfigManager: React.FC<MarketplaceConfigManagerProps> =
       return;
     }
 
-    updateConfig(
-      { ...config, siteMetadata: trimStrings(metaDraft) },
-      adminEmail,
-      'Mise à jour des métadonnées du site',
-    );
-    addToast('Métadonnées enregistrées : titre, SEO et pied de page sont à jour.', 'success');
+    void publish({ ...config, siteMetadata: trimStrings(metaDraft) }, 'Métadonnées enregistrées');
   };
 
   const announcementPreview = bannerDraft.announcement;
@@ -386,11 +410,48 @@ export const MarketplaceConfigManager: React.FC<MarketplaceConfigManagerProps> =
             Chaque enregistrement est appliqué immédiatement à la marketplace publique. Dernière publication :{' '}
             {formatDateTime(config.updatedAt)}
           </p>
-          <p className="mt-2 text-[11px] text-amber-300/90 max-w-2xl">
-            Stockage local : les modifications sont appliquées dans ce navigateur uniquement. Les visiteurs ne
-            les voient pas encore, la persistance serveur reste à brancher. Dernière sauvegarde :{' '}
-            {formatDateTime(config.updatedAt)}.
-          </p>
+          {contentSource === 'server' ? (
+            <p className="mt-2 text-[11px] text-emerald-300/90 max-w-2xl flex items-start gap-1.5">
+              <ShieldCheck className="w-3.5 h-3.5 shrink-0 mt-0.5" aria-hidden="true" />
+              <span>
+                Publié en base (platform_marketplace_content) : réglage partagé entre administrateurs et
+                appliqué à toutes les pages publiques.
+                {serverUpdatedAt ? ` Dernière publication serveur : ${formatDateTime(serverUpdatedAt)}.` : ''}
+              </span>
+            </p>
+          ) : (
+            <p className="mt-2 text-[11px] text-amber-300/90 max-w-2xl">
+              Aperçu local : Supabase n'est pas configuré sur cet appareil, les modifications ne sont pas
+              publiées et restent visibles uniquement dans ce navigateur.
+            </p>
+          )}
+          <div className="mt-3 max-w-2xl">
+            <label htmlFor="mcm-publish-reason" className="block text-[11px] font-bold text-stone-300 mb-1">
+              Motif de publication (journal d'audit serveur) *
+            </label>
+            <input
+              id="mcm-publish-reason"
+              data-testid="mcm-publish-reason"
+              type="text"
+              maxLength={500}
+              value={publishReason}
+              onChange={(e) => {
+                setPublishReason(e.target.value);
+                setPublishError(null);
+              }}
+              placeholder="Ex. Campagne de rentrée : mise à jour du bandeau d'annonce"
+              className={INPUT_CLASS}
+            />
+          </div>
+          {publishError && (
+            <p
+              role="alert"
+              data-testid="mcm-publish-error"
+              className="mt-2 text-[11px] text-red-300 bg-red-950/40 border border-red-500/30 rounded-xl px-3 py-2 max-w-2xl"
+            >
+              {publishError}
+            </p>
+          )}
         </div>
         <a
           href="/"
@@ -700,6 +761,7 @@ export const MarketplaceConfigManager: React.FC<MarketplaceConfigManagerProps> =
               dirty={bannersDirty}
               onDiscard={() => setBannerDraft(pickBanners(config))}
               saveLabel="Enregistrer les bannières"
+              publishing={publishing}
             />
           </div>
         </form>
@@ -841,6 +903,7 @@ export const MarketplaceConfigManager: React.FC<MarketplaceConfigManagerProps> =
               dirty={featuredDirty}
               onDiscard={() => setFeaturedDraft(clone(config.featuredSections))}
               saveLabel="Enregistrer les sections"
+              publishing={publishing}
             />
           </Panel>
 
@@ -983,6 +1046,7 @@ export const MarketplaceConfigManager: React.FC<MarketplaceConfigManagerProps> =
               dirty={metaDirty}
               onDiscard={() => setMetaDraft(clone(config.siteMetadata))}
               saveLabel="Enregistrer les métadonnées"
+              publishing={publishing}
             />
           </Panel>
         </form>

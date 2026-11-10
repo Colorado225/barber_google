@@ -288,6 +288,13 @@ test('gestionnaire : une modification enregistrée est visible en direct par les
 
   assert.equal(doc.querySelector('[data-testid="probe-name"]')?.textContent, 'BarberCuts');
 
+  // Motif de publication (journal d'audit serveur) : obligatoire pour chaque enregistrement.
+  const publishReason = doc.getElementById('mcm-publish-reason') as HTMLInputElement;
+  assert.ok(publishReason, 'Le champ motif de publication est présent');
+  await act(async () => {
+    setInputValue(publishReason, 'Mise à jour éditoriale de la marketplace');
+  });
+
   // 1. Métadonnées : nom du site modifié et enregistré
   await act(async () => {
     findButton('3. Métadonnées du site')?.click();
@@ -424,6 +431,16 @@ test('sections : hero, promo et CTA Pro ne sont plus éditables ici et ne sont j
     );
   });
 
+  // Motif de publication obligatoire pour « Enregistrer & Publier ».
+  const msaReason = win.document.getElementById('msa-publish-reason') as HTMLInputElement;
+  assert.ok(msaReason, 'Le champ motif de publication est présent');
+  await act(async () => {
+    const setter = Object.getOwnPropertyDescriptor(win.HTMLInputElement.prototype, 'value')?.set;
+    assert.ok(setter);
+    setter.call(msaReason, 'Réorganisation des sections de la marketplace');
+    msaReason.dispatchEvent(new win.Event('input', { bubbles: true }));
+  });
+
   // Modification du hero faite ailleurs (gestionnaire Bannières) pendant que l'onglet Sections est ouvert.
   await act(async () => {
     saveMarketplaceContent(
@@ -445,6 +462,89 @@ test('sections : hero, promo et CTA Pro ne sont plus éditables ici et ne sont j
     'Hero modifié ailleurs',
     'La sauvegarde Sections conserve le hero courant du store',
   );
+
+  await act(async () => {
+    root.unmount();
+  });
+  win.close();
+});
+
+test('publication : motif obligatoire, aperçu local affiché honnêtement sans Supabase', async () => {
+  installStorage();
+  resetMarketplaceContent(ADMIN);
+  const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', {
+    url: 'http://localhost/',
+  });
+  const win = dom.window as unknown as Window & typeof globalThis;
+  Object.defineProperty(globalThis, 'window', { value: win, configurable: true, writable: true });
+  Object.defineProperty(globalThis, 'document', { value: win.document, configurable: true, writable: true });
+  Object.defineProperty(globalThis, 'CustomEvent', {
+    value: win.CustomEvent,
+    configurable: true,
+    writable: true,
+  });
+  Object.defineProperty(globalThis, 'navigator', {
+    value: win.navigator,
+    configurable: true,
+    writable: true,
+  });
+  (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+  const { createRoot } = await import('react-dom/client');
+  const { act } = await import('react');
+
+  const container = win.document.getElementById('root');
+  assert.ok(container);
+  const root = createRoot(container);
+  await act(async () => {
+    root.render(
+      <AppProvider>
+        <MarketplaceConfigManager adminEmail={ADMIN} />
+      </AppProvider>,
+    );
+  });
+
+  const doc = win.document;
+  const findButton = (text: string) =>
+    [...doc.querySelectorAll('button')].find((button) => button.textContent?.includes(text));
+  const setInputValue = (element: HTMLInputElement, value: string) => {
+    const setter = Object.getOwnPropertyDescriptor(win.HTMLInputElement.prototype, 'value')?.set;
+    assert.ok(setter);
+    setter.call(element, value);
+    element.dispatchEvent(new win.Event('input', { bubbles: true }));
+  };
+
+  // Sans Supabase configuré, l'interface annonce un aperçu local et jamais une publication.
+  assert.match(doc.body.textContent ?? '', /Aperçu local/);
+
+  // 1. Enregistrement sans motif : rejeté, la configuration ne change pas.
+  await act(async () => {
+    findButton('3. Métadonnées du site')?.click();
+  });
+  const siteName = doc.getElementById('mcm-meta-site-name') as HTMLInputElement;
+  await act(async () => {
+    setInputValue(siteName, 'Sans Motif Test');
+  });
+  await act(async () => {
+    findButton('Enregistrer les métadonnées')?.click();
+  });
+  const publishError = doc.querySelector('[data-testid="mcm-publish-error"]');
+  assert.ok(publishError, 'Un motif de publication manquant est signalé');
+  assert.equal(
+    getMarketplaceContent().siteMetadata.siteName,
+    'BarberCuts',
+    'Aucun enregistrement sans motif d’audit',
+  );
+
+  // 2. Avec un motif valide, l’enregistrement local est accepté (chemin d’aperçu hors Supabase).
+  const reason = doc.getElementById('mcm-publish-reason') as HTMLInputElement;
+  await act(async () => {
+    setInputValue(reason, 'Test motif suffisant');
+  });
+  await act(async () => {
+    findButton('Enregistrer les métadonnées')?.click();
+  });
+  assert.equal(getMarketplaceContent().siteMetadata.siteName, 'Sans Motif Test');
 
   await act(async () => {
     root.unmount();

@@ -449,7 +449,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       return sourceSeries.length < 2 ? null : sourceSeries[sourceSeries.length - 1].growth;
     }
     return monthlyData.length < 2 ? null : monthlyData[monthlyData.length - 1].growth;
-  }, [revenuePeriod, growthServerMetrics, monthlyData, salonTransactions, salonAppointments, salonExpenses, salonTimezone]);
+  }, [
+    revenuePeriod,
+    growthServerMetrics,
+    monthlyData,
+    salonTransactions,
+    salonAppointments,
+    salonExpenses,
+    salonTimezone,
+  ]);
 
   // Moyens de paiement sur [kpiRange.from, kpiRange.to]
   const byMethod = useMemo(() => {

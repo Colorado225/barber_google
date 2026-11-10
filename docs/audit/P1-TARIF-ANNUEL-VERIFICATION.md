@@ -6,22 +6,22 @@
 
 ## 1. Modèle retenu
 
-Le projet a retenu la **deuxième option** du chantier : *la période choisie est envoyée au serveur,
-où le montant, la durée et les conditions sont recalculés et vérifiés*. La bascule mensuel/annuel
+Le projet a retenu la **deuxième option** du chantier : _la période choisie est envoyée au serveur,
+où le montant, la durée et les conditions sont recalculés et vérifiés_. La bascule mensuel/annuel
 est conservée (les forfaits du catalogue sont configurés au mois et la remise annuelle est réelle),
 mais la période n'est jamais déduite implicitement côté client.
 
 ## 2. Récapitulatif de la chaîne (vérifiée de bout en bout)
 
-| Maillon | Garantie | Implémentation | Tests |
-| --- | --- | --- | --- |
-| Affichage public du tarif | Le prix affiché provient d'une formule unique, documentée comme miroir du SQL | `resolvePlanBilling` (`src/lib/saasPricing.ts`) : annuel = `round(prix × 12 × 0,85)`, forfait nativement annuel jamais re-remisé (`supportsPeriodChoice: false`) | `tests/saas-annual-billing.test.tsx` (parité de formule, y compris valeur non divisible par 12) |
-| Transmission du choix | La bascule de `PricingView` propage `?plan=…&billing=yearly` + intention session | `savePlanSelectionIntent` / `buildPlanSelectionQuery`, conservée à travers `SignupPage`, `VerifyEmailPage`, `LoginPage`, `OnboardingGate` | `tests/saas-annual-billing.test.tsx` (parcours d'authentification complet) |
-| Préselection ERP | `SaaSPlanView` préselectionne la période de l'intention puis l'envoie explicitement | `subscribeSalonToPlan(salonId, planId, billingPeriod)` → RPC `p_billing_period` | `tests/saas-annual-billing.test.tsx` (envoi `billingPeriod=yearly` au RPC, passage mensuel→annuel) |
-| Validation & recalcul serveur | La période demandée est validée ; montant et durée recalculés côté PostgreSQL | Migration `20261111100000` : `private.resolve_saas_subscription_terms` (rejet mensuel sur forfait annuel natif, remise 15 % calculée serveur) ; `subscribe_salon_to_plan(p_salon_id, p_plan_id, p_billing_period)` | `database/tests/supabase-saas-subscription-verification.test.mjs` (357 000 = 35 000×12×0,85) |
-| Montant du paiement | Jamais fourni par le client : fixé par le serveur | `declare_saas_payment` utilise `price_at_subscription` (montant issu de la période validée) | idem (montant du paiement annuel = 357 000) |
-| Durée d'activation | La période validée détermine la durée | `current_period_end = now() + private.saas_billing_interval(billing_period)` (12 mois pour `yearly`) | idem (~365 jours vérifiés) |
-| Contrôle SuperAdmin | La file de validation expose la période pour détecter toute incohérence | `list_saas_payments_for_review` renvoie `billing_period` ; panneau `SaasPaymentReviewPanel` | `tests/saas-annual-billing.test.tsx` |
+| Maillon                       | Garantie                                                                            | Implémentation                                                                                                                                                                                                     | Tests                                                                                              |
+| ----------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| Affichage public du tarif     | Le prix affiché provient d'une formule unique, documentée comme miroir du SQL       | `resolvePlanBilling` (`src/lib/saasPricing.ts`) : annuel = `round(prix × 12 × 0,85)`, forfait nativement annuel jamais re-remisé (`supportsPeriodChoice: false`)                                                   | `tests/saas-annual-billing.test.tsx` (parité de formule, y compris valeur non divisible par 12)    |
+| Transmission du choix         | La bascule de `PricingView` propage `?plan=…&billing=yearly` + intention session    | `savePlanSelectionIntent` / `buildPlanSelectionQuery`, conservée à travers `SignupPage`, `VerifyEmailPage`, `LoginPage`, `OnboardingGate`                                                                          | `tests/saas-annual-billing.test.tsx` (parcours d'authentification complet)                         |
+| Préselection ERP              | `SaaSPlanView` préselectionne la période de l'intention puis l'envoie explicitement | `subscribeSalonToPlan(salonId, planId, billingPeriod)` → RPC `p_billing_period`                                                                                                                                    | `tests/saas-annual-billing.test.tsx` (envoi `billingPeriod=yearly` au RPC, passage mensuel→annuel) |
+| Validation & recalcul serveur | La période demandée est validée ; montant et durée recalculés côté PostgreSQL       | Migration `20261111100000` : `private.resolve_saas_subscription_terms` (rejet mensuel sur forfait annuel natif, remise 15 % calculée serveur) ; `subscribe_salon_to_plan(p_salon_id, p_plan_id, p_billing_period)` | `database/tests/supabase-saas-subscription-verification.test.mjs` (357 000 = 35 000×12×0,85)       |
+| Montant du paiement           | Jamais fourni par le client : fixé par le serveur                                   | `declare_saas_payment` utilise `price_at_subscription` (montant issu de la période validée)                                                                                                                        | idem (montant du paiement annuel = 357 000)                                                        |
+| Durée d'activation            | La période validée détermine la durée                                               | `current_period_end = now() + private.saas_billing_interval(billing_period)` (12 mois pour `yearly`)                                                                                                               | idem (~365 jours vérifiés)                                                                         |
+| Contrôle SuperAdmin           | La file de validation expose la période pour détecter toute incohérence             | `list_saas_payments_for_review` renvoie `billing_period` ; panneau `SaasPaymentReviewPanel`                                                                                                                        | `tests/saas-annual-billing.test.tsx`                                                               |
 
 ## 3. Complément livré dans ce lot (affinement)
 

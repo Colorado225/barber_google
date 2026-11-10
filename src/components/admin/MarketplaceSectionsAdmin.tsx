@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import {
   Globe,
   Layout,
+  Loader2,
   Plus,
+  ShieldCheck,
   Trash2,
   Save,
   RotateCcw,
@@ -14,6 +16,7 @@ import {
 } from 'lucide-react';
 import {
   useMarketplaceContent,
+  useMarketplaceContentStatus,
   type MarketplaceContentConfig,
   type MarketplaceCustomSection,
   type MarketplaceCustomSectionItem,
@@ -31,13 +34,17 @@ interface MarketplaceSectionsAdminProps {
 // Hero, bannière promo et bannière Business Pro sont gérés uniquement dans « Bannières & Métadonnées ».
 type AdminSectionSubTab = 'tabs' | 'trust' | 'categories' | 'steps' | 'custom' | 'faq';
 
-export const MarketplaceSectionsAdmin: React.FC<MarketplaceSectionsAdminProps> = ({ adminEmail }) => {
+export const MarketplaceSectionsAdmin: React.FC<MarketplaceSectionsAdminProps> = () => {
   const { addToast } = useOptionalApp();
   const { config, updateConfig, resetConfig } = useMarketplaceContent();
+  const { source: contentSource } = useMarketplaceContentStatus();
 
   // Local editable draft state
   const [draft, setDraft] = useState<MarketplaceContentConfig>(() => JSON.parse(JSON.stringify(config)));
   const [activeSubTab, setActiveSubTab] = useState<AdminSectionSubTab>('tabs');
+  const [publishReason, setPublishReason] = useState('');
+  const [publishing, setPublishing] = useState(false);
+  const [publishError, setPublishError] = useState<string | null>(null);
 
   // New item draft states
   const [newTabLabel, setNewTabLabel] = useState('');
@@ -63,26 +70,34 @@ export const MarketplaceSectionsAdmin: React.FC<MarketplaceSectionsAdminProps> =
 
   // Save changes handler
   const handleSaveAll = () => {
+    setPublishing(true);
+    setPublishError(null);
     // Les bannières d'annonce, sections à la une et métadonnées sont gérées par « Config Marketplace » :
     // on conserve leur valeur actuelle pour ne jamais écraser une modification faite ailleurs.
     // Ces blocs appartiennent à « Bannières & Métadonnées » : on lit la valeur courante du store
     // (et non le brouillon) pour ne jamais écraser une modification faite ailleurs.
-    updateConfig(
-      {
-        ...draft,
-        hero: config.hero,
-        promoBanner: config.promoBanner,
-        proCta: config.proCta,
-        announcement: config.announcement,
-        featuredSections: config.featuredSections,
-        siteMetadata: config.siteMetadata,
-      },
-      adminEmail,
-    );
-    addToast(
-      'Toutes les modifications de la Marketplace sont enregistrées et visibles en direct !',
-      'success',
-    );
+    const next: MarketplaceContentConfig = {
+      ...draft,
+      hero: config.hero,
+      promoBanner: config.promoBanner,
+      proCta: config.proCta,
+      announcement: config.announcement,
+      featuredSections: config.featuredSections,
+      siteMetadata: config.siteMetadata,
+    };
+    updateConfig(next, publishReason)
+      .then((status) => {
+        addToast(
+          status.source === 'server'
+            ? 'Sections publiées en base : partagées entre administrateurs et visibles par tous les visiteurs.'
+            : 'Sections enregistrées en aperçu local (Supabase non configuré, rien n’est publié).',
+          'success',
+        );
+      })
+      .catch((err: unknown) => {
+        setPublishError(err instanceof Error ? err.message : 'Publication impossible côté serveur.');
+      })
+      .finally(() => setPublishing(false));
   };
 
   const handleResetDefaults = () => {
@@ -91,9 +106,17 @@ export const MarketplaceSectionsAdmin: React.FC<MarketplaceSectionsAdminProps> =
         'Voulez-vous réinitialiser toutes les sections de la Marketplace aux valeurs par défaut d’usine ?',
       )
     ) {
-      const restored = resetConfig(adminEmail);
-      setDraft(JSON.parse(JSON.stringify(restored)));
-      addToast('Contenus réinitialisés aux valeurs d’origine.', 'info');
+      setPublishing(true);
+      setPublishError(null);
+      resetConfig(publishReason)
+        .then((restored) => {
+          setDraft(JSON.parse(JSON.stringify(restored)));
+          addToast('Contenus réinitialisés aux valeurs d’origine.', 'info');
+        })
+        .catch((err: unknown) => {
+          setPublishError(err instanceof Error ? err.message : 'Réinitialisation impossible côté serveur.');
+        })
+        .finally(() => setPublishing(false));
     }
   };
 
@@ -243,6 +266,46 @@ export const MarketplaceSectionsAdmin: React.FC<MarketplaceSectionsAdminProps> =
             Modifiez les textes, visuels, bannières, et ajoutez de nouvelles sections personnalisées visibles
             immédiatement.
           </p>
+          {contentSource === 'server' ? (
+            <p className="mt-2 text-[11px] text-emerald-300/90 max-w-2xl flex items-start gap-1.5">
+              <ShieldCheck className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              <span>
+                Contenu publié en base (platform_marketplace_content) : partagé entre administrateurs.
+              </span>
+            </p>
+          ) : (
+            <p className="mt-2 text-[11px] text-amber-300/90 max-w-2xl">
+              Aperçu local : Supabase n'est pas configuré sur cet appareil, les modifications ne sont pas
+              publiées.
+            </p>
+          )}
+          <div className="mt-3 max-w-xl">
+            <label htmlFor="msa-publish-reason" className="block text-[11px] font-bold text-stone-300 mb-1">
+              Motif de publication (journal d'audit serveur) *
+            </label>
+            <input
+              id="msa-publish-reason"
+              data-testid="msa-publish-reason"
+              type="text"
+              maxLength={500}
+              value={publishReason}
+              onChange={(e) => {
+                setPublishReason(e.target.value);
+                setPublishError(null);
+              }}
+              placeholder="Ex. Refonte des onglets et de la FAQ"
+              className="w-full bg-[#181820] border border-[#2b2b36] rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-stone-500 focus:outline-none focus:border-[#C9A45C]"
+            />
+          </div>
+          {publishError && (
+            <p
+              role="alert"
+              data-testid="msa-publish-error"
+              className="mt-2 text-[11px] text-red-300 bg-red-950/40 border border-red-500/30 rounded-xl px-3 py-2 max-w-xl"
+            >
+              {publishError}
+            </p>
+          )}
         </div>
 
         <div className="flex items-center gap-2 self-start sm:self-auto">
@@ -258,18 +321,24 @@ export const MarketplaceSectionsAdmin: React.FC<MarketplaceSectionsAdminProps> =
 
           <button
             onClick={handleResetDefaults}
-            className="px-3 py-2 rounded-xl bg-[#17171d] hover:bg-[#22222a] border border-[#2c2c36] text-xs font-bold text-stone-400 hover:text-red-300 transition-colors cursor-pointer"
+            disabled={publishing}
+            className="px-3 py-2 rounded-xl bg-[#17171d] hover:bg-[#22222a] border border-[#2c2c36] text-xs font-bold text-stone-400 hover:text-red-300 transition-colors cursor-pointer disabled:opacity-40"
             title="Rétablir valeurs par défaut"
           >
-            <RotateCcw className="w-3.5 h-3.5" />
+            {publishing ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <RotateCcw className="w-3.5 h-3.5" />
+            )}
           </button>
 
           <button
             onClick={handleSaveAll}
-            className="px-4 py-2 rounded-xl bg-[#C9A45C] hover:bg-[#d6b36a] text-[#101010] text-xs font-black flex items-center gap-1.5 transition-all shadow-lg hover:shadow-[0_0_20px_rgba(201,164,92,0.3)] cursor-pointer"
+            disabled={publishing}
+            className="px-4 py-2 rounded-xl bg-[#C9A45C] hover:bg-[#d6b36a] text-[#101010] text-xs font-black flex items-center gap-1.5 transition-all shadow-lg hover:shadow-[0_0_20px_rgba(201,164,92,0.3)] cursor-pointer disabled:opacity-50"
           >
-            <Save className="w-4 h-4" />
-            <span>Enregistrer & Publier</span>
+            {publishing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            <span>{publishing ? 'Publication…' : 'Enregistrer & Publier'}</span>
           </button>
         </div>
       </div>

@@ -73,37 +73,37 @@ export const PricingView: React.FC = () => {
         {/* Billing Switcher ; masqué si aucun forfait actif ne propose le choix de période
             (catalogue 100 % annuel natif, sans remise possible) */}
         {showBillingSwitcher && (
-        <div data-testid="pricing-billing-toggle" className="pt-6 flex items-center justify-center">
-          <div className="p-1 rounded-2xl bg-[#161619] border border-[#26262b] flex items-center gap-1">
-            <button
-              type="button"
-              aria-pressed={billingPeriod === 'monthly'}
-              onClick={() => setBillingPeriod('monthly')}
-              className={`px-5 py-2 rounded-xl text-xs font-bold transition-all ${
-                billingPeriod === 'monthly'
-                  ? 'bg-[#C9A45C] text-[#101010] shadow-sm'
-                  : 'text-stone-400 hover:text-white'
-              }`}
-            >
-              Facturation Mensuelle
-            </button>
-            <button
-              type="button"
-              aria-pressed={billingPeriod === 'yearly'}
-              onClick={() => setBillingPeriod('yearly')}
-              className={`px-5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${
-                billingPeriod === 'yearly'
-                  ? 'bg-[#C9A45C] text-[#101010] shadow-sm'
-                  : 'text-stone-400 hover:text-white'
-              }`}
-            >
-              <span>Facturation Annuelle</span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                -15% Économies
-              </span>
-            </button>
+          <div data-testid="pricing-billing-toggle" className="pt-6 flex items-center justify-center">
+            <div className="p-1 rounded-2xl bg-[#161619] border border-[#26262b] flex items-center gap-1">
+              <button
+                type="button"
+                aria-pressed={billingPeriod === 'monthly'}
+                onClick={() => setBillingPeriod('monthly')}
+                className={`px-5 py-2 rounded-xl text-xs font-bold transition-all ${
+                  billingPeriod === 'monthly'
+                    ? 'bg-[#C9A45C] text-[#101010] shadow-sm'
+                    : 'text-stone-400 hover:text-white'
+                }`}
+              >
+                Facturation Mensuelle
+              </button>
+              <button
+                type="button"
+                aria-pressed={billingPeriod === 'yearly'}
+                onClick={() => setBillingPeriod('yearly')}
+                className={`px-5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${
+                  billingPeriod === 'yearly'
+                    ? 'bg-[#C9A45C] text-[#101010] shadow-sm'
+                    : 'text-stone-400 hover:text-white'
+                }`}
+              >
+                <span>Facturation Annuelle</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  -15% Économies
+                </span>
+              </button>
+            </div>
           </div>
-        </div>
         )}
       </section>
 
