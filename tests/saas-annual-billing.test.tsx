@@ -555,5 +555,77 @@ test('PricingView : un forfait nativement annuel ne subit jamais de double remis
     screen.getByRole('link', { name: /Démarrer avec Pro Annuel/i }).getAttribute('href'),
     '/inscription?plan=pro-yearly&billing=yearly',
   );
+  // Catalogue sans aucun forfait au mois : la bascule (et sa promesse -15 %) est masquée
+  assert.equal(
+    screen.queryByTestId('pricing-billing-toggle'),
+    null,
+    'La bascule mensuelle/annuelle doit être absente quand aucun forfait actif ne propose le choix de période',
+  );
+  assert.doesNotMatch(document.body.textContent ?? '', /-15% Économies/);
+  cleanup();
+});
+
+test('SaaSPlanView : bascule masquée pour un catalogue 100 % annuel natif, demande envoyée en yearly', async () => {
+  const dom = ensureDom('http://localhost/app/abonnement');
+  dom.window.sessionStorage.clear();
+  clearPlanSelectionIntent();
+
+  const nativeYearlyPlan: SaaSPlan = {
+    ...PLANS[1],
+    id: 'pro-yearly',
+    name: 'Pro Annuel',
+    slug: 'pro-yearly',
+    priceXof: 120000,
+    billingPeriod: 'yearly',
+  };
+  const calls: Array<{ salonId: string; planId: string; billingPeriod?: string }> = [];
+
+  render(
+    <MemoryRouter initialEntries={['/app/abonnement']}>
+      <AuthContext.Provider value={makeAuthValue(OWNER_MEMBERSHIPS)}>
+        <AppProvider apiClientFactory={makeSalonApi}>
+          <SaaSPlanView
+            loadPlans={async () => [nativeYearlyPlan]}
+            loadSubscription={async () => null}
+            loadPending={async () => null}
+            subscribeToPlan={async (salonId, planId, billingPeriod) => {
+              calls.push({ salonId, planId, billingPeriod });
+              return {
+                id: 'sub-pending-yearly',
+                salonId,
+                planId,
+                status: 'pending_payment',
+                priceAtSubscription: 120000,
+                billingPeriod: 'yearly',
+                featuresSnapshot: [],
+                startedAt: '2026-11-10T00:00:00Z',
+                currentPeriodEnd: '2026-11-10T00:00:00Z',
+              };
+            }}
+          />
+        </AppProvider>
+      </AuthContext.Provider>
+    </MemoryRouter>,
+  );
+
+  await waitFor(() => {
+    assert.ok(screen.getByText('Pro Annuel'));
+  });
+
+  // Aucune promesse de remise ni de choix de période : la bascule est absente
+  assert.equal(
+    screen.queryByTestId('saas-billing-toggle'),
+    null,
+    'La bascule mensuelle/annuelle doit être absente pour un catalogue 100 % annuel natif',
+  );
+  assert.doesNotMatch(document.body.textContent ?? '', /-15% Économies/);
+  assert.match(document.body.textContent ?? '', /120[\s\u202f\u00a0]000/);
+
+  // La demande enregistre bien la période annuelle du forfait (pas de mensuel fantôme)
+  fireEvent.click(screen.getByRole('button', { name: /Choisir cette formule/i }));
+  await waitFor(() => {
+    assert.equal(calls.length, 1);
+  });
+  assert.deepEqual(calls[0], { salonId: 'salon-1', planId: 'pro-yearly', billingPeriod: 'yearly' });
   cleanup();
 });

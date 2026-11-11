@@ -167,6 +167,43 @@ test('normalizeSaasPlanFeatures et getSaasPlans éliminent les promesses non liv
   win.localStorage.removeItem('barbercuts_saas_plans');
 });
 
+test('matrice P1 : les formulations trop généreuses (sélecteur ERP, rapports par établissement) sont normalisées', async () => {
+  ensureDom('http://localhost/tarifs');
+
+  // Les deux formulations « honnêtes » antérieures, devenues trop généreuses après audit,
+  // sont remappées vers le libellé exact du livré.
+  const remapped = normalizeSaasPlanFeatures([
+    'Multi-succursales jusqu’à 5 établissements (quota serveur & sélecteur ERP)',
+    'Rapports financiers et indicateurs d’activité par établissement',
+  ]);
+  assert.deepEqual(remapped, [
+    'Multi-succursales jusqu’à 5 établissements (quota serveur ; horaires et effectifs par succursale)',
+    'Rapports financiers et indicateurs d’activité consolidés du salon',
+  ]);
+
+  // Le catalogue par défaut (forfaits publics) ne contient plus ces formulations.
+  const defaultPlans = await getSaasPlans();
+  assert.ok(defaultPlans.length >= 3);
+  for (const plan of defaultPlans) {
+    for (const feature of plan.features) {
+      assert.equal(
+        feature.includes('sélecteur ERP'),
+        false,
+        `${plan.id} : sélecteur ERP par succursale non livré`,
+      );
+      assert.equal(
+        feature.includes('par établissement'),
+        false,
+        `${plan.id} : rapports détaillés par établissement non livrés`,
+      );
+    }
+  }
+  const prestige = defaultPlans.find((p) => p.slug === 'prestige');
+  assert.ok(prestige);
+  assert.ok(prestige.features.some((f) => f.includes('horaires et effectifs par succursale')));
+  assert.ok(prestige.features.some((f) => f.includes('consolidés du salon')));
+});
+
 test('PricingView et SaaSPlanView affichent les avantages honnêtes et rappellent les prérequis opérateur/commissions', async () => {
   ensureDom('http://localhost/tarifs');
   win.localStorage.removeItem('barbercuts_saas_plans');

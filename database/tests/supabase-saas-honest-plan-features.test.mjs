@@ -16,6 +16,13 @@ const LEGACY_UNSHIPPED_CLAIMS = [
   'Rapports financiers et bilans comptables consolidés',
 ];
 
+// Formulations « honnêtes » antérieures devenues trop généreuses (matrice P1) :
+// pas de sélecteur ERP par succursale, pas de rapport détaillé par établissement.
+const OVERSTATED_HONEST_CLAIMS = [
+  'Multi-succursales jusqu’à 5 établissements (quota serveur & sélecteur ERP)',
+  'Rapports financiers et indicateurs d’activité par établissement',
+];
+
 test('les migrations remplacent les promesses non livrées dans saas_plans et saas_plan_drafts', async () => {
   await db.exec(`
     create role anon nologin;
@@ -77,6 +84,25 @@ test('les migrations remplacent les promesses non livrées dans saas_plans et sa
         `le forfait ${plan.id} ne doit plus contenir la promesse « ${legacy} »`,
       );
     }
+    for (const overstated of OVERSTATED_HONEST_CLAIMS) {
+      assert.equal(
+        plan.features.includes(overstated),
+        false,
+        `le forfait ${plan.id} ne doit plus contenir la formulation « ${overstated} »`,
+      );
+    }
+    for (const feature of plan.features) {
+      assert.equal(
+        feature.includes('sélecteur ERP'),
+        false,
+        `le forfait ${plan.id} ne doit pas annoncer de sélecteur ERP par succursale (non livré)`,
+      );
+      assert.equal(
+        feature.includes('par établissement'),
+        false,
+        `le forfait ${plan.id} ne doit pas annoncer de rapports par établissement (non livré)`,
+      );
+    }
   }
 
   const pro = plans.find((p) => p.id === 'pro');
@@ -101,6 +127,16 @@ test('les migrations remplacent les promesses non livrées dans saas_plans et sa
   assert.ok(
     prestige.features.some((f) => f.includes('mise en avant non automatisée')),
     'Prestige doit préciser que la mise en avant prioritaire n’est pas automatisée',
+  );
+  assert.ok(
+    prestige.features.some(
+      (f) => f.includes('quota serveur') && f.includes('horaires et effectifs par succursale'),
+    ),
+    'Prestige doit décrire le multi-succursales livré : quota serveur et gestion par succursale',
+  );
+  assert.ok(
+    prestige.features.some((f) => f.includes('consolidés du salon')),
+    'Prestige doit préciser que les rapports consolident le salon sans détail par succursale',
   );
 
   // Vérifier également la mise à jour du brouillon préexistant

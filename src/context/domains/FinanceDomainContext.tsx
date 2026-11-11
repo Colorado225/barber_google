@@ -1,3 +1,7 @@
+// Contexte du domaine finance : état, cache et rechargement (source de
+// vérité unique). Les écritures sont réparties par opérations dans
+// ./finance/ (paiement, caisse, dépenses, stock) et reçoivent leurs
+// dépendances — elles ne détiennent aucun état propre.
 import { createContext, useCallback, useContext, useRef, useState } from 'react';
 import type {
   Appointment,
@@ -8,15 +12,11 @@ import type {
   Expense,
   ExpenseEvent,
   FinancialSummary,
-  PaymentEntryKind,
-  PaymentMethod,
   PaymentTransaction,
   StockItem,
   StockMovement,
-  StockMovementType,
   Supplier,
 } from '../../types';
-import { getApiErrorMessage } from '../../lib/apiError';
 import {
   DEFAULT_BUSINESS_TIMEZONE,
   normalizeTimeZone,
@@ -24,6 +24,15 @@ import {
   zonedToday,
 } from '../../lib/businessTime';
 import type { DomainSharedDeps } from './shared';
+import type { SyncAfterFinanceFn } from './finance/financeShared';
+import { usePaymentOperations } from './finance/paymentOperations';
+import type { PaymentOperationsValue } from './finance/paymentOperations';
+import { useCashOperations } from './finance/cashOperations';
+import type { CashOperationsValue } from './finance/cashOperations';
+import { useExpenseOperations } from './finance/expenseOperations';
+import type { ExpenseOperationsValue } from './finance/expenseOperations';
+import { useStockOperations } from './finance/stockOperations';
+import type { StockOperationsValue } from './finance/stockOperations';
 
 export interface DashboardMetricsParams {
   from: string;
@@ -32,7 +41,8 @@ export interface DashboardMetricsParams {
   force?: boolean;
 }
 
-export interface FinanceDomainValue {
+export interface FinanceDomainValue
+  extends PaymentOperationsValue, CashOperationsValue, ExpenseOperationsValue, StockOperationsValue {
   transactions: PaymentTransaction[];
   cashSession: CashSession | null;
   cashSessions: CashSession[];
@@ -46,88 +56,7 @@ export interface FinanceDomainValue {
   stocks: StockItem[];
   stockMovements: StockMovement[];
   suppliers: Supplier[];
-  recordPayment: (payment: {
-    appointmentId: string;
-    amount: number;
-    method: PaymentMethod;
-    providerReference?: string;
-    reason?: string;
-    idempotencyKey?: string;
-  }) => Promise<PaymentTransaction>;
-  confirmPendingPayment: (
-    paymentId: string,
-    providerReference: string,
-    settlementNote: string,
-  ) => Promise<PaymentTransaction>;
-  rejectPendingPayment: (paymentId: string, reason: string) => Promise<PaymentTransaction>;
-  recordPaymentCorrection: (correction: {
-    originalEntryId: string;
-    kind: Exclude<PaymentEntryKind, 'payment'>;
-    amount: number;
-    reason: string;
-    providerReference?: string;
-    settlementNote?: string;
-    idempotencyKey?: string;
-  }) => Promise<PaymentTransaction>;
-  getAppointmentBalance: (appointmentId: string) => Promise<AppointmentBalance>;
-  closeCurrentCashSession: (
-    actualCashAmount: number,
-    notes?: string,
-    sessionId?: string,
-  ) => Promise<CashSession>;
-  openNewCashSession: (openingBalance: number, branchId?: string, note?: string) => Promise<CashSession>;
-  reconcileCashSession: (sessionId: string, note: string) => Promise<CashSession>;
   refreshFinance: () => Promise<void>;
-  addExpense: (expense: Omit<Expense, 'id'>) => Promise<Expense | void>;
-  attachExpenseReceipt: (
-    expenseId: string,
-    attachment: { path: string; name: string; mime: string; size: number },
-  ) => Promise<Expense>;
-  reverseExpense: (expenseId: string, reason: string) => Promise<Expense>;
-  correctExpense: (input: {
-    originalExpenseId: string;
-    title: string;
-    category: Expense['category'];
-    amount: number;
-    date: string;
-    reason: string;
-    branchId?: string | null;
-    notes?: string;
-    receiptRef?: string | null;
-    supplierId?: string | null;
-  }) => Promise<Expense>;
-  deleteExpense: (id: string, reason?: string) => void;
-  upsertSupplier: (input: {
-    id?: string | null;
-    name: string;
-    contactName?: string;
-    phone?: string;
-    email?: string | null;
-    address?: string;
-    notes?: string;
-    isActive?: boolean;
-  }) => Promise<Supplier>;
-  addStockItem: (
-    item: Omit<StockItem, 'id'> & { reason?: string; branchId?: string | null },
-  ) => Promise<StockItem | void>;
-  updateStockItemMetadata: (id: string, item: Omit<StockItem, 'id' | 'quantity'>) => Promise<StockItem>;
-  recordStockMovement: (input: {
-    stockItemId: string;
-    movementType: Exclude<StockMovementType, 'initial'>;
-    quantityDelta: number;
-    reason: string;
-    branchId?: string | null;
-    supplierId?: string | null;
-    unitCost?: number | null;
-    reference?: string | null;
-    appointmentId?: string | null;
-  }) => Promise<StockMovement>;
-  adjustStockQuantity: (
-    id: string,
-    delta: number,
-    reason?: string,
-    movementType?: Exclude<StockMovementType, 'initial'>,
-  ) => void;
 }
 
 export const FinanceDomainContext = createContext<FinanceDomainValue | undefined>(undefined);
@@ -346,7 +275,7 @@ export function useFinanceDomainState(
     [resolveApi, domainCache, hasPermissionRef, salonTimezone],
   );
 
-  const syncAfterFinance = useCallback(
+  const syncAfterFinance = useCallback<SyncAfterFinanceFn>(
     async (appointmentId?: string) => {
       const salonId = requireActiveSalon().id;
       domainCache.invalidate(salonId, 'finance');
@@ -384,445 +313,49 @@ export function useFinanceDomainState(
     await loadFinance(salonId, undefined, { force: true });
   }, [loadFinance, requireActiveSalon, resolveApi, hasPermissionRef, expenses, stocks]);
 
-  const recordPayment = useCallback(
-    async (payment: {
-      appointmentId: string;
-      amount: number;
-      method: PaymentMethod;
-      providerReference?: string;
-      reason?: string;
-      idempotencyKey?: string;
-    }): Promise<PaymentTransaction> => {
-      const salonId = requireActiveSalon().id;
-      if (!payment.appointmentId) throw new Error('Un rendez-vous est requis pour encaisser.');
-      if (!Number.isInteger(payment.amount) || payment.amount <= 0) {
-        throw new Error('Le montant doit être un entier positif en FCFA.');
-      }
-      const api = await resolveApi(salonId);
-      const saved = await api.payments.record({
-        appointmentId: payment.appointmentId,
-        amount: payment.amount,
-        method: payment.method,
-        idempotencyKey: payment.idempotencyKey ?? newIdempotencyKey(),
-        providerReference: payment.providerReference ?? null,
-        reason: payment.reason ?? '',
-      });
-      await syncAfterFinance(payment.appointmentId);
-      addToast(
-        saved.status === 'pending'
-          ? 'Paiement Mobile Money enregistré en attente de vérification manuelle.'
-          : 'Encaissement enregistré dans le journal de caisse.',
-        'success',
-      );
-      return saved;
-    },
-    [requireActiveSalon, resolveApi, newIdempotencyKey, syncAfterFinance, addToast],
-  );
+  const paymentOperations = usePaymentOperations({
+    activeSalonId,
+    resolveApi,
+    requireActiveSalon,
+    addToast,
+    newIdempotencyKey,
+    syncAfterFinance,
+  });
 
-  const confirmPendingPayment = useCallback(
-    async (paymentId: string, providerReference: string, settlementNote: string) => {
-      const salonId = requireActiveSalon().id;
-      const api = await resolveApi(salonId);
-      const saved = await api.payments.confirm(paymentId, providerReference, settlementNote);
-      await syncAfterFinance(saved.appointmentId);
-      addToast('Paiement vérifié manuellement et confirmé.', 'success');
-      return saved;
-    },
-    [requireActiveSalon, resolveApi, syncAfterFinance, addToast],
-  );
+  const cashOperations = useCashOperations({
+    resolveApi,
+    requireActiveSalon,
+    domainCache,
+    memberships,
+    addToast,
+    cashSessionId: cashSession?.id,
+    branches,
+    loadFinance,
+  });
 
-  const rejectPendingPayment = useCallback(
-    async (paymentId: string, reason: string) => {
-      const salonId = requireActiveSalon().id;
-      const api = await resolveApi(salonId);
-      const saved = await api.payments.reject(paymentId, reason);
-      await syncAfterFinance(saved.appointmentId);
-      addToast('Paiement en attente rejeté.', 'info');
-      return saved;
-    },
-    [requireActiveSalon, resolveApi, syncAfterFinance, addToast],
-  );
+  const expenseOperations = useExpenseOperations({
+    resolveApi,
+    requireActiveSalon,
+    domainCache,
+    memberships,
+    formatPrice,
+    addToast,
+    setExpenses,
+    loadFinance,
+  });
 
-  const recordPaymentCorrection = useCallback(
-    async (correction: {
-      originalEntryId: string;
-      kind: Exclude<PaymentEntryKind, 'payment'>;
-      amount: number;
-      reason: string;
-      providerReference?: string;
-      settlementNote?: string;
-      idempotencyKey?: string;
-    }): Promise<PaymentTransaction> => {
-      if (!Number.isInteger(correction.amount) || correction.amount <= 0) {
-        throw new Error('Le montant de correction doit être un entier positif en FCFA.');
-      }
-      const salonId = requireActiveSalon().id;
-      const api = await resolveApi(salonId);
-      const saved = await api.payments.correct({
-        originalEntryId: correction.originalEntryId,
-        kind: correction.kind,
-        amount: correction.amount,
-        reason: correction.reason,
-        idempotencyKey: correction.idempotencyKey ?? newIdempotencyKey(),
-        providerReference: correction.providerReference ?? null,
-        settlementNote: correction.settlementNote ?? '',
-      });
-      await syncAfterFinance(saved.appointmentId);
-      addToast('Correction enregistrée dans le journal (écriture liée, motif conservé).', 'success');
-      return saved;
-    },
-    [requireActiveSalon, resolveApi, newIdempotencyKey, syncAfterFinance, addToast],
-  );
-
-  const getAppointmentBalance = useCallback(
-    async (appointmentId: string): Promise<AppointmentBalance> => {
-      const api = await resolveApi(activeSalonId);
-      return api.payments.balance(appointmentId);
-    },
-    [resolveApi, activeSalonId],
-  );
-
-  const closeCurrentCashSession = useCallback(
-    async (actualCashAmount: number, notes?: string, sessionId?: string): Promise<CashSession> => {
-      const target = sessionId ?? cashSession?.id;
-      if (!target) throw new Error('Aucune session de caisse ouverte à clôturer.');
-      if (!Number.isInteger(actualCashAmount) || actualCashAmount < 0) {
-        throw new Error('Le montant compté doit être un entier positif ou nul en FCFA.');
-      }
-      const salonId = requireActiveSalon().id;
-      const api = await resolveApi(salonId);
-      const saved = await api.cash.close(target, actualCashAmount, notes ?? '');
-      domainCache.invalidate(salonId, 'finance');
-      await loadFinance(salonId, undefined, { force: true });
-      addToast('Session de caisse clôturée.', 'success');
-      return saved;
-    },
-    [cashSession?.id, requireActiveSalon, resolveApi, domainCache, loadFinance, addToast],
-  );
-
-  const openNewCashSession = useCallback(
-    async (openingBalance: number, branchId?: string, note?: string): Promise<CashSession> => {
-      const salonId = requireActiveSalon().id;
-      const targetBranch =
-        branchId ?? memberships.find((m) => m.salonId === salonId)?.branchId ?? branches[0]?.id;
-      if (!targetBranch) throw new Error('Aucune succursale disponible pour ouvrir une caisse.');
-      if (!Number.isInteger(openingBalance) || openingBalance < 0) {
-        throw new Error('Le fond de caisse doit être un entier positif ou nul en FCFA.');
-      }
-      const api = await resolveApi(salonId);
-      const saved = await api.cash.open(targetBranch, openingBalance, note ?? '');
-      domainCache.invalidate(salonId, 'finance');
-      await loadFinance(salonId, undefined, { force: true });
-      addToast('Session de caisse ouverte.', 'success');
-      return saved;
-    },
-    [requireActiveSalon, memberships, branches, resolveApi, domainCache, loadFinance, addToast],
-  );
-
-  const reconcileCashSession = useCallback(
-    async (sessionId: string, note: string): Promise<CashSession> => {
-      const salonId = requireActiveSalon().id;
-      const api = await resolveApi(salonId);
-      const saved = await api.cash.reconcile(sessionId, note);
-      domainCache.invalidate(salonId, 'finance');
-      await loadFinance(salonId, undefined, { force: true });
-      addToast('Session de caisse rapprochée.', 'success');
-      return saved;
-    },
-    [requireActiveSalon, resolveApi, domainCache, loadFinance, addToast],
-  );
-
-  const addExpense = useCallback(
-    async (data: Omit<Expense, 'id'>): Promise<Expense> => {
-      try {
-        const salonId = requireActiveSalon().id;
-        const api = await resolveApi(salonId);
-        const created = await api.expenses.create({
-          title: data.title,
-          category: data.category,
-          amount: data.amount,
-          date: data.date,
-          notes: data.notes || '',
-          branchId: data.branchId ?? memberships.find((m) => m.salonId === salonId)?.branchId ?? null,
-          receiptRef: data.receiptRef ?? '',
-          supplierId: data.supplierId ?? null,
-          attachmentPath: data.attachmentPath ?? null,
-          attachmentName: data.attachmentName ?? null,
-          attachmentMime: data.attachmentMime ?? null,
-          attachmentSize: data.attachmentSize ?? null,
-        });
-        setExpenses((prev) => [created, ...prev]);
-        domainCache.invalidate(salonId, 'finance');
-        domainCache.invalidate(salonId, 'dashboard');
-        domainCache.invalidate(salonId, 'workspace');
-        await loadFinance(salonId, undefined, { force: true });
-        addToast(`Dépense de ${formatPrice(created.amount)} enregistrée`, 'success');
-        return created;
-      } catch (error) {
-        addToast(getApiErrorMessage(error, 'Enregistrement de la dépense impossible'), 'error');
-        throw error;
-      }
-    },
-    [requireActiveSalon, resolveApi, memberships, domainCache, loadFinance, addToast, formatPrice],
-  );
-
-  const attachExpenseReceipt = useCallback(
-    async (
-      expenseId: string,
-      attachment: { path: string; name: string; mime: string; size: number },
-    ): Promise<Expense> => {
-      try {
-        const salonId = requireActiveSalon().id;
-        const api = await resolveApi(salonId);
-        const updated = await api.expenses.attachReceipt(expenseId, attachment);
-        setExpenses((prev) => prev.map((e) => (e.id === expenseId ? updated : e)));
-        domainCache.invalidate(salonId, 'finance');
-        domainCache.invalidate(salonId, 'workspace');
-        await loadFinance(salonId, undefined, { force: true });
-        addToast('Justificatif rattaché à la dépense.', 'success');
-        return updated;
-      } catch (error) {
-        addToast(getApiErrorMessage(error, 'Ajout du justificatif impossible'), 'error');
-        throw error;
-      }
-    },
-    [requireActiveSalon, resolveApi, domainCache, loadFinance, addToast],
-  );
-
-  const reverseExpense = useCallback(
-    async (expenseId: string, reason: string): Promise<Expense> => {
-      try {
-        const trimmed = reason.trim();
-        if (trimmed.length < 3) {
-          throw new Error('Veuillez indiquer un motif d’au moins 3 caractères pour contrepasser.');
-        }
-        const salonId = requireActiveSalon().id;
-        const api = await resolveApi(salonId);
-        const reversal = await api.expenses.reverse(expenseId, trimmed);
-        const refreshed = await api.expenses.list();
-        setExpenses(refreshed);
-        domainCache.invalidate(salonId, 'finance');
-        domainCache.invalidate(salonId, 'dashboard');
-        domainCache.invalidate(salonId, 'workspace');
-        await loadFinance(salonId, undefined, { force: true });
-        addToast('Dépense annulée par contrepassation (historique conservé).', 'info');
-        return reversal;
-      } catch (error) {
-        addToast(getApiErrorMessage(error, 'Contrepassation de la dépense impossible'), 'error');
-        throw error;
-      }
-    },
-    [requireActiveSalon, resolveApi, domainCache, loadFinance, addToast],
-  );
-
-  const correctExpense = useCallback(
-    async (input: {
-      originalExpenseId: string;
-      title: string;
-      category: Expense['category'];
-      amount: number;
-      date: string;
-      reason: string;
-      branchId?: string | null;
-      notes?: string;
-      receiptRef?: string | null;
-      supplierId?: string | null;
-    }): Promise<Expense> => {
-      try {
-        if (input.reason.trim().length < 3) {
-          throw new Error('Veuillez indiquer un motif de correction d’au moins 3 caractères.');
-        }
-        const salonId = requireActiveSalon().id;
-        const api = await resolveApi(salonId);
-        const replacement = await api.expenses.correct(input);
-        const refreshed = await api.expenses.list();
-        setExpenses(refreshed);
-        domainCache.invalidate(salonId, 'finance');
-        domainCache.invalidate(salonId, 'dashboard');
-        domainCache.invalidate(salonId, 'workspace');
-        await loadFinance(salonId, undefined, { force: true });
-        addToast('Dépense corrigée par écriture liée (historique conservé).', 'success');
-        return replacement;
-      } catch (error) {
-        addToast(getApiErrorMessage(error, 'Correction de la dépense impossible'), 'error');
-        throw error;
-      }
-    },
-    [requireActiveSalon, resolveApi, domainCache, loadFinance, addToast],
-  );
-
-  const deleteExpense = useCallback(
-    (id: string, reason?: string) => {
-      if (!reason || reason.trim().length < 3) {
-        addToast(
-          'Les dépenses ne sont jamais supprimées silencieusement : utilisez la contrepassation avec motif.',
-          'info',
-        );
-        return;
-      }
-      void reverseExpense(id, reason).catch(() => {});
-    },
-    [addToast, reverseExpense],
-  );
-
-  const upsertSupplier = useCallback(
-    async (input: {
-      id?: string | null;
-      name: string;
-      contactName?: string;
-      phone?: string;
-      email?: string | null;
-      address?: string;
-      notes?: string;
-      isActive?: boolean;
-    }): Promise<Supplier> => {
-      try {
-        const salonId = requireActiveSalon().id;
-        const api = await resolveApi(salonId);
-        const saved = await api.suppliers.upsert(input);
-        setSuppliers((prev) => {
-          const exists = prev.some((s) => s.id === saved.id);
-          const next = exists ? prev.map((s) => (s.id === saved.id ? saved : s)) : [...prev, saved];
-          return next.sort((a, b) => a.name.localeCompare(b.name, 'fr'));
-        });
-        domainCache.invalidate(salonId, 'finance');
-        domainCache.invalidate(salonId, 'workspace');
-        addToast(`Fournisseur ${saved.name} enregistré.`, 'success');
-        return saved;
-      } catch (error) {
-        addToast(getApiErrorMessage(error, 'Enregistrement du fournisseur impossible'), 'error');
-        throw error;
-      }
-    },
-    [requireActiveSalon, resolveApi, domainCache, addToast],
-  );
-
-  const addStockItem = useCallback(
-    async (
-      data: Omit<StockItem, 'id'> & { reason?: string; branchId?: string | null },
-    ): Promise<StockItem> => {
-      try {
-        const salonId = requireActiveSalon().id;
-        const api = await resolveApi(salonId);
-        const created = await api.stock.create({
-          name: data.name,
-          category: data.category,
-          quantity: data.quantity,
-          minThreshold: data.minThreshold,
-          unitCost: data.unitCost,
-          sellingPrice: data.sellingPrice,
-          supplierId: data.supplierId ?? null,
-          supplier: data.supplier,
-          reason: data.reason ?? 'Stock initial',
-          branchId: data.branchId ?? memberships.find((m) => m.salonId === salonId)?.branchId ?? null,
-        });
-        setStocks((prev) => [...prev, created]);
-        domainCache.invalidate(salonId, 'finance');
-        domainCache.invalidate(salonId, 'workspace');
-        await loadFinance(salonId, undefined, { force: true });
-        addToast(`Produit ${created.name} ajouté au stock`, 'success');
-        return created;
-      } catch (error) {
-        addToast(getApiErrorMessage(error, 'Ajout du produit impossible'), 'error');
-        throw error;
-      }
-    },
-    [requireActiveSalon, resolveApi, memberships, domainCache, loadFinance, addToast],
-  );
-
-  const updateStockItemMetadata = useCallback(
-    async (id: string, data: Omit<StockItem, 'id' | 'quantity'>): Promise<StockItem> => {
-      try {
-        const salonId = requireActiveSalon().id;
-        const api = await resolveApi(salonId);
-        const saved = await api.stock.updateMetadata(id, {
-          name: data.name,
-          category: data.category,
-          minThreshold: data.minThreshold,
-          unitCost: data.unitCost,
-          sellingPrice: data.sellingPrice,
-          supplierId: data.supplierId ?? null,
-          supplier: data.supplier,
-          isActive: data.isActive ?? true,
-        });
-        setStocks((prev) => prev.map((entry) => (entry.id === id ? saved : entry)));
-        domainCache.invalidate(salonId, 'workspace');
-        addToast(`Fiche produit ${saved.name} mise à jour.`, 'success');
-        return saved;
-      } catch (error) {
-        addToast(getApiErrorMessage(error, 'Mise à jour du produit impossible'), 'error');
-        throw error;
-      }
-    },
-    [requireActiveSalon, resolveApi, domainCache, addToast],
-  );
-
-  const recordStockMovement = useCallback(
-    async (input: {
-      stockItemId: string;
-      movementType: Exclude<StockMovementType, 'initial'>;
-      quantityDelta: number;
-      reason: string;
-      branchId?: string | null;
-      supplierId?: string | null;
-      unitCost?: number | null;
-      reference?: string | null;
-      appointmentId?: string | null;
-    }): Promise<StockMovement> => {
-      try {
-        const salonId = requireActiveSalon().id;
-        const api = await resolveApi(salonId);
-        const movement = await api.stock.recordMovement({
-          ...input,
-          branchId: input.branchId ?? memberships.find((m) => m.salonId === salonId)?.branchId ?? null,
-        });
-        const refreshedStock = await api.stock.list();
-        setStocks(refreshedStock);
-        domainCache.invalidate(salonId, 'finance');
-        domainCache.invalidate(salonId, 'workspace');
-        await loadFinance(salonId, undefined, { force: true });
-        addToast('Mouvement de stock historisé.', 'success');
-        return movement;
-      } catch (error) {
-        addToast(getApiErrorMessage(error, 'Mouvement de stock impossible'), 'error');
-        throw error;
-      }
-    },
-    [requireActiveSalon, resolveApi, memberships, domainCache, loadFinance, addToast],
-  );
-
-  const adjustStockQuantity = useCallback(
-    (
-      id: string,
-      delta: number,
-      reason = 'Ajustement manuel de stock',
-      movementType?: Exclude<StockMovementType, 'initial'>,
-    ) => {
-      if (delta === 0) return;
-      const item = stocks.find((entry) => entry.id === id);
-      if (!item) {
-        addToast('Produit introuvable.', 'error');
-        return;
-      }
-      if (item.quantity + delta < 0) {
-        addToast('La quantité ne peut pas être négative.', 'error');
-        return;
-      }
-      const resolvedType: Exclude<StockMovementType, 'initial'> =
-        movementType ?? (delta > 0 ? 'restock' : 'adjustment');
-      void remote(
-        () =>
-          recordStockMovement({
-            stockItemId: id,
-            movementType: resolvedType,
-            quantityDelta: delta,
-            reason,
-          }).then(() => undefined),
-        'Ajustement du stock impossible',
-      );
-    },
-    [stocks, addToast, remote, recordStockMovement],
-  );
+  const stockOperations = useStockOperations({
+    resolveApi,
+    requireActiveSalon,
+    domainCache,
+    memberships,
+    remote,
+    addToast,
+    stocks,
+    setStocks,
+    setSuppliers,
+    loadFinance,
+  });
 
   const resetFinanceDomain = useCallback(() => {
     setTransactions([]);
@@ -865,24 +398,10 @@ export function useFinanceDomainState(
     setSuppliers,
     loadFinance,
     refreshFinance,
-    recordPayment,
-    confirmPendingPayment,
-    rejectPendingPayment,
-    recordPaymentCorrection,
-    getAppointmentBalance,
-    closeCurrentCashSession,
-    openNewCashSession,
-    reconcileCashSession,
-    addExpense,
-    attachExpenseReceipt,
-    reverseExpense,
-    correctExpense,
-    deleteExpense,
-    upsertSupplier,
-    addStockItem,
-    updateStockItemMetadata,
-    recordStockMovement,
-    adjustStockQuantity,
+    ...paymentOperations,
+    ...cashOperations,
+    ...expenseOperations,
+    ...stockOperations,
     resetFinanceDomain,
   };
 }

@@ -1,0 +1,78 @@
+name: E2E
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'e2e/**'
+      - 'supabase/**'
+      - 'playwright.config.ts'
+      - '.github/workflows/e2e.yml'
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'e2e/**'
+      - 'supabase/**'
+      - 'playwright.config.ts'
+      - '.github/workflows/e2e.yml'
+
+# Une seule exécution par branche : les pushes successifs annulent l'ancien run.
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  parcours:
+    name: Parcours client et salon (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Installation des dépendances
+        run: npm ci
+
+      - name: Installer Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # `db reset` démarre la stack locale, applique toutes les migrations
+      # puis charge le jeu de données E2E (supabase/e2e-seed.sql via [db.seed]).
+      - name: Recréer la base locale avec migrations + seed E2E
+        run: supabase db reset
+
+      - name: Exporter les clés Supabase locales
+        run: |
+          supabase status -o env | grep -E '^(API_URL|ANON_KEY|SERVICE_ROLE_KEY)=' >> "$GITHUB_ENV"
+
+      - name: Installer le navigateur Playwright
+        run: npx playwright install --with-deps chromium
+
+      # Le webServer de playwright.config.ts lance `vite dev` sur 4173 avec
+      # VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY pointant vers la stack locale.
+      - name: Scénarios E2E navigateur
+        run: npm run e2e
+
+      - name: Archive des rapports en cas d'échec
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report
+            test-results
+          retention-days: 7
+          if-no-files-found: ignore

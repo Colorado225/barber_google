@@ -312,8 +312,8 @@ export const AdminPlatformSettingsPanel: React.FC<AdminPlatformSettingsPanelProp
 
         {onOpenMarketplaceConfig && (
           <div className="rounded-xl border border-[#22222c] bg-[#08080a] p-3.5 text-xs text-stone-400">
-            La bannière d’annonce globale, les sections à la une et les métadonnées du site se gèrent côté
-            serveur dans{' '}
+            La bannière d’annonce globale, les sections à la une et les métadonnées du site sont publiées en
+            base (opération serveur SuperAdmin auditée) via{' '}
             <button
               type="button"
               onClick={onOpenMarketplaceConfig}

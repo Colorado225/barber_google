@@ -6,7 +6,7 @@ import { ToastContainer } from './components/common/ToastContainer';
 import { MarketplaceHome } from './components/marketplace/MarketplaceHome';
 import { SiteAnnouncementBar } from './components/common/SiteAnnouncementBar';
 import { lazyNamed } from './components/common/ViewLoader';
-import { useMarketplaceContent } from './lib/marketplace-content';
+import { useMarketplaceContent, useMarketplaceContentServerSync } from './lib/marketplace-content';
 import { useSiteMetadata } from './hooks/useSiteMetadata';
 import { isBookingSecretRoute } from './lib/portalIsolation';
 
@@ -38,8 +38,10 @@ const AppContent: React.FC = () => {
   // `useInRouterContext` permet de rendre le shell hors routeur (tests SSR).
   const routed = useInRouterContext();
   const { selectedSalonForModal, setSelectedSalonForModal } = useOptionalApp();
-  // Configuration globale (annonce, SEO) gérée par le SuperAdmin : mise à jour en direct.
+  // Configuration globale (annonce, SEO) publiée en base par le SuperAdmin : mise à jour en direct.
   const { config } = useMarketplaceContent();
+  // Hydrate le store avec le contenu réellement publié (aucun effet sans Supabase configuré).
+  useMarketplaceContentServerSync();
 
   return (
     <div className="min-h-screen bg-[#0d0d0e] text-[#f7f6f2] flex flex-col font-sans selection:bg-[#C9A45C] selection:text-[#101010]">

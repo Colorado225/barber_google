@@ -1,4 +1,5 @@
-import { useCallback, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useSyncExternalStore } from 'react';
+import { getSupabaseClient, isSupabaseConfigured } from './supabase';
 
 export interface MarketplaceTabConfig {
   id: string;
@@ -476,6 +477,7 @@ export function saveMarketplaceContent(
   if (typeof window === 'undefined') return updated;
   try {
     localStorage.setItem(MARKETPLACE_CONTENT_STORAGE_KEY, JSON.stringify(updated));
+    setContentStatus('local', null);
     notifyMarketplaceContentChanged(updated);
   } catch (err) {
     console.error('Erreur lors de la sauvegarde de la configuration marketplace', err);
@@ -492,12 +494,138 @@ export function resetMarketplaceContent(
   if (typeof window !== 'undefined') {
     try {
       localStorage.setItem(MARKETPLACE_CONTENT_STORAGE_KEY, JSON.stringify(DEFAULT_MARKETPLACE_CONTENT));
+      setContentStatus('local', null);
       notifyMarketplaceContentChanged(DEFAULT_MARKETPLACE_CONTENT);
     } catch {
       // ignore
     }
   }
   return DEFAULT_MARKETPLACE_CONTENT;
+}
+
+// ---------------------------------------------------------------------------
+// Persistance serveur (P1 SuperAdmin) : le contenu global Marketplace est une
+// configuration de plateforme réellement utilisée par les pages publiques.
+// Elle est donc persistée en base (public.platform_marketplace_content), modifiée
+// uniquement via des opérations serveur réservées au SuperAdmin (motif + audit),
+// le stockage navigateur ne servant plus que de cache de lecture / aperçu local.
+// ---------------------------------------------------------------------------
+
+export type MarketplaceContentSource = 'server' | 'local';
+
+export interface MarketplaceContentStatus {
+  source: MarketplaceContentSource;
+  serverUpdatedAt: string | null;
+}
+
+let contentSource: MarketplaceContentSource = 'local';
+let contentServerUpdatedAt: string | null = null;
+let cachedStatus: MarketplaceContentStatus = { source: contentSource, serverUpdatedAt: null };
+
+function setContentStatus(source: MarketplaceContentSource, serverUpdatedAt: string | null): void {
+  if (source === contentSource && serverUpdatedAt === contentServerUpdatedAt) return;
+  contentSource = source;
+  contentServerUpdatedAt = serverUpdatedAt;
+  cachedStatus = { source, serverUpdatedAt };
+  notifyMarketplaceContentChanged(getMarketplaceContentSnapshot());
+}
+
+export function getMarketplaceContentStatus(): MarketplaceContentStatus {
+  return cachedStatus;
+}
+
+function hydrateFromServerRow(row: Record<string, unknown>): MarketplaceContentConfig {
+  const rawContent = (row.content ?? null) as unknown;
+  const merged =
+    rawContent && typeof rawContent === 'object'
+      ? parseMarketplaceContent(JSON.stringify(rawContent))
+      : DEFAULT_MARKETPLACE_CONTENT;
+  cachedContentRaw = JSON.stringify(merged);
+  cachedContent = merged;
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem(MARKETPLACE_CONTENT_STORAGE_KEY, cachedContentRaw);
+    } catch {
+      // ignore
+    }
+  }
+  setContentStatus('server', typeof row.updated_at === 'string' ? row.updated_at : null);
+  return merged;
+}
+
+/**
+ * Lit le contenu Marketplace réellement publié en base et hydrate le store partagé.
+ * Ne fait rien (et reste en aperçu local) lorsque Supabase n'est pas configuré.
+ */
+export async function refreshMarketplaceContentFromServer(): Promise<boolean> {
+  if (!isSupabaseConfigured()) return false;
+  const { data, error } = await getSupabaseClient().rpc('get_public_marketplace_content');
+  if (error) throw new Error(error.message || 'Impossible de charger le contenu Marketplace publié.');
+  const row = (data ?? {}) as Record<string, unknown>;
+  if (!row.content) return false;
+  hydrateFromServerRow(row);
+  return true;
+}
+
+/**
+ * Publie une mise à jour du contenu Marketplace :
+ * - Supabase configuré : opération serveur réservée au SuperAdmin (motif + audit obligatoires),
+ *   le store est hydraté depuis la réponse du serveur ;
+ * - sans Supabase (développement local / tests) : aperçu local honnête, marqué « local »
+ *   et jamais présenté comme publié.
+ */
+export async function publishMarketplaceContentUpdate(
+  config: MarketplaceContentConfig,
+  reason: string,
+): Promise<MarketplaceContentStatus> {
+  const cleanReason = reason.trim();
+  if (cleanReason.length < 3) {
+    throw new Error('Un motif de publication est obligatoire (3 caractères minimum).');
+  }
+  const { updatedAt: _ignored, ...payload } = config;
+  if (isSupabaseConfigured()) {
+    const { data, error } = await getSupabaseClient().rpc('admin_update_marketplace_content', {
+      p_content: payload,
+      p_reason: cleanReason,
+    });
+    if (error) throw new Error(error.message || 'Publication impossible côté serveur.');
+    const row = (data ?? {}) as Record<string, unknown>;
+    hydrateFromServerRow(row);
+    return getMarketplaceContentStatus();
+  }
+  saveMarketplaceContent(config);
+  return getMarketplaceContentStatus();
+}
+
+/** Réinitialise le contenu publié aux valeurs d'usine (même chemin serveur qu'une publication). */
+export async function publishMarketplaceContentReset(reason: string): Promise<MarketplaceContentConfig> {
+  const status = await publishMarketplaceContentUpdate(
+    { ...DEFAULT_MARKETPLACE_CONTENT, updatedAt: new Date().toISOString() },
+    reason,
+  );
+  void status;
+  return getMarketplaceContentSnapshot();
+}
+
+/** Hook d'état de la source : « server » (publié en base) ou « local » (aperçu sans base). */
+export function useMarketplaceContentStatus(): MarketplaceContentStatus {
+  return useSyncExternalStore(
+    subscribeToMarketplaceContent,
+    getMarketplaceContentStatus,
+    getMarketplaceContentStatus,
+  );
+}
+
+/**
+ * Charge une seule fois le contenu publié côté serveur (app conteneur).
+ * Sans Supabase configuré, c'est un no-op : l'aperçu local reste affiché.
+ */
+export function useMarketplaceContentServerSync(): void {
+  useEffect(() => {
+    refreshMarketplaceContentFromServer().catch(() => {
+      // Échec de chargement non bloquant : le cache local reste affiché.
+    });
+  }, []);
 }
 
 /**
@@ -512,12 +640,11 @@ export function useMarketplaceContent() {
   );
 
   const updateConfig = useCallback(
-    (newConfig: MarketplaceContentConfig, adminEmail?: string, auditAction?: string) =>
-      saveMarketplaceContent(newConfig, adminEmail, auditAction),
+    (newConfig: MarketplaceContentConfig, reason = '') => publishMarketplaceContentUpdate(newConfig, reason),
     [],
   );
 
-  const resetConfig = useCallback((adminEmail?: string) => resetMarketplaceContent(adminEmail), []);
+  const resetConfig = useCallback((reason = '') => publishMarketplaceContentReset(reason), []);
 
   return { config, updateConfig, resetConfig };
 }

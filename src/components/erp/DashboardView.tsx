@@ -156,6 +156,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const [kpiServerMetrics, setKpiServerMetrics] = useState<ErpDashboardMetrics | null>(null);
   const [chartServerMetrics, setChartServerMetrics] = useState<ErpDashboardMetrics | null>(null);
+  // Agrégat serveur dédié à la croissance « vs mois précédent » quand le graphique est en mode semaines
+  const [growthServerMetrics, setGrowthServerMetrics] = useState<ErpDashboardMetrics | null>(null);
 
   // Chargement des métriques serveur pour la période des KPIs & le filtre d'affluence
   useEffect(() => {
@@ -211,6 +213,37 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     kpiRange.to,
     busyHoursDayFilter,
     kpiServerMetrics,
+    appointments,
+    transactions,
+    expenses,
+    loadDashboardMetrics,
+  ]);
+
+  // Croissance mensuelle « vs mois précédent » : l'agrégat serveur couvrant explicitement les
+  // 6 derniers mois (et non la fenêtre chargée en mémoire, plafonnée à 500 écritures).
+  const growthRange = useMemo(() => resolveErpPeriodRange('6m', salonTimezone), [salonTimezone]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (revenuePeriod !== 'month_weeks') {
+      setGrowthServerMetrics(null);
+      return;
+    }
+    void loadDashboardMetrics({
+      from: growthRange.from,
+      to: growthRange.to,
+      dayFilter: 'all',
+    }).then((res) => {
+      if (!cancelled) setGrowthServerMetrics(res);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activeSalon.id,
+    revenuePeriod,
+    growthRange.from,
+    growthRange.to,
     appointments,
     transactions,
     expenses,
@@ -401,14 +434,30 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   ]);
 
   const revenueGrowth = useMemo(() => {
-    const sourceSeries =
-      revenuePeriod === 'month_weeks'
-        ? buildRevenueSeries('6m', salonTransactions, salonAppointments, salonExpenses, {
-            timeZone: salonTimezone,
-          })
-        : monthlyData;
-    return sourceSeries.length < 2 ? null : sourceSeries[sourceSeries.length - 1].growth;
-  }, [revenuePeriod, monthlyData, salonTransactions, salonAppointments, salonExpenses, salonTimezone]);
+    if (revenuePeriod === 'month_weeks') {
+      // Source serveur prioritaire : série mensuelle complète sur 6 mois explicites
+      if (growthServerMetrics) {
+        const serverMonthly = mapMonthlySeriesPoints(growthServerMetrics);
+        if (serverMonthly.length >= 2) {
+          return serverMonthly[serverMonthly.length - 1].growth;
+        }
+      }
+      // Repli local (fenêtre chargée) : signalé comme « Vue locale » dans le bandeau
+      const sourceSeries = buildRevenueSeries('6m', salonTransactions, salonAppointments, salonExpenses, {
+        timeZone: salonTimezone,
+      });
+      return sourceSeries.length < 2 ? null : sourceSeries[sourceSeries.length - 1].growth;
+    }
+    return monthlyData.length < 2 ? null : monthlyData[monthlyData.length - 1].growth;
+  }, [
+    revenuePeriod,
+    growthServerMetrics,
+    monthlyData,
+    salonTransactions,
+    salonAppointments,
+    salonExpenses,
+    salonTimezone,
+  ]);
 
   // Moyens de paiement sur [kpiRange.from, kpiRange.to]
   const byMethod = useMemo(() => {
@@ -746,7 +795,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* KPI 3: Panier Moyen Encaissé */}
         <div className="p-5 rounded-2xl bg-[#161619] border border-[#27272c] relative overflow-hidden shadow-sm hover:border-purple-500/40 transition-all">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-semibold text-stone-400">Panier Moyen Encaissé</span>
+            <span className="text-xs font-semibold text-stone-400">
+              Panier Moyen Encaissé ({periodLabel})
+            </span>
             <div className="w-8 h-8 rounded-xl bg-[#1f1b24] border border-purple-500/30 text-purple-400 flex items-center justify-center">
               <Scissors className="w-4 h-4" />
             </div>

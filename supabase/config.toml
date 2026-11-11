@@ -63,11 +63,13 @@ enabled = true
 schema_paths = []
 
 [db.seed]
-# No demo/seed data is applied by default.
-enabled = false
+# Jeu de données des scénarios E2E (tests navigateur Playwright) — voir
+# e2e-seed.sql : lignes étiquetées « E2E », UUID fixes, rechargé à chaque
+# `supabase db reset` (local et CI). Les seeds ne sont jamais poussés en prod.
+enabled = true
 # Specifies an ordered list of seed files to load during db reset.
 # Supports glob patterns relative to supabase directory: "./seeds/*.sql"
-sql_paths = []
+sql_paths = ["./e2e-seed.sql"]
 
 [db.network_restrictions]
 # Enable management of network restrictions.
