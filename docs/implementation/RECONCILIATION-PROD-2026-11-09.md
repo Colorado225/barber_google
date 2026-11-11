@@ -159,3 +159,30 @@ Comparaison par empreinte MD5 du corps (calibrée : `public.is_platform_superadm
 
 Aucune écriture en production avant : (1) la fusion ou la réécriture validée, (2) la validation locale complète,
 (3) la capture des migrations manquantes, (4) une sauvegarde datée (confirmée, date non précisée à ce jour), (5) l'accord écrit de l'équipe.
+
+## 7. Essai de fusion avec `main` (simulation, annulée)
+
+Décision utilisateur : « fusion de main » (sans réécriture). Simulation `git merge --no-ff --allow-unrelated-histories origin/main`,
+puis annulation (`git merge --abort`). **Rien n'a été committé ni poussé** pour cette fusion.
+
+- **84 fichiers en conflit** (dont `package.json`, `package-lock.json`, `vite.config.ts`, `eslint.config.js`, `.github/workflows/ci.yml`,
+  `src/context/AppContext.tsx`, `src/lib/api.ts`, `src/lib/superadmin.ts`, `src/lib/saas.ts`, plus une cinquantaine de composants).
+- **Deux refactorisations concurrentes du même cœur.** Depuis la base commune `863b9bc` :
+  - `main` modifie 133 fichiers (`src`, `supabase`, `tests`, `database`) ; la branche en modifie 85 ;
+  - `AppContext.tsx` : `main` retire 1 179 lignes et en ajoute 942 (fichier de 1 156 lignes) ; la branche le réduit à 608 lignes par extraction de domaines ;
+  - `src/lib/api.ts` : 1 289 lignes sur `main`, découpé en modules `src/services/api/` sur la branche.
+- Conséquence : une fusion ne peut pas garder les deux versions. Il faut choisir, fichier par fichier ou domaine par domaine,
+  quelle structure survit, puis reporter le reste sur cette structure, avec validation à chaque étape (`tsc`, `eslint`, tests, build).
+
+## 8. Options après mesure
+
+- **F1 — Fusion, `main` comme structure de référence.** Accepter la structure de `main` pour `AppContext`, `api.ts` et les
+  API SuperAdmin et stock ; reporter sur elle uniquement les modules de la branche qui n'existent pas dans `main`
+  (`features/` marketplace, avis, salon, caisse, etc.), sans leur extraction de contexte. Plusieurs tours, forte charge de réécriture de la branche.
+- **F2 — Fusion, branche comme structure de référence.** Garder le découpage de la branche et porter dedans les 133 modifications de `main`.
+  Même volume, risque plus élevé : `main` contient des fonctionnalités déjà en production.
+- **F3 — Séquencer.** Ne fusionner que les migrations et la base (ce qui manque en production), puis le front par domaine, chaque étape validée
+  et poussée séparément. Plus lent, mais chaque étape est vérifiable.
+
+Recommandation : **F3**. Commencer par la capture des migrations de production (sans écriture), puis décider de l'API SuperAdmin
+(`admin_*` de `main` recommandé) et du stock (`record_stock_movement` de `main` recommandé), puis le front.
