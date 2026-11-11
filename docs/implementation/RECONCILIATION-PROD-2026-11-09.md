@@ -186,3 +186,38 @@ puis annulation (`git merge --abort`). **Rien n'a été committé ni poussé** p
 
 Recommandation : **F3**. Commencer par la capture des migrations de production (sans écriture), puis décider de l'API SuperAdmin
 (`admin_*` de `main` recommandé) et du stock (`record_stock_movement` de `main` recommandé), puis le front.
+
+## 9. Étape 1 de F3 (base) : réalisée
+
+Décision utilisateur : F3, séquencer. Étape 1 = base de données, validée avant le front.
+
+**Changements**
+
+- `supabase/migrations` : repris de `origin/main` (37 fichiers, dont les 13 de production sans équivalent dans la branche).
+  Les 3 migrations propres à la branche sont retirées de l'arbre (restaurables depuis l'historique) :
+  `20261111090000_platform_admin_operations`, `20261111100000_platform_admin_console`, `20261112090000_stock_atomic_adjustment`.
+  Motif : doublons de l'API `admin_*` et du stock `record_stock_movement`, déjà en production et dans `main`. Choix technique documenté, pas de question.
+- `database/tests` : repris de `origin/main` (21 fichiers). Retirés : `supabase-platform-admin-console`, `supabase-platform-admin-operations`, `supabase-stock-adjustment` (tests des RPC retirées).
+
+**Validation (sur `migrations` de `main` + tests de `main`)**
+
+| Contrôle                                              | Résultat |
+| ----------------------------------------------------- | -------- |
+| Base PGlite (`node --test database/tests/*.test.mjs`) | 102/102  |
+| `tsc --noEmit`                                        | OK       |
+| Tests TSX (`tests/*.test.tsx`)                        | 157/157  |
+| `eslint .`                                            | OK       |
+| `prettier --check .`                                  | OK       |
+| `npm run build`                                       | OK       |
+
+**Dette explicite, traitée à l'étape 2 (front) — non résolue ici**
+
+- `src/lib/platform-admin.ts` appelle 14 RPC `platform_*` absentes de la production. À remplacer par les RPC `admin_*` de `main`.
+- `src/services/api/stock.ts` (`adjust`) appelle `adjust_stock_quantity`, absente de la production. À remplacer par `record_stock_movement`.
+- Les tests TSX passent car ils simulent ces RPC : ils ne prouvent pas le bon comportement. Les tests de l'étape 2 devront vérifier les noms et les paramètres des RPC réelles.
+
+**Restant de l'étape 1**
+
+- Deux migrations de production sans fichier, ni dans la branche ni dans `main` : `20261108191041` (`marketplace_slug_resolution`, SQL de 611 octets disponible dans `statements`) et `20261104150000` (`marketplace_contact_privacy`, version en conflit avec `saas_pricing_and_subscriptions`, SQL non disponible dans `statements`). À capturer par le CLI avec sauvegarde.
+- Réparation de l'historique distant (D6) : toujours à faire, avec sauvegarde datée (confirmée, date non précisée).
+- Fusion effective avec `main` : à faire à l'étape 1 finale, une fois la base validée. Le dépôt n'est pas encore fusionné (aucun ancêtre commun).
