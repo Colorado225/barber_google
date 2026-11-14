@@ -22,7 +22,7 @@ import {
   type MarketplaceProCtaConfig,
   type MarketplaceSiteMetadata,
 } from '../../lib/marketplace-content';
-import { useOptionalApp } from '../../context/AppContext';
+import { useUI } from '../../context/UIContext';
 import { SiteAnnouncementBar } from '../common/SiteAnnouncementBar';
 import { FeaturedSectionCard } from '../marketplace/FeaturedSectionCard';
 
@@ -213,7 +213,7 @@ const SaveBar: React.FC<SaveBarProps> = ({ dirty, onDiscard, saveLabel }) => (
  * titre de l'onglet reflètent la nouvelle configuration immédiatement.
  */
 export const MarketplaceConfigManager: React.FC<MarketplaceConfigManagerProps> = ({ adminEmail }) => {
-  const { addToast } = useOptionalApp();
+  const { addToast } = useUI();
   const { config, updateConfig } = useMarketplaceContent();
   const [subTab, setSubTab] = useState<ConfigSubTab>('banners');
 

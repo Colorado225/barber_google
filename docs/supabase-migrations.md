@@ -23,7 +23,7 @@ Prérequis : Supabase CLI et Docker Desktop démarré.
 4. Lancer les tests ciblés et `npm test`.
 5. Vérifier que le diff ne modifie pas une migration déjà appliquée.
 
-La CI exécute aussi `supabase db reset` et `supabase db lint --local` sur le
+La CI exécute aussi `supabase db reset` et `supabase db lint` sur le
 PostgreSQL Supabase local. Les tests PGlite restent utiles pour les cas
 d'isolation/RLS, mais ne remplacent pas cette validation par le moteur utilisé
 par Supabase.
@@ -50,7 +50,7 @@ Le workflow manuel
 `.github/workflows/supabase-migrations.yml` n'accepte que la branche `main` et
 exige la confirmation explicite `confirm_production_migration`. Il affiche
 d'abord le statut et le `--dry-run`, puis applique les migrations avec
-`supabase db push --linked --yes`. Le job utilise l'environnement GitHub
+`supabase db push --remote --skip-vault --yes`. Le job utilise l'environnement GitHub
 `supabase-production` : configurer cet environnement avec des approbateurs
 requis avant de l'utiliser.
 
@@ -255,3 +255,127 @@ aux deux RPC du portail, `claim`/`mark` refusés à `anon` **et** `authenticated
 Les **20 fonctions** déployées ont une empreinte `md5(prosrc)` identique aux
 fichiers locaux. Edge function `notifications-dispatcher` déployée et appelée
 réellement (HTTP 200 via `pg_net`). Voir `docs/PARCOURS-CLIENT-COMPLET.md`.
+
+## Contrôle en lecture seule du 14 novembre 2026 — divergence bloquante
+
+Le journal du projet `barber_google` (`rozsykrjrncbupzmauzj`) a été comparé
+aux fichiers de cette branche. **Ne pas exécuter `supabase db push`, ni le
+workflow de migration, avant réconciliation et validation en staging.**
+
+- Le dépôt contient 38 fichiers SQL, le journal distant 39 versions ; seuls
+  22 couples version/nom correspondent, de `20261103160000` à
+  `20261104140200` inclus. Un numéro supplémentaire est commun mais désigne
+  deux migrations différentes.
+- Les versions divergent ensuite : par exemple, le dépôt contient
+  `20261104150000_saas_pricing_and_subscriptions.sql`, tandis que le journal
+  distant attribue `20261104150000` à `marketplace_contact_privacy` et enregistre
+  `saas_pricing_and_subscriptions` sous `20261109080601`. Plusieurs noms
+  ultérieurs correspondent également mais avec des versions différentes. Une
+  égalité de nom ne prouve pas l'égalité du SQL ou des effets appliqués.
+- `20261113214500_marketplace_avg_price_and_categories.sql` n'apparaît pas dans
+  le journal distant. La fonction distante `marketplace_list_salons` ne contient
+  pas les champs `avg_price` et `service_categories` ; le filtrage et les
+  recommandations qui en dépendent doivent donc être vérifiés avant livraison.
+
+La réconciliation doit comparer les définitions SQL et le schéma effectif,
+identifier les migrations équivalentes ou manquantes, tester un plan sur une
+base de staging restaurée ou représentative, et sauvegarder avant toute
+intervention. Ne pas renommer les fichiers ni modifier le journal distant sur
+la seule base des noms ; ne pas considérer une réparation du journal comme une
+application de SQL. Cette vérification n'a effectué aucune écriture distante.
+
+### Analyse complémentaire du journal et verrou de déploiement
+
+Le 14 novembre, une lecture de `supabase_migrations.schema_migrations` a comparé
+les sommes MD5 des instructions enregistrées (concaténées avec un saut de ligne)
+aux fichiers locaux de même nom, en testant les octets complets et le retrait
+des espaces en début et fin de fichier. Ce contrôle est un **indice**, pas une
+preuve de parité de schéma : il ne tient pas compte des migrations ultérieures,
+des modifications manuelles ni des différences de normalisation du SQL.
+
+- Pour dix migrations de même nom mais de version différente, la somme concorde
+  avec le fichier brut ou sans espaces périphériques : `saas_plan_drafts`,
+  `saas_subscription_verification`, `platform_admin_actions`,
+  `platform_financial_metrics`, `erp_realtime_publication`,
+  `booking_token_security`, `notifications_observability_and_honest_channels`,
+  `p2_operations_stock_suppliers_expenses_storage`,
+  `preserve_marketplace_privacy_and_slug` et `saas_annual_billing_subscription`.
+- Pour cinq autres noms communs, les sommes ne concordent pas dans ces deux
+  représentations : `saas_pricing_and_subscriptions`,
+  `platform_superadmin_guard`, `erp_dashboard_metrics_and_timezone`,
+  `platform_global_settings` et `saas_honest_plan_features`. Il faut comparer
+  leur SQL enregistré et leurs effets ; une différence de somme ne démontre
+  pas à elle seule une différence fonctionnelle.
+- Dix migrations historiques, de `crm_auto_link` à
+  `marketplace_contact_privacy`, n'ont aucune instruction enregistrée dans le
+  journal distant. L'historique seul ne permet donc pas de vérifier leur contenu.
+  `marketplace_contact_privacy` et `marketplace_slug_resolution` n'ont pas de
+  fichier local sous ces noms ; leurs effets peuvent avoir été intégrés à
+  d'autres migrations et doivent être contrôlés, notamment pour la confidentialité.
+
+Le workflow manuel de production est volontairement **verrouillé avant toute
+connexion ou application**. Ne retirer ce verrou qu'après comparaison des
+instructions disponibles, audit du schéma et des permissions, restauration ou
+création d'un staging représentatif, test du plan complet, sauvegarde et revue.
+Le retrait du verrou ne remplace pas le `--dry-run` ni l'approbation explicite.
+Les commandes locales `supabase db push` ne sont pas bloquées par ce workflow :
+la même interdiction opérationnelle s'applique donc aussi à la CLI.
+
+### Comparaison reproductible des inventaires
+
+Pour comparer un export JSON **en lecture seule** du journal distant, sans
+identifiants ni contenu SQL, utiliser un fichier non versionné contenant soit
+un tableau d'objets `{ "version": "20261103160000", "name": "supabase_core" }`,
+soit un objet avec une propriété `items` ou `rows` contenant ce tableau :
+
+```sh
+node scripts/compare-migration-history.mjs /chemin/vers/historique.json
+```
+
+Le rapport distingue les couples communs, collisions de version, versions
+exclusives et correspondances de noms à des versions différentes. Il renvoie
+le code 1 en cas d'écart et 2 en cas d'entrée invalide ; le code 0 ne prouve
+**ni l'identité du SQL ni la parité du schéma**. Le script ne se connecte à
+aucune base et n'applique aucune migration.
+
+### Préparation en lecture seule : migration des prix et catégories
+
+Une vérification supplémentaire a confirmé que `marketplace_list_salons(text,
+text, text, text, integer)` est une fonction `SECURITY DEFINER`, propriétaire
+`postgres`, avec `search_path` vide et droits d'exécution explicites pour
+`anon`, `authenticated` et `service_role`. Les colonnes nécessaires à l'ajout
+(`services.price`, `category`, `is_active`, `salon_id`, ainsi que les colonnes
+clés vérifiées de `salons` et `salon_marketplace_settings`) existent. Ces
+constats ne constituent pas un test d'exécution ni une validation exhaustive
+des dépendances, permissions ou performances.
+
+La migration locale `20261113214500_marketplace_avg_price_and_categories.sql`
+remplace cette fonction et ajoute `avg_price` et `service_categories` à ses
+résultats ; elle ne modifie pas directement les données des tables. Le corps
+actuel de la fonction a été comparé à celui du fichier : les ajouts des deux
+champs constituent la différence constatée. Le remplacement touche néanmoins
+une API publique et doit être testé avant toute mise en production. Le connecteur
+de migration crée sa propre entrée d'historique : il ne faut pas l'utiliser pour
+contourner les divergences de versions ou déclarer l'historique réconcilié.
+
+Plan préalable, sans action distante automatique :
+
+1. Confirmer une sauvegarde récente, couvrant les données et configurations
+   nécessaires, et vérifier la procédure de restauration dans un environnement
+   isolé. Ne pas publier de sauvegarde ou de secrets dans le dépôt.
+2. Comparer les cinq migrations dont les empreintes divergent avec leur SQL
+   stocké et les objets effectifs ; examiner aussi les dix historiques sans SQL.
+3. Tester sur une copie représentative, notamment la confidentialité des
+   contacts, les autorisations anon/authenticated/service_role, les résultats
+   avec et sans services actifs et le coût de la requête. Préparer et tester un
+   retour arrière restaurant la fonction et ses permissions antérieures.
+4. Définir et revoir le plan de réconciliation des versions, sans réparation
+   aveugle du journal ; actualiser l'inventaire distant juste avant déploiement.
+5. Avec une autorisation de déploiement après revue, appliquer uniquement le plan
+   validé, vérifier les résultats et permissions, puis contrôler le journal. Le
+   verrou de workflow reste en place tant que ces conditions ne sont pas réunies.
+
+Aucune sauvegarde ni restauration n'a été vérifiée par ces contrôles ; aucune
+migration n'a été exécutée. Les SQL enregistrés des cinq migrations divergentes
+sont disponibles dans le journal distant (une instruction stockée pour chacune),
+mais leur comparaison fonctionnelle demeure à faire.

@@ -12,7 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import { moderateReviewByAdmin, validateAuditReason, type MarketplaceReviewItem } from '../../lib/superadmin';
-import { useOptionalApp } from '../../context/AppContext';
+import { useUI } from '../../context/UIContext';
 
 export interface AdminReviewsPanelProps {
   reviews: MarketplaceReviewItem[];
@@ -32,7 +32,7 @@ export const AdminReviewsPanel: React.FC<AdminReviewsPanelProps> = ({
   onRefresh,
   moderateAction = moderateReviewByAdmin,
 }) => {
-  const { addToast } = useOptionalApp();
+  const { addToast } = useUI();
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<ReviewFilter>('all');
   const [pending, setPending] = useState<PendingModeration | null>(null);

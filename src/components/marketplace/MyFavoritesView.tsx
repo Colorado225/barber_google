@@ -1,13 +1,13 @@
 import React, { useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Heart, LogIn } from 'lucide-react';
-import { useOptionalApp } from '../../context/AppContext';
+import { useMarketplaceApp } from '../../context/useMarketplaceApp';
 import { useOptionalAuth } from '../../context/AuthContext';
 import { applyStrictPortalPrivacy } from '../../lib/portalIsolation';
 import { SalonCard } from './SalonCard';
 
 export const MyFavoritesView: React.FC = () => {
-  const { salons, favoriteSalonIds, marketplaceLoading } = useOptionalApp();
+  const { salons, favoriteSalonIds, marketplaceLoading } = useMarketplaceApp();
   const { isAuthenticated, user } = useOptionalAuth();
   const isLoggedIn = Boolean(isAuthenticated && user);
 

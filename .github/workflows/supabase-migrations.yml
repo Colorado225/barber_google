@@ -31,10 +31,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Sécurité : l'historique distant et les fichiers locaux divergent, y compris
+      # une collision de versions. Ne retirer ce verrou qu'après réconciliation
+      # vérifiée sur staging et revue du plan de déploiement.
+      - name: Bloquer les migrations jusqu'à réconciliation
+        run: |
+          echo "Migration bloquée : réconcilier les historiques local et distant avant tout déploiement. Voir docs/supabase-migrations.md." >&2
+          exit 1
+
       - name: Installer Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 3.1.0
 
       - name: Vérifier la configuration sans afficher les secrets
         run: |
@@ -47,8 +55,8 @@ jobs:
 
       - name: Afficher le statut et l'aperçu des migrations
         run: |
-          supabase migration list --linked
-          supabase db push --linked --dry-run
+          supabase migration list --remote
+          supabase db push --remote --skip-vault --dry-run
 
       - name: Appliquer les migrations confirmées
-        run: supabase db push --linked --yes
+        run: supabase db push --remote --skip-vault --yes

@@ -1,13 +1,11 @@
 import React from 'react';
-import { useAppContextOrNull } from '../../context/AppContext';
+import { useOptionalUI } from '../../context/UIContext';
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
 
 export const ToastContainer: React.FC = () => {
-  const app = useAppContextOrNull();
-  const toasts = app?.toasts ?? [];
-  const removeToast = app?.removeToast;
+  const { toasts, removeToast } = useOptionalUI();
 
-  if (!removeToast || toasts.length === 0) return null;
+  if (toasts.length === 0) return null;
 
   return (
     <div className="fixed bottom-5 right-5 z-[100] flex flex-col gap-2 max-w-md w-full px-4 pointer-events-none">

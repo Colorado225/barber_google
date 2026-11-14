@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useOptionalApp } from '../../context/AppContext';
+import { useMarketplaceApp } from '../../context/useMarketplaceApp';
 import {
   bookingPortalUrl,
   forgetBookingLink,
@@ -78,7 +78,7 @@ export const SalonDetailModal: React.FC<SalonDetailModalProps> = ({
 }) => {
   // Fiche de démonstration (opt-in) : contenu fictif local, sans aucun appel RPC ni réservation.
   const demoFiche = import.meta.env?.VITE_MARKETPLACE_DEMO === 'true' && salon.isDemo === true;
-  const { formatPrice, bookPublicAppointment, cancelPublicBooking, addToast } = useOptionalApp();
+  const { formatPrice, bookPublicAppointment, cancelPublicBooking, addToast } = useMarketplaceApp();
   const runBookAppointment = onBookAppointment ?? bookPublicAppointment;
   const runCancelBooking = onCancelBooking ?? cancelPublicBooking;
 

@@ -11,7 +11,7 @@ import {
   useMapsLibrary,
 } from '@vis.gl/react-google-maps';
 import { ArrowUpRight, Loader2, MapPin, Navigation, Star } from 'lucide-react';
-import { useOptionalApp } from '../../context/AppContext';
+import { useMarketplaceApp } from '../../context/useMarketplaceApp';
 import type { Salon } from '../../types';
 
 interface MarketplaceMapViewProps {
@@ -312,7 +312,7 @@ const MarketplaceGoogleMapInner: React.FC<GoogleMapCanvasProps> = ({
 
 export const MarketplaceMapView: React.FC<MarketplaceMapViewProps> = ({ salons }) => {
   const routed = useInRouterContext();
-  const { setSelectedSalonForModal, formatPrice } = useOptionalApp();
+  const { setSelectedSalonForModal, formatPrice } = useMarketplaceApp();
   const [selectedSalonId, setSelectedSalonId] = useState<string>('');
   const [coordinatesBySalonId, setCoordinatesBySalonId] = useState<Record<string, ResolvedSalonCoordinate>>(
     {},

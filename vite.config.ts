@@ -16,6 +16,13 @@ export default defineConfig(() => {
         output: {
           codeSplitting: {
             groups: [
+              // Modules publics déjà nécessaires au premier rendu : limiter les petits
+              // chunks partagés et la duplication gzip sans charger de domaine ERP.
+              {
+                name: 'public-shared',
+                test: /src[\\/](context[\\/](AuthContext|UIContext|domains[\\/]MarketplaceDomainContext)\.tsx|lib[\\/](supabase|bookingVault|businessTime|marketplace|marketplace-content|apiError)\.ts)$/,
+                priority: 40,
+              },
               {
                 name: 'vendor-react',
                 test: /node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler)[\\/]/,

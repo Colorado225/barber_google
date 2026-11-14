@@ -1,6 +1,7 @@
 import React, { Suspense, useEffect, useState } from 'react';
 import { Outlet, useInRouterContext, useLocation } from 'react-router-dom';
-import { AppProvider, useOptionalApp } from './context/AppContext';
+import { MarketplaceProvider } from './context/MarketplaceProvider';
+import { useUI } from './context/UIContext';
 import { Navbar } from './components/common/Navbar';
 import { ToastContainer } from './components/common/ToastContainer';
 import { MarketplaceHome } from './components/marketplace/MarketplaceHome';
@@ -37,7 +38,7 @@ const RoutedAnnouncementBar: React.FC<{
 const AppContent: React.FC = () => {
   // `useInRouterContext` permet de rendre le shell hors routeur (tests SSR).
   const routed = useInRouterContext();
-  const { selectedSalonForModal, setSelectedSalonForModal } = useOptionalApp();
+  const { selectedSalonForModal, setSelectedSalonForModal } = useUI();
   // Configuration globale (annonce, SEO) gérée par le SuperAdmin : mise à jour en direct.
   const { config } = useMarketplaceContent();
   const [mapsQuotaExceeded, setMapsQuotaExceeded] = useState(false);
@@ -99,8 +100,8 @@ const AppContent: React.FC = () => {
 
 export default function App() {
   return (
-    <AppProvider>
+    <MarketplaceProvider>
       <AppContent />
-    </AppProvider>
+    </MarketplaceProvider>
   );
 }

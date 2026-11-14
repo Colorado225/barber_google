@@ -66,11 +66,11 @@ Contrôle en lecture seule effectué le 10 novembre 2026 sur le projet `barber_g
 - [ ] `npm ci` exécuté sans `--legacy-peer-deps`.
 - [ ] `.env.local` créé à partir de `.env.example` avec `VITE_SUPABASE_URL` et `VITE_SUPABASE_ANON_KEY`.
 - [ ] `npm run typecheck`, `npm run lint`, `npm run format:check`, `npm test` et `npm run build` passent sans erreur.
-- [ ] Optionnel avec Docker : `npm run supabase:db:reset` et `supabase db lint --local` passent.
+- [ ] Optionnel avec Docker : `npm run supabase:db:reset` et `supabase db lint` passent.
 
 ### Environnement 2 — Staging / Preview (avant mise en production)
 
-- [ ] Toutes les migrations de `supabase/migrations/` appliquées (`supabase migration list --linked` : écart = 0).
+- [ ] Toutes les migrations de `supabase/migrations/` appliquées (`supabase migration list --remote` : écart = 0).
 - [ ] `VITE_MARKETPLACE_DEMO` désactivée (`false` ou absente).
 - [ ] Auth Supabase : `uri_allow_list` contient l'URL HTTPS de preview (`https://<preview-domain>/**`).
 - [ ] Test complet du parcours réel (création compte, e-mail de confirmation, `create_salon`, création RDV, encaissement caisse, upload photo dans `salon-media`, justificatif dans `expense-attachments`, consultation `/salons/:slug`, portail `/reservation` + rotation jeton).
@@ -201,9 +201,9 @@ aws s3 sync s3://expense-attachments s3://<backup-bucket>/expense-attachments --
      1. Créer un projet Supabase sain et appliquer l'infrastructure de migrations versionnée :
         ```bash
         supabase link --project-ref "<target-project-ref>"
-        supabase db push --linked
+        supabase db push --remote --skip-vault
         ```
-     2. Vérifier la cohérence des migrations (`supabase migration list --linked`), puis restaurer les données applicatives (`public`, `auth` si sauvegarde complète, ou tables métier ciblées) avec `--disable-triggers` uniquement lors d'un import complet hors trafic, puis réactiver les triggers et vérifier `supabase_migrations.schema_migrations`.
+     2. Vérifier la cohérence des migrations (`supabase migration list --remote`), puis restaurer les données applicatives (`public`, `auth` si sauvegarde complète, ou tables métier ciblées) avec `--disable-triggers` uniquement lors d'un import complet hors trafic, puis réactiver les triggers et vérifier `supabase_migrations.schema_migrations`.
 3. **Restaurer les fichiers binaires Storage** :
    - Vérifier la présence des buckets `salon-media` et `expense-attachments` + les 8 politiques RLS (créées par la migration `20261110230000`).
    - Ré-importer les objets depuis le stockage de secours en conservant exactement les clés `<salon_id>/...` référencées par `salons.logo`, `salons.cover_image`, `salons.gallery` et `expenses.attachment_path` :

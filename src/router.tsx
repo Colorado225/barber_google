@@ -1,8 +1,7 @@
 import React, { Suspense } from 'react';
-import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { BrowserRouter, useRoutes } from 'react-router-dom';
 import App from './App';
 import { SalonProvider } from './context/SalonContext';
-import { AppProvider } from './context/AppContext';
 import { ToastContainer } from './components/common/ToastContainer';
 import { RouteLoadingFallback, lazyNamed } from './components/common/ViewLoader';
 import { MarketplaceHome } from './components/marketplace/MarketplaceHome';
@@ -22,6 +21,7 @@ const MyFavoritesView = lazyNamed(
 );
 const PricingView = lazyNamed(() => import('./components/marketplace/PricingView'), 'PricingView');
 const ShopView = lazyNamed(() => import('./components/erp/ShopView'), 'ShopView');
+const AppProvider = lazyNamed(() => import('./context/AppContext'), 'AppProvider');
 const ErpLayout = lazyNamed(() => import('./components/erp/ErpLayout'), 'ErpLayout');
 const OnboardingGate = lazyNamed(() => import('./components/auth/OnboardingGate'), 'OnboardingGate');
 const AdminDashboard = lazyNamed(() => import('./components/admin/AdminDashboard'), 'AdminDashboard');
@@ -38,7 +38,9 @@ const withSuspense = (element: React.ReactNode, label?: string) => (
   <Suspense fallback={<RouteLoadingFallback label={label} />}>{element}</Suspense>
 );
 
-const router = createBrowserRouter([
+// Les routes n'utilisent ni loaders ni actions React Router : le routeur déclaratif
+// évite d'inclure le moteur de données dans le chargement initial.
+const routes = [
   // L'ERP vit hors du shell marketplace : son propre garde d'accès s'applique
   // AVANT tout rendu métier (session, e-mail vérifié, membership actif).
   {
@@ -116,7 +118,12 @@ const router = createBrowserRouter([
       },
       {
         path: 'vitrine',
-        element: withSuspense(<ShopView />),
+        element: withSuspense(
+          <AppProvider>
+            <ShopView />
+            <ToastContainer />
+          </AppProvider>,
+        ),
       },
       {
         path: 'tarifs',
@@ -144,8 +151,16 @@ const router = createBrowserRouter([
       },
     ],
   },
-]);
+];
+
+function AppRoutes() {
+  return useRoutes(routes);
+}
 
 export function AppRouter() {
-  return <RouterProvider router={router} />;
+  return (
+    <BrowserRouter>
+      <AppRoutes />
+    </BrowserRouter>
+  );
 }

@@ -18,7 +18,7 @@ import {
   Store,
   X,
 } from 'lucide-react';
-import { useOptionalApp } from '../../context/AppContext';
+import { useMarketplaceApp } from '../../context/useMarketplaceApp';
 import { useOptionalAuth } from '../../context/AuthContext';
 import {
   computeMarketplacePriceBounds,
@@ -233,7 +233,7 @@ const MarketplacePriceRangeFilter: React.FC<PriceRangeSliderProps> = ({
       className="shrink-0 lg:w-[295px] xl:w-[320px] flex flex-col justify-center gap-1 py-1.5 lg:border-l lg:border-[#22222b] lg:pl-4"
     >
       <div className="flex items-center justify-between gap-2 text-[11px]">
-        <span className="font-medium text-stone-400 whitespace-nowrap">Prix moyen</span>
+        <span className="font-medium text-stone-400">Prix moyen ou tarif d’entrée</span>
         <div className="flex items-center gap-1.5 min-w-0">
           <span
             data-testid="marketplace-price-label"
@@ -254,6 +254,9 @@ const MarketplacePriceRangeFilter: React.FC<PriceRangeSliderProps> = ({
         </div>
       </div>
 
+      <span id="price-range-explanation" className="sr-only">
+        Le prix moyen est utilisé lorsqu’il est disponible ; sinon, le tarif le plus bas est utilisé.
+      </span>
       <div className="relative h-5 flex items-center">
         <div className="relative w-full h-1.5 rounded-full bg-[#24242d]">
           <div
@@ -268,7 +271,8 @@ const MarketplacePriceRangeFilter: React.FC<PriceRangeSliderProps> = ({
         <input
           type="range"
           data-testid="price-range-min"
-          aria-label="Prix moyen minimum"
+          aria-label="Prix minimum du filtre"
+          aria-describedby="price-range-explanation"
           min={bounds.min}
           max={bounds.max}
           step={bounds.step}
@@ -284,7 +288,8 @@ const MarketplacePriceRangeFilter: React.FC<PriceRangeSliderProps> = ({
         <input
           type="range"
           data-testid="price-range-max"
-          aria-label="Prix moyen maximum"
+          aria-label="Prix maximum du filtre"
+          aria-describedby="price-range-explanation"
           min={bounds.min}
           max={bounds.max}
           step={bounds.step}
@@ -323,7 +328,7 @@ const NavbarShell: React.FC<NavbarShellProps> = ({ routed, pathname, onNavigateH
     setMarketplaceViewMode,
     favoriteSalonIds,
     formatPrice,
-  } = useOptionalApp();
+  } = useMarketplaceApp();
   const { isAuthenticated, user } = useOptionalAuth();
   const { config } = useMarketplaceContent();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);

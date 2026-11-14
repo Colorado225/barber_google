@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Salon } from '../../types';
-import { useOptionalApp } from '../../context/AppContext';
+import { useMarketplaceApp } from '../../context/useMarketplaceApp';
 import { useOptionalAuth } from '../../context/AuthContext';
 import { isSalonRecommendedByHistory, useMarketplaceContent } from '../../lib/marketplace-content';
 import { Heart, MapPin, Sparkles, Star } from 'lucide-react';
@@ -12,7 +12,7 @@ interface SalonCardProps {
 
 export const SalonCard: React.FC<SalonCardProps> = ({ salon }) => {
   const { setSelectedSalonForModal, formatPrice, isFavoriteSalon, toggleFavoriteSalon, searchedCategories } =
-    useOptionalApp();
+    useMarketplaceApp();
   const { isAuthenticated, user } = useOptionalAuth();
   const { config } = useMarketplaceContent();
   const isLoggedIn = Boolean(isAuthenticated && user);

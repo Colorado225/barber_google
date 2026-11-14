@@ -3,7 +3,7 @@ import { Check, Sliders, Trash2, X } from 'lucide-react';
 import type { SaaSPlan } from '../../types';
 import { saveSaasPlanWorkflow, type SaaSPlanInput, type SaaSPlanSaveStatus } from '../../lib/saas';
 import { resolvePlanBilling } from '../../lib/saasPricing';
-import { useOptionalApp } from '../../context/AppContext';
+import { useUI } from '../../context/UIContext';
 
 export interface PricingTierEditorProps {
   /** Forfait publié à modifier ; null pour un nouveau forfait. */
@@ -95,7 +95,7 @@ export const PricingTierEditor: React.FC<PricingTierEditorProps> = ({
   onClose,
   onSaved,
 }) => {
-  const { addToast, formatPrice } = useOptionalApp();
+  const { addToast, formatPrice } = useUI();
   const [form, setForm] = useState<TierForm>(() => buildInitialForm(plan, pendingDraft, nextDisplayOrder));
   const [newFeatureText, setNewFeatureText] = useState('');
   const [publishNow, setPublishNow] = useState(true);

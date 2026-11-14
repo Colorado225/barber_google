@@ -27,7 +27,7 @@ import {
   validateAuditReason,
   type SalonAdminDetail,
 } from '../../lib/superadmin';
-import { useOptionalApp } from '../../context/AppContext';
+import { useUI } from '../../context/UIContext';
 
 export interface SalonManagementActions {
   setPublication: typeof setSalonPublicationByAdmin;
@@ -56,7 +56,7 @@ export const SalonManagement: React.FC<SalonManagementProps> = ({
   adminEmail: _adminEmail,
   actions,
 }) => {
-  const { addToast, formatPrice } = useOptionalApp();
+  const { addToast, formatPrice } = useUI();
   const rpcActions: SalonManagementActions = {
     setPublication: actions?.setPublication ?? setSalonPublicationByAdmin,
     setVerification: actions?.setVerification ?? setSalonVerificationByAdmin,

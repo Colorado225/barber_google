@@ -41,7 +41,7 @@ import {
   setActiveBookingToken,
 } from '../../lib/bookingVault';
 import { applyStrictPortalPrivacy } from '../../lib/portalIsolation';
-import { useOptionalApp } from '../../context/AppContext';
+import { useUI } from '../../context/UIContext';
 
 export interface BookingPortalApi {
   getBookingPortal: typeof getBookingPortal;
@@ -128,7 +128,7 @@ export const BookingPortalView: React.FC<{ api?: BookingPortalApi }> = ({ api = 
   const location = useLocation();
   const navigate = useNavigate();
   const { token: paramToken = '' } = useParams();
-  const { formatPrice, addToast } = useOptionalApp();
+  const { formatPrice, addToast } = useUI();
 
   const stateToken = ((location.state as { bookingToken?: string } | null)?.bookingToken ?? '').trim();
   const resolvedToken = useMemo(

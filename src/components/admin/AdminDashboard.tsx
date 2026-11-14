@@ -60,7 +60,7 @@ import { rangeForMetricsPeriod, type MetricsPeriodKey } from '../../lib/metricsP
 import { resolvePageMetadata } from '../../lib/seo';
 import { usePageSeo } from '../../hooks/useSiteMetadata';
 import { SectionLoadingFallback, lazyNamed } from '../common/ViewLoader';
-import { useOptionalApp } from '../../context/AppContext';
+import { useMarketplaceApp } from '../../context/useMarketplaceApp';
 
 const ADMIN_SEO = resolvePageMetadata('/admin', {
   siteName: 'BarberCuts',
@@ -110,7 +110,7 @@ export type AdminDashboardTab =
 
 export const AdminDashboard: React.FC = () => {
   usePageSeo(ADMIN_SEO);
-  const { addToast, formatPrice, refreshMarketplace } = useOptionalApp();
+  const { addToast, formatPrice, refreshMarketplace } = useMarketplaceApp();
 
   // Authentication gate state — verified server-side via verifySuperAdminAccess
   const [adminSession, setAdminSession] = useState<AdminUser | null>(null);
