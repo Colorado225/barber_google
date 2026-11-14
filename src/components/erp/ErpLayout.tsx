@@ -11,6 +11,14 @@ import { isRepeatedNotificationFailure } from '../../lib/notifications';
 import { DEFAULT_BUSINESS_TIMEZONE } from '../../lib/businessTime';
 import { parsePlanSelectionFromSearch, savePlanSelectionIntent } from '../../lib/saasPricing';
 import { Appointment } from '../../types';
+import { DesktopSidebar } from './navigation/DesktopSidebar';
+import { ErpSalonSelector } from './navigation/ErpSalonSelector';
+import { MobileActionBar } from './navigation/MobileActionBar';
+import { MobileBottomNavigation } from './navigation/MobileBottomNavigation';
+import { MobileHeader } from './navigation/MobileHeader';
+import { MobileMoreMenu } from './navigation/MobileMoreMenu';
+import { ResponsiveShell } from './navigation/ResponsiveShell';
+import type { ErpNavigationItem, MobileQuickAction } from './navigation/types';
 import { SectionLoadingFallback, lazyNamed } from '../common/ViewLoader';
 
 const DashboardView = lazyNamed(() => import('./DashboardView'), 'DashboardView');
@@ -50,7 +58,6 @@ import {
   Package,
   Store,
   Sparkles,
-  ChevronDown,
   ArrowLeft,
   Globe,
   QrCode,
@@ -62,10 +69,7 @@ import {
   RefreshCw,
   Wifi,
   WifiOff,
-  Menu,
-  X,
 } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
 
 export type ErpTab =
   | 'dashboard'
@@ -127,6 +131,8 @@ const ERP_NAVIGATION_GROUPS: Array<{ label: string; tabs: ErpTab[] }> = [
   },
 ];
 
+const MOBILE_PRIMARY_TAB_IDS: ErpTab[] = ['dashboard', 'calendar', 'cash', 'crm'];
+
 function readTabFromPathname(pathname?: string): ErpTab {
   const path = pathname ?? (typeof window !== 'undefined' ? window.location.pathname : '');
   const segment = path.split('/app/')[1]?.split('/')[0]?.trim();
@@ -165,7 +171,6 @@ export const ErpLayout: React.FC = () => {
     if (typeof window === 'undefined') return 'dashboard';
     return readTabFromPathname(window.location.pathname);
   });
-  const [salonDropdownOpen, setSalonDropdownOpen] = useState(false);
   const [isMobileNavigationOpen, setIsMobileNavigationOpen] = useState(false);
 
   // Quick modals
@@ -183,7 +188,7 @@ export const ErpLayout: React.FC = () => {
     Boolean(salonId && activeMemberships.length > 0 && hasPermission(permission, salonId));
   const canSee = (permission: string) => canSeeForSalon(permission, expectedSalonId);
 
-  const navItems: { id: ErpTab; label: string; icon: LucideIcon; permission?: string }[] = [
+  const navItems: ErpNavigationItem[] = [
     { id: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard, permission: 'dashboard.read' },
     { id: 'walk_in', label: 'Sans rendez-vous', icon: UserPlus, permission: 'appointments.read' },
     { id: 'online_requests', label: 'Demandes en ligne', icon: Inbox, permission: 'appointments.read' },
@@ -238,8 +243,54 @@ export const ErpLayout: React.FC = () => {
     label: group.label,
     items: group.tabs
       .map((tab) => visibleNavItems.find((item) => item.id === tab))
-      .filter((item): item is (typeof navItems)[number] => Boolean(item)),
+      .filter((item): item is ErpNavigationItem => Boolean(item)),
   })).filter((group) => group.items.length > 0);
+  const mobilePrimaryNavItems = MOBILE_PRIMARY_TAB_IDS.map((tab) =>
+    visibleNavItems.find((item) => item.id === tab),
+  ).filter((item): item is ErpNavigationItem => Boolean(item));
+  const mobileSecondaryNavGroups = groupedVisibleNavItems
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => !MOBILE_PRIMARY_TAB_IDS.includes(item.id)),
+    }))
+    .filter((group) => group.items.length > 0);
+  const mobileQuickActions: MobileQuickAction[] = [
+    ...(memberships.length === 0 || canSee('appointments.write')
+      ? [
+          {
+            id: 'walk-in',
+            label: 'Passage',
+            icon: UserPlus,
+            onClick: () => setIsWalkInOpen(true),
+            tone: 'accent' as const,
+          },
+        ]
+      : []),
+    {
+      id: 'appointment',
+      label: 'Nouveau RDV',
+      icon: Calendar,
+      onClick: () => {
+        setNewAppointmentSlot({});
+        setIsNewAppointmentOpen(true);
+      },
+      tone: 'muted' as const,
+    },
+    ...(memberships.length === 0 || canSee('payments.record')
+      ? [
+          {
+            id: 'payment',
+            label: 'Encaisser',
+            icon: CreditCard,
+            onClick: () => {
+              setPreselectedAppointment(null);
+              setIsNewPaymentOpen(true);
+            },
+            tone: 'primary' as const,
+          },
+        ]
+      : []),
+  ];
 
   const initialUrlSalonRef = useRef<string | null>(
     typeof window !== 'undefined' ? readErpSalonFromSearch(window.location.search) : null,
@@ -294,7 +345,6 @@ export const ErpLayout: React.FC = () => {
   }, [activeMemberships, selectSalon, setActiveSalonId]);
 
   const handleSelectSalon = (nextSalonId: string) => {
-    setSalonDropdownOpen(false);
     setIsMobileNavigationOpen(false);
     setIsWalkInOpen(false);
     setIsNewAppointmentOpen(false);
@@ -434,284 +484,172 @@ export const ErpLayout: React.FC = () => {
   const activeSubtitle = activeRoleLabel
     ? `${activeRoleLabel}${activeSalon.commune ? ` · ${activeSalon.commune}` : expectedMembership?.organizationName ? ` · ${expectedMembership.organizationName}` : ''}`
     : activeSalon.commune || 'Établissement actif';
+  const activeTabLabel =
+    navItems.find((item) => item.id === visibleActiveTab)?.label ?? 'Espace professionnel';
+  const renderSalonSelector = (testId?: string) => (
+    <ErpSalonSelector
+      activeSalon={activeSalon}
+      subtitle={activeSubtitle}
+      options={switchableOptions}
+      onSelect={handleSelectSalon}
+      testId={testId}
+    />
+  );
 
   return (
-    <div className="min-h-screen bg-[#0d0d0e] flex flex-col md:flex-row text-stone-200">
-      {isMobileNavigationOpen && (
-        <button
-          type="button"
-          aria-label="Fermer la navigation ERP"
-          onClick={() => setIsMobileNavigationOpen(false)}
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden"
-        />
-      )}
-
-      {/* SIDEBAR / mobile drawer — identical tabs, permissions and handlers on every viewport. */}
-      <aside
-        role={isMobileNavigationOpen ? 'dialog' : undefined}
-        aria-modal={isMobileNavigationOpen || undefined}
-        aria-label="Navigation ERP"
-        className={`${
-          isMobileNavigationOpen
-            ? 'fixed inset-y-0 left-0 z-50 flex w-[min(20rem,calc(100vw-3rem))] shadow-2xl'
-            : 'hidden'
-        } md:sticky md:top-0 md:self-start md:z-auto md:flex md:h-dvh md:w-72 md:overflow-hidden md:shadow-none bg-[#121214] border-r border-[#222226] overflow-y-auto flex-col shrink-0`}
-      >
-        <div className="flex items-center justify-between px-4 pt-4 md:hidden">
-          <span className="text-xs font-bold uppercase tracking-wider text-stone-400">Navigation ERP</span>
-          <button
-            type="button"
-            onClick={() => setIsMobileNavigationOpen(false)}
-            className="flex h-10 w-10 items-center justify-center rounded-xl text-stone-300 hover:bg-[#1a1a1d] hover:text-white"
-            aria-label="Fermer la navigation ERP"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        {/* Salon Selector Header */}
-        <div className="p-4 border-b border-[#222226] relative">
-          {switchableOptions.length > 1 ? (
-            <>
-              <button
-                type="button"
-                data-testid="erp-salon-switcher"
-                aria-haspopup="listbox"
-                aria-expanded={salonDropdownOpen}
-                onClick={() => setSalonDropdownOpen((open) => !open)}
-                className="w-full p-2.5 rounded-xl bg-[#18181b] hover:bg-[#1f1f23] border border-[#2a2a2e] flex items-center justify-between transition-colors text-left cursor-pointer"
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-[#201d16] border border-[#C9A45C]/40 flex items-center justify-center text-[#C9A45C] shrink-0 font-bold text-xs">
-                    {activeSalon.name.slice(0, 2).toUpperCase()}
+    <>
+      <ResponsiveShell
+        desktopSidebar={
+          <DesktopSidebar
+            salonSelector={renderSalonSelector(
+              switchableOptions.length > 1 ? 'erp-salon-switcher' : 'erp-salon-single',
+            )}
+            groups={groupedVisibleNavItems}
+            activeTabId={visibleActiveTab}
+            onSelectTab={handleSelectTab}
+            badgeFor={navBadge}
+            hasCriticalNotificationAlert={hasCriticalNotificationAlert}
+            footer={
+              <div className="space-y-2">
+                <div className="rounded-xl border border-[#242428] bg-[#161619] p-3 text-xs">
+                  <div className="mb-1 flex items-center justify-between">
+                    <span className="text-[11px] font-semibold text-stone-400">Tiroir Caisse :</span>
+                    <span
+                      className={`text-[10px] font-bold ${
+                        cashSession?.status === 'open' ? 'text-emerald-400' : 'text-stone-500'
+                      }`}
+                    >
+                      {cashSession
+                        ? cashSession.status === 'open'
+                          ? 'Ouverte'
+                          : 'Fermée'
+                        : 'Non configurée'}
+                    </span>
                   </div>
-                  <div className="truncate">
-                    <div className="text-xs font-bold text-white truncate">{activeSalon.name}</div>
-                    <div className="text-[10px] text-stone-400 truncate">{activeSubtitle}</div>
+                  <div className="text-sm font-extrabold text-[#E5C378]">
+                    {cashSession ? formatPrice(cashSession.theoreticalBalance) : '—'}
                   </div>
                 </div>
-                <ChevronDown className="w-3.5 h-3.5 text-stone-400 shrink-0" />
-              </button>
 
-              {salonDropdownOpen && (
-                <div
-                  role="listbox"
-                  aria-label="Changer d’établissement"
-                  className="absolute left-4 right-4 top-[4.5rem] bg-[#18181b] border border-[#2d2d33] rounded-xl shadow-2xl p-1.5 z-50 animate-in fade-in zoom-in-95"
-                  onMouseLeave={() => setSalonDropdownOpen(false)}
+                <button
+                  type="button"
+                  onClick={() => setMode('marketplace')}
+                  className="flex min-h-10 w-full items-center justify-center gap-1.5 rounded-xl bg-[#18181b] px-3 py-2 text-xs text-stone-400 transition-colors hover:bg-[#202025] hover:text-white"
                 >
-                  <div className="px-2.5 py-1 text-[10px] uppercase font-bold text-stone-500">
-                    Vos Établissements ({switchableOptions.length})
-                  </div>
-                  {switchableOptions.map((option) => {
-                    const isSelected = activeSalon.id === option.salonId;
-                    const meta = [option.roleLabel, option.branchName || option.organizationName]
-                      .filter(Boolean)
-                      .join(' · ');
-                    return (
-                      <button
-                        key={option.salonId}
-                        type="button"
-                        role="option"
-                        aria-selected={isSelected}
-                        onClick={() => handleSelectSalon(option.salonId)}
-                        className={`w-full text-left p-2 rounded-lg text-xs flex items-center justify-between gap-2 hover:bg-[#232328] transition-colors cursor-pointer ${
-                          isSelected ? 'text-[#C9A45C] font-bold bg-[#232328]/50' : 'text-stone-300'
-                        }`}
-                      >
-                        <span className="truncate">{option.salonName}</span>
-                        {meta && <span className="text-[10px] text-stone-400 shrink-0">{meta}</span>}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </>
-          ) : (
-            <div
-              data-testid="erp-salon-single"
-              className="w-full p-2.5 rounded-xl bg-[#18181b] border border-[#2a2a2e] flex items-center gap-2.5"
-              title="Un seul établissement est rattaché à ce compte"
-            >
-              <div className="w-8 h-8 rounded-lg bg-[#201d16] border border-[#C9A45C]/40 flex items-center justify-center text-[#C9A45C] shrink-0 font-bold text-xs">
-                {activeSalon.name.slice(0, 2).toUpperCase()}
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                  <span>Retour Marketplace</span>
+                </button>
               </div>
-              <div className="min-w-0">
-                <div className="text-xs font-bold text-white truncate">{activeSalon.name}</div>
-                <div className="text-[10px] text-stone-400 truncate">{activeSubtitle}</div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Navigation Items: grouped on desktop without changing the permission-filtered source. */}
-        <nav
-          aria-label="Navigation de l’espace professionnel"
-          className="flex-1 min-h-0 overflow-y-auto p-3 space-y-5"
-        >
-          {groupedVisibleNavItems.map((group) => (
-            <section key={group.label} aria-label={group.label} className="space-y-1">
-              <p className="px-3.5 pb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-stone-500">
-                {group.label}
-              </p>
-              {group.items.map((item) => {
-                const Icon = item.icon;
-                const isActive = visibleActiveTab === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    aria-current={isActive ? 'page' : undefined}
-                    onClick={() => handleSelectTab(item.id)}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                      isActive
-                        ? 'bg-[#C9A45C] text-[#101010] shadow-sm font-bold'
-                        : 'text-stone-400 hover:text-white hover:bg-[#1a1a1d]'
-                    }`}
+            }
+          />
+        }
+        desktopHeader={
+          <>
+            {/* Top Header */}
+            <header className="hidden h-16 shrink-0 items-center justify-between border-b border-[#222226] bg-[#121214] px-6 md:flex">
+              <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+                <h1 className="min-w-0 truncate text-base font-bold text-white capitalize">
+                  {activeTabLabel}
+                </h1>
+                <span className="text-xs text-stone-500">• {activeSalon.name}</span>
+                {realtimeBadge && (
+                  <div
+                    data-testid="erp-realtime-status"
+                    className={`hidden md:inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${realtimeBadge.tone}`}
+                    title="Synchronisation multi-postes active pour cet établissement"
                   >
-                    <Icon className={`w-4 h-4 ${isActive ? 'text-[#101010]' : 'text-stone-400'}`} />
-                    <span className="flex-1 text-left">{item.label}</span>
-                    {navBadge(item.id) > 0 && (
-                      <span
-                        data-testid={
-                          item.id === 'notifications' && hasCriticalNotificationAlert
-                            ? 'notifications-critical-badge'
-                            : undefined
-                        }
-                        title={
-                          item.id === 'notifications' && hasCriticalNotificationAlert
-                            ? 'Alerte : échecs répétés sur les notifications'
-                            : undefined
-                        }
-                        className={`ml-auto rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                          item.id === 'notifications' && hasCriticalNotificationAlert
-                            ? 'bg-red-500 text-white'
-                            : isActive
-                              ? 'bg-[#101010] text-[#C9A45C]'
-                              : 'bg-[#C9A45C] text-[#101010]'
-                        }`}
-                      >
-                        {navBadge(item.id)}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </section>
-          ))}
-        </nav>
-
-        {/* Sidebar Footer: Cash Register status indicator */}
-        <div className="p-3 border-t border-[#222226] space-y-2">
-          <div className="p-3 rounded-xl bg-[#161619] border border-[#242428] text-xs">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-[11px] font-semibold text-stone-400">Tiroir Caisse :</span>
-              <span
-                className={`text-[10px] font-bold ${cashSession?.status === 'open' ? 'text-emerald-400' : 'text-stone-500'}`}
-              >
-                {cashSession ? (cashSession.status === 'open' ? 'Ouverte' : 'Fermée') : 'Non configurée'}
-              </span>
-            </div>
-            <div className="font-extrabold text-[#E5C378] text-sm">
-              {cashSession ? formatPrice(cashSession.theoreticalBalance) : '—'}
-            </div>
-          </div>
-
-          <button
-            onClick={() => {
-              setIsMobileNavigationOpen(false);
-              setMode('marketplace');
-            }}
-            className="w-full min-h-10 py-2 px-3 rounded-xl bg-[#18181b] hover:bg-[#202025] text-stone-400 hover:text-white text-xs flex items-center justify-center gap-1.5 transition-colors"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Retour Marketplace</span>
-          </button>
-        </div>
-      </aside>
-
-      {/* MAIN ERP WORKSPACE */}
-      <div className="flex-1 flex min-w-0 flex-col md:min-h-screen">
-        {/* Top Header */}
-        <header className="h-16 bg-[#121214] border-b border-[#222226] px-3 sm:px-6 flex items-center justify-between shrink-0">
-          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-            <button
-              type="button"
-              onClick={() => setIsMobileNavigationOpen(true)}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#2a2a32] bg-[#18181c] text-stone-200 hover:bg-[#24242a] hover:text-white md:hidden"
-              aria-label={`Ouvrir la navigation ERP — ${navItems.find((n) => n.id === visibleActiveTab)?.label ?? 'onglet actif'}`}
-              aria-expanded={isMobileNavigationOpen}
-            >
-              <Menu className="h-5 w-5" />
-            </button>
-            <h1 className="hidden min-w-0 truncate text-base font-bold text-white capitalize sm:block">
-              {navItems.find((n) => n.id === activeTab)?.label}
-            </h1>
-            <span className="text-xs text-stone-500 hidden sm:inline">• {activeSalon.name}</span>
-            {realtimeBadge && (
-              <div
-                data-testid="erp-realtime-status"
-                className={`hidden md:inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${realtimeBadge.tone}`}
-                title="Synchronisation multi-postes active pour cet établissement"
-              >
-                <realtimeBadge.icon className="w-3 h-3" />
-                <span>{realtimeBadge.label}</span>
+                    <realtimeBadge.icon className="w-3 h-3" />
+                    <span>{realtimeBadge.label}</span>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
 
-          <div className="flex items-center gap-1 sm:gap-3">
-            {memberships.length > 0 && (
-              <button
-                type="button"
-                onClick={() => void syncNow()}
-                title="Synchroniser immédiatement les données du salon"
-                aria-label="Synchroniser les données"
-                className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#18181c] hover:bg-[#24242a] text-stone-300 hover:text-white border border-[#2a2a32] transition-colors cursor-pointer"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-              </button>
-            )}
-            {(memberships.length === 0 || canSee('appointments.write')) && (
-              <button
-                onClick={() => setIsWalkInOpen(true)}
-                aria-label="Ajouter un client de passage"
-                className="min-h-10 min-w-10 bg-[#C9A45C]/15 hover:bg-[#C9A45C]/25 text-[#E5C378] border border-[#C9A45C]/40 font-semibold text-xs px-3 py-2 rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
-              >
-                <UserPlus className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">+ Client de passage</span>
-              </button>
-            )}
-            <button
-              onClick={() => {
-                setNewAppointmentSlot({});
-                setIsNewAppointmentOpen(true);
-              }}
-              aria-label="Créer un nouveau rendez-vous"
-              className="min-h-10 min-w-10 bg-[#242429] hover:bg-[#2d2d34] text-white border border-[#3b3b44] font-semibold text-xs px-3 py-2 rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
-            >
-              <Calendar className="w-3.5 h-3.5 text-[#C9A45C]" />
-              <span className="hidden sm:inline">+ Nouveau RDV</span>
-            </button>
+              <div className="flex items-center gap-1 sm:gap-3">
+                {memberships.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => void syncNow()}
+                    title="Synchroniser immédiatement les données du salon"
+                    aria-label="Synchroniser les données"
+                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#18181c] hover:bg-[#24242a] text-stone-300 hover:text-white border border-[#2a2a32] transition-colors cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                  </button>
+                )}
+                {(memberships.length === 0 || canSee('appointments.write')) && (
+                  <button
+                    onClick={() => setIsWalkInOpen(true)}
+                    aria-label="Ajouter un client de passage"
+                    className="min-h-10 min-w-10 bg-[#C9A45C]/15 hover:bg-[#C9A45C]/25 text-[#E5C378] border border-[#C9A45C]/40 font-semibold text-xs px-3 py-2 rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">+ Client de passage</span>
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    setNewAppointmentSlot({});
+                    setIsNewAppointmentOpen(true);
+                  }}
+                  aria-label="Créer un nouveau rendez-vous"
+                  className="min-h-10 min-w-10 bg-[#242429] hover:bg-[#2d2d34] text-white border border-[#3b3b44] font-semibold text-xs px-3 py-2 rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Calendar className="w-3.5 h-3.5 text-[#C9A45C]" />
+                  <span className="hidden sm:inline">+ Nouveau RDV</span>
+                </button>
 
-            {(memberships.length === 0 || canSee('payments.record')) && (
-              <button
-                onClick={() => {
-                  setPreselectedAppointment(null);
-                  setIsNewPaymentOpen(true);
-                }}
-                aria-label="Encaisser"
-                className="min-h-10 min-w-10 bg-[#C9A45C] hover:bg-[#d8b56d] text-[#101010] font-bold text-xs px-3 sm:px-4 py-2 rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
-              >
-                <CreditCard className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Encaisser</span>
-              </button>
-            )}
-          </div>
-        </header>
-
-        {/* Dynamic Tab Body */}
-        <main key={activeSalon.id} className="w-full flex-1 p-4 sm:p-6 lg:p-8">
+                {(memberships.length === 0 || canSee('payments.record')) && (
+                  <button
+                    onClick={() => {
+                      setPreselectedAppointment(null);
+                      setIsNewPaymentOpen(true);
+                    }}
+                    aria-label="Encaisser"
+                    className="min-h-10 min-w-10 bg-[#C9A45C] hover:bg-[#d8b56d] text-[#101010] font-bold text-xs px-3 sm:px-4 py-2 rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <CreditCard className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Encaisser</span>
+                  </button>
+                )}
+              </div>
+            </header>
+          </>
+        }
+        mobileHeader={
+          <MobileHeader
+            title={activeTabLabel}
+            salonName={activeSalon.name}
+            onSync={memberships.length > 0 ? () => void syncNow() : undefined}
+            isSyncing={isSyncing}
+          />
+        }
+        mobileActionBar={<MobileActionBar actions={mobileQuickActions} />}
+        mobileBottomNavigation={
+          <MobileBottomNavigation
+            items={mobilePrimaryNavItems}
+            activeTabId={visibleActiveTab}
+            isMoreOpen={isMobileNavigationOpen}
+            onSelectTab={handleSelectTab}
+            onOpenMore={() => setIsMobileNavigationOpen(true)}
+          />
+        }
+        mobileMoreMenu={
+          <MobileMoreMenu
+            open={isMobileNavigationOpen}
+            salonSelector={renderSalonSelector()}
+            groups={mobileSecondaryNavGroups}
+            activeTabId={visibleActiveTab}
+            onClose={() => setIsMobileNavigationOpen(false)}
+            onSelectTab={handleSelectTab}
+            badgeFor={navBadge}
+            hasCriticalNotificationAlert={hasCriticalNotificationAlert}
+          />
+        }
+      >
+        <main
+          key={activeSalon.id}
+          className="w-full flex-1 p-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] sm:p-6 md:p-8 md:pb-8"
+        >
           {syncError && (
             <div
               role="alert"
@@ -795,7 +733,7 @@ export const ErpLayout: React.FC = () => {
             {visibleActiveTab === 'saas' && <SaaSPlanView />}
           </Suspense>
         </main>
-      </div>
+      </ResponsiveShell>
 
       {/* ACCUEIL CLIENT SANS RENDEZ-VOUS */}
       {isWalkInOpen && (
@@ -833,6 +771,6 @@ export const ErpLayout: React.FC = () => {
           />
         </Suspense>
       )}
-    </div>
+    </>
   );
 };

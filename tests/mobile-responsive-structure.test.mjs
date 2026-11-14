@@ -6,23 +6,41 @@ import path from 'node:path';
 const ROOT_DIR = path.resolve(import.meta.dirname, '..');
 const source = (relativePath) => fs.readFileSync(path.join(ROOT_DIR, relativePath), 'utf8');
 
-test('les navigations ERP et administration ont un drawer mobile qui réutilise leurs flux existants', () => {
+test('la navigation mobile ERP réutilise le modèle RBAC et les handlers existants', () => {
   const erp = source('src/components/erp/ErpLayout.tsx');
+  const shell = source('src/components/erp/navigation/ResponsiveShell.tsx');
+  const bottomNavigation = source('src/components/erp/navigation/MobileBottomNavigation.tsx');
+  const moreMenu = source('src/components/erp/navigation/MobileMoreMenu.tsx');
+  const actionBar = source('src/components/erp/navigation/MobileActionBar.tsx');
   const admin = source('src/components/admin/AdminDashboard.tsx');
 
   assert.match(erp, /isMobileNavigationOpen/);
   assert.match(erp, /const handleSelectTab = \(nextTab: ErpTab\)/);
-  assert.match(erp, /onClick=\{\(\) => handleSelectTab\(item\.id\)\}/);
-  assert.match(erp, /md:sticky md:top-0 md:self-start md:z-auto md:flex md:h-dvh md:w-72/);
-  assert.match(erp, /Ouvrir la navigation ERP/);
-  assert.match(erp, /setIsMobileNavigationOpen\(false\);\s*setMode\('marketplace'\)/);
+  assert.match(erp, /const mobilePrimaryNavItems = MOBILE_PRIMARY_TAB_IDS/);
+  assert.match(erp, /const mobileSecondaryNavGroups = groupedVisibleNavItems/);
+  assert.match(erp, /mobileBottomNavigation=\{/);
+  assert.match(erp, /mobileMoreMenu=\{/);
+  assert.match(erp, /mobileActionBar=\{<MobileActionBar actions=\{mobileQuickActions\}/);
+  assert.match(erp, /navItems\.filter\(\(i\) => !i\.permission \|\| canSee\(i\.permission\)\)/);
+
+  assert.match(shell, /desktopSidebar/);
+  assert.match(shell, /mobileHeader/);
+  assert.match(shell, /mobileBottomNavigation/);
+  assert.match(bottomNavigation, /dashboard: 'Accueil'/);
+  assert.match(bottomNavigation, /calendar: 'Planning'/);
+  assert.match(bottomNavigation, /cash: 'Caisse'/);
+  assert.match(bottomNavigation, /crm: 'Clients'/);
+  assert.match(bottomNavigation, /<span>Plus<\/span>/);
+  assert.match(bottomNavigation, /safe-area-inset-bottom/);
+  assert.match(moreMenu, /Modules secondaires/);
+  assert.match(moreMenu, /groups: ErpNavigationGroup\[\]/);
+  assert.match(actionBar, /Permission-aware quick actions/);
 
   assert.match(admin, /isMobileNavigationOpen/);
   assert.match(admin, /const selectAdminTab = \(nextTab: AdminDashboardTab\)/);
   assert.match(admin, /onClick=\{\(\) => selectAdminTab\(item\.id\)\}/);
   assert.match(admin, /md:sticky md:top-\[4\.25rem\] md:self-start md:z-auto md:flex/);
   assert.match(admin, /Actions rapides/);
-  assert.match(admin, /Ouvrir la navigation administration/);
 
   const adminHeader = admin.match(/<header className="([^"]+)"/);
   assert.ok(adminHeader, 'Le header d’administration doit être présent');
@@ -31,6 +49,8 @@ test('les navigations ERP et administration ont un drawer mobile qui réutilise 
 
 test('le layout desktop garde une sidebar sticky, catégorisée et reliée aux permissions existantes', () => {
   const erp = source('src/components/erp/ErpLayout.tsx');
+  const desktopSidebar = source('src/components/erp/navigation/DesktopSidebar.tsx');
+  const salonSelector = source('src/components/erp/navigation/ErpSalonSelector.tsx');
   const admin = source('src/components/admin/AdminDashboard.tsx');
 
   assert.match(erp, /const ERP_NAVIGATION_GROUPS/);
@@ -38,9 +58,10 @@ test('le layout desktop garde une sidebar sticky, catégorisée et reliée aux p
   assert.match(erp, /label: 'Opérations'/);
   assert.match(erp, /const groupedVisibleNavItems = ERP_NAVIGATION_GROUPS/);
   assert.match(erp, /navItems\.filter\(\(i\) => !i\.permission \|\| canSee\(i\.permission\)\)/);
-  assert.match(erp, /aria-current=\{isActive \? 'page' : undefined\}/);
-  assert.match(erp, /md:sticky md:top-0 md:self-start md:z-auto md:flex md:h-dvh md:w-72/);
-  assert.match(erp, /data-testid="erp-salon-switcher"/);
+  assert.match(erp, /<DesktopSidebar/);
+  assert.match(desktopSidebar, /aria-current=\{isActive \? 'page' : undefined\}/);
+  assert.match(desktopSidebar, /md:sticky md:top-0 md:self-start md:flex md:h-dvh md:w-72/);
+  assert.match(salonSelector, /data-testid=\{testId\}/);
 
   assert.match(admin, /const ADMIN_NAVIGATION_GROUPS/);
   assert.match(admin, /label: 'Supervision'/);

@@ -434,11 +434,18 @@ Avant de considérer le lot mobile terminé :
 
 ### P0 réalisé dans le code, à confirmer visuellement
 
-- `ErpLayout.tsx` : la sidebar ne précède plus le contenu sous `md`. Elle devient un drawer ouvert par un bouton compact, fermé par action, backdrop ou touche Échap. Les entrées continuent toutes d’appeler le même `handleSelectTab`, qui conserve `buildErpUrl`, `?salon=`, les permissions et la fermeture des modales existantes ; le changement de salon conserve `handleSelectSalon`.
 - `AdminDashboard.tsx` : la navigation devient un drawer mobile utilisant le même `activeTab`; les actions masquées (actualisation, tarifs publics, marketplace) sont disponibles dans ce drawer. Le header admin n’est plus sticky, pour ne plus empiler une seconde barre sticky avec `Navbar`.
 - Les six tableaux P0 sont contenus dans une région clavier `overflow-x-auto` avec largeur minimale : clients, prestations, équipe, `DataTableCard`, santé des notifications et extrait d’audit admin.
 - Les overlays/panneaux caisse, dépenses, stock et confirmation d’abonnement ont maintenant `overflow-y-auto` et une hauteur maximale basée sur `100dvh`.
-- `tests/mobile-responsive-structure.test.mjs` vérifie la présence des drawers, des wrappers de tableaux et des contraintes de modal.
+
+### Phase 1 — mobile : navigation ERP à une main
+
+- `ErpLayout.tsx` délègue désormais le chrome responsive à `ResponsiveShell`, et compose des composants typés réutilisables dans `src/components/erp/navigation/` : `DesktopSidebar`, `ErpSalonSelector`, `MobileHeader`, `MobileActionBar`, `MobileBottomNavigation` et `MobileMoreMenu`.
+- Sous `md`, la sidebar desktop est absente : un en-tête compact donne le contexte du salon et du module, des actions rapides restent directement atteignables, puis une barre basse fixe présente Accueil, Planning, Caisse, Clients et Plus. Le contenu garde un padding bas avec `safe-area-inset-bottom` pour rester accessible.
+- Le sheet « Plus » fournit le sélecteur de salon et les modules secondaires déjà filtrés : services, équipe, finances, stocks, rapports, fidélité, notifications, personnalisation et paramètres selon les permissions effectivement accordées.
+- `mobilePrimaryNavItems` est construit depuis `visibleNavItems`; `mobileSecondaryNavGroups` provient de `groupedVisibleNavItems` après retrait des destinations principales. Aucun composant de présentation ne réévalue ou n’ajoute une autorisation.
+- Les actions mobiles passent par les mêmes callbacks que l’ancien header, avec les mêmes contrôles `canSee('appointments.write')` et `canSee('payments.record')`. Les sélections de module et de salon continuent d’appeler `handleSelectTab` et `handleSelectSalon`, préservant URL, `?salon=`, état de salon et cycle de synchronisation existants.
+- `tests/mobile-responsive-structure.test.mjs` vérifie la structure de la navigation basse, du menu Plus, les safe areas, la dérivation RBAC et les composants desktop/mobile, en plus des wrappers de tableaux et des contraintes de modal.
 
 ### P1 engagé
 
@@ -454,6 +461,6 @@ Avant de considérer le lot mobile terminé :
 ### Restant avant qualification mobile complète
 
 - Empiler et vérifier les grilles de formulaires ERP avant `sm` ; limiter le sticky booking après test réel.
-- Valider au navigateur 320/360/375/390 px, avec faible hauteur et clavier virtuel, notamment drawer ERP/admin, changement de salon, actions caisse/RDV, modales longues, tables, toast et booking.
+- Valider au navigateur 320/360/375/390/430 px, puis 768/1024/1280+ px, avec faible hauteur et clavier virtuel, notamment la barre basse ERP, le sheet Plus, le changement de salon, le drawer admin, les actions caisse/RDV, modales longues, tables, toast et booking.
 - Aucune modification de route, de rôle/permission, de contexte, de RPC, de migration, de RLS ou de cycle Realtime n’a été effectuée dans ce lot.
 - Le build est valide, mais `npm run perf:check` reste non conforme au budget initial existant : 171,55 kB gzip de JavaScript initial pour un budget de 166,02 kB. Cette non-conformité P2 doit être résolue avant de déclarer une CI entièrement verte.
