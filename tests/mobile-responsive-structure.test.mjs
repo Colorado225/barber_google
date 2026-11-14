@@ -170,6 +170,58 @@ test('le CRM privilégie des fiches tactiles sans contourner le domaine clients 
   assert.match(loyalty, /hasPermission\('loyalty\.write'/);
 });
 
+test('les prestations et l’équipe privilégient des fiches tactiles sans contourner le domaine rendez-vous', () => {
+  const erp = source('src/components/erp/ErpLayout.tsx');
+  const services = source('src/components/erp/ServicesView.tsx');
+  const staff = source('src/components/erp/StaffView.tsx');
+  const schedules = source('src/components/erp/StaffSchedulePanel.tsx');
+  const appointmentsDomain = source('src/context/domains/AppointmentsDomainContext.tsx');
+
+  assert.match(erp, /id: 'services'[\s\S]+permission: 'services\.read'/);
+  assert.match(erp, /id: 'staff'[\s\S]+permission: 'staff\.read'/);
+  assert.match(erp, /visibleActiveTab === 'services' && <ServicesView \/>/);
+  assert.match(erp, /visibleActiveTab === 'staff' && <StaffView \/>/);
+
+  assert.match(services, /data-testid="services-mobile-list"/);
+  assert.match(services, /className="space-y-3 p-3 md:hidden"/);
+  assert.match(services, /className="hidden md:block"/);
+  assert.match(services, /min-h-11 min-w-11/);
+  assert.match(services, /grid grid-cols-1 gap-3 min-\[480px\]:grid-cols-2/);
+  assert.match(services, /services\.filter\(\(s\) => s\.salonId === activeSalon\.id\)/);
+  assert.match(services, /addService\(payload\)/);
+  assert.match(services, /updateService\(editing\.id, payload\)/);
+  assert.match(services, /deleteService\(srv\.id\)/);
+  assert.match(services, /setServiceActive\(srv\.id, !isActive\)/);
+
+  assert.match(staff, /data-testid="staff-mobile-list"/);
+  assert.match(staff, /className="space-y-3 p-3 md:hidden"/);
+  assert.match(staff, /className="hidden md:block"/);
+  assert.match(staff, /min-h-11 min-w-11/);
+  assert.match(staff, /grid grid-cols-1 gap-3 min-\[480px\]:grid-cols-2/);
+  assert.match(staff, /staff\.filter\(\(m\) => m\.salonId === activeSalon\.id\)/);
+  assert.match(staff, /addStaff\(payload\)/);
+  assert.match(staff, /updateStaff\(editing\.id, payload\)/);
+  assert.match(staff, /deleteStaff\(member\.id\)/);
+  assert.match(staff, /setScheduleFor\(member\)/);
+
+  assert.match(schedules, /items-end justify-center overflow-y-auto/);
+  assert.match(schedules, /max-h-\[calc\(100dvh-0\.75rem\)\]/);
+  assert.match(schedules, /safe-area-inset-bottom/);
+  assert.match(schedules, /grid grid-cols-1 gap-2 pt-1 min-\[480px\]:grid-cols-2/);
+  assert.match(schedules, /const api = salonApi\(activeSalon\.id\)/);
+  assert.match(schedules, /api\.staff\.schedule\(member\.id\)/);
+  assert.match(schedules, /api\.staff\.addSchedule\(member\.id,/);
+  assert.match(schedules, /api\.staff\.addAbsence\(member\.id,/);
+
+  assert.match(appointmentsDomain, /api\.services\.create\(/);
+  assert.match(appointmentsDomain, /api\.services\.update\(/);
+  assert.match(appointmentsDomain, /api\.services\.remove\(/);
+  assert.match(appointmentsDomain, /api\.staff\.create\(/);
+  assert.match(appointmentsDomain, /api\.staff\.update\(/);
+  assert.match(appointmentsDomain, /api\.staff\.remove\(/);
+  assert.match(appointmentsDomain, /domainCache\.invalidate\(salonId, 'workspace'\)/);
+});
+
 test('la caisse et l’encaissement restent tactiles sans contourner le domaine finance', () => {
   const cash = source('src/components/erp/CashRegisterView.tsx');
   const payment = source('src/components/erp/NewPaymentModal.tsx');

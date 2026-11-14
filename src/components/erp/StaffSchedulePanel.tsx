@@ -96,18 +96,23 @@ export const StaffSchedulePanel: React.FC<{ member: StaffMember; onClose: () => 
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/80 p-0 backdrop-blur-sm sm:items-center sm:p-4"
       role="dialog"
       aria-modal="true"
       aria-label={`Horaires de ${member.name}`}
     >
-      <div className="w-full max-w-lg bg-[#161619] border border-[#2b2b30] rounded-2xl p-6 space-y-5 max-h-[90vh] overflow-y-auto">
+      <div className="max-h-[calc(100dvh-0.75rem)] w-full max-w-lg space-y-5 overflow-y-auto rounded-t-2xl border border-[#2b2b30] bg-[#161619] p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:max-h-[90vh] sm:rounded-2xl sm:p-6">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-bold text-[#f7f6f2]">Horaires & absences</h2>
             <p className="text-xs text-[#a9a9a9]">{member.name}</p>
           </div>
-          <button onClick={onClose} className="text-stone-400 hover:text-white text-sm cursor-pointer">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Fermer les horaires"
+            className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl px-3 text-sm text-stone-400 transition-colors hover:bg-[#232328] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A45C]"
+          >
             Fermer
           </button>
         </div>
@@ -132,17 +137,19 @@ export const StaffSchedulePanel: React.FC<{ member: StaffMember; onClose: () => 
                 {schedules.map((s) => (
                   <li
                     key={s.id}
-                    className="flex items-center justify-between text-xs bg-[#0f0f11] border border-[#26262a] rounded-lg px-3 py-2"
+                    className="flex items-center justify-between gap-2 rounded-lg border border-[#26262a] bg-[#0f0f11] px-3 py-2 text-xs"
                   >
-                    <span className="text-stone-300">
+                    <span className="min-w-0 break-words text-stone-300">
                       {WEEKDAYS[s.weekday]} · {s.startsAt} – {s.endsAt}
                     </span>
                     <button
+                      type="button"
                       onClick={() => void salonApi(activeSalon.id).staff.removeSchedule(s.id).then(load)}
                       title="Supprimer cette plage"
-                      className="text-stone-500 hover:text-red-400 cursor-pointer"
+                      aria-label={`Supprimer la plage ${WEEKDAYS[s.weekday]} ${s.startsAt} à ${s.endsAt}`}
+                      className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-stone-500 transition-colors hover:bg-red-950/40 hover:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A45C]"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
                     </button>
                   </li>
                 ))}
@@ -150,7 +157,7 @@ export const StaffSchedulePanel: React.FC<{ member: StaffMember; onClose: () => 
                   <li className="text-[11px] text-stone-500">Aucune plage définie.</li>
                 )}
               </ul>
-              <form onSubmit={addShift} className="flex flex-wrap items-end gap-2 pt-1">
+              <form onSubmit={addShift} className="grid grid-cols-1 gap-2 pt-1 min-[480px]:grid-cols-2">
                 <select
                   aria-label="Jour"
                   className={inputClass}
@@ -179,9 +186,9 @@ export const StaffSchedulePanel: React.FC<{ member: StaffMember; onClose: () => 
                 />
                 <button
                   type="submit"
-                  className="flex items-center gap-1 px-3 py-2 bg-[#C9A45C] text-[#101010] rounded-lg text-xs font-semibold cursor-pointer"
+                  className="inline-flex min-h-11 w-full items-center justify-center gap-1 rounded-xl bg-[#C9A45C] px-3 text-sm font-semibold text-[#101010] transition-colors hover:bg-[#d4b26a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                 >
-                  <Plus className="w-3.5 h-3.5" /> Ajouter
+                  <Plus className="h-4 w-4" aria-hidden="true" /> Ajouter
                 </button>
               </form>
             </section>
@@ -194,19 +201,21 @@ export const StaffSchedulePanel: React.FC<{ member: StaffMember; onClose: () => 
                 {absences.map((a) => (
                   <li
                     key={a.id}
-                    className="flex items-center justify-between text-xs bg-[#0f0f11] border border-[#26262a] rounded-lg px-3 py-2"
+                    className="flex items-center justify-between gap-2 rounded-lg border border-[#26262a] bg-[#0f0f11] px-3 py-2 text-xs"
                   >
-                    <span className="text-stone-300">
+                    <span className="min-w-0 break-words text-stone-300">
                       {a.startsOn}
                       {a.endsOn !== a.startsOn ? ` → ${a.endsOn}` : ''}
                       {a.reason ? ` · ${a.reason}` : ''}
                     </span>
                     <button
+                      type="button"
                       onClick={() => void salonApi(activeSalon.id).staff.removeAbsence(a.id).then(load)}
                       title="Supprimer cette absence"
-                      className="text-stone-500 hover:text-red-400 cursor-pointer"
+                      aria-label={`Supprimer l'absence du ${a.startsOn}`}
+                      className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-stone-500 transition-colors hover:bg-red-950/40 hover:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A45C]"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
                     </button>
                   </li>
                 ))}
@@ -214,7 +223,7 @@ export const StaffSchedulePanel: React.FC<{ member: StaffMember; onClose: () => 
                   <li className="text-[11px] text-stone-500">Aucune absence enregistrée.</li>
                 )}
               </ul>
-              <form onSubmit={addAbsence} className="flex flex-wrap items-end gap-2 pt-1">
+              <form onSubmit={addAbsence} className="grid grid-cols-1 gap-2 pt-1 min-[480px]:grid-cols-2">
                 <input
                   type="date"
                   required
@@ -239,9 +248,9 @@ export const StaffSchedulePanel: React.FC<{ member: StaffMember; onClose: () => 
                 />
                 <button
                   type="submit"
-                  className="flex items-center gap-1 px-3 py-2 bg-[#C9A45C] text-[#101010] rounded-lg text-xs font-semibold cursor-pointer"
+                  className="inline-flex min-h-11 w-full items-center justify-center gap-1 rounded-xl bg-[#C9A45C] px-3 text-sm font-semibold text-[#101010] transition-colors hover:bg-[#d4b26a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                 >
-                  <Plus className="w-3.5 h-3.5" /> Ajouter
+                  <Plus className="h-4 w-4" aria-hidden="true" /> Ajouter
                 </button>
               </form>
             </section>

@@ -8,6 +8,8 @@ import { CashRegisterView } from '../src/components/erp/CashRegisterView';
 import { ClientsView } from '../src/components/erp/ClientsView';
 import { DashboardView } from '../src/components/erp/DashboardView';
 import { PlanningView } from '../src/components/erp/PlanningView';
+import { ServicesView } from '../src/components/erp/ServicesView';
+import { StaffView } from '../src/components/erp/StaffView';
 import { ReportsView } from '../src/components/erp/ReportsView';
 import { TodayView } from '../src/components/erp/TodayView';
 import { mapErpDashboardMetrics } from '../src/lib/api';
@@ -28,7 +30,16 @@ import {
   zonedDayRangeToUtcBounds,
   zonedTimeString,
 } from '../src/lib/businessTime';
-import type { Appointment, Client, Expense, PaymentTransaction, Service, StaffMember } from '../src/types';
+import type {
+  Appointment,
+  Client,
+  Expense,
+  PaymentTransaction,
+  Service,
+  ServiceCategory,
+  StaffMember,
+  StaffRole,
+} from '../src/types';
 
 function ensureDom() {
   const existing = (globalThis as { __erpAnalyticsDom?: JSDOM }).__erpAnalyticsDom;
@@ -1118,6 +1129,277 @@ test('ClientsView : les fiches mobiles utilisent les mutations CRM existantes sa
 
   await waitFor(() => {
     assert.deepEqual(clientDeletes, [existingClient.id]);
+  });
+});
+
+test('ServicesView et StaffView : les fiches mobiles conservent les mutations catalogue et équipe', async () => {
+  ensureDom();
+  cleanup();
+
+  type ServiceMutation = {
+    name: string;
+    category: ServiceCategory;
+    description: string;
+    price: number;
+    durationMinutes: number;
+    prepMinutes: number;
+    popular: boolean;
+  };
+  type StaffMutation = {
+    name: string;
+    role: StaffRole;
+    phone: string;
+    specialties: string[];
+    commissionRate: number;
+    isAvailable: boolean;
+  };
+
+  const existingService: Service = {
+    id: 'service-mobile',
+    salonId: SALON_ID,
+    name: 'Coupe mobile',
+    category: 'coupe',
+    description: 'Coupe adaptée au test',
+    price: 5000,
+    durationMinutes: 45,
+    prepMinutes: 10,
+    popular: true,
+    isActive: true,
+  };
+  const existingStaff: StaffMember = {
+    id: 'staff-mobile',
+    salonId: SALON_ID,
+    name: 'Kouassi Mobile',
+    role: 'barber',
+    phone: '+2250700000004',
+    email: 'kouassi@mobile.test',
+    specialties: ['Coupe', 'Barbe'],
+    commissionRate: 30,
+    isAvailable: true,
+    isActive: true,
+    serviceIds: [existingService.id],
+  };
+  const otherSalonService: Service = {
+    ...existingService,
+    id: 'service-other',
+    salonId: 'salon-other',
+    name: 'Autre service',
+  };
+  const otherSalonStaff: StaffMember = {
+    ...existingStaff,
+    id: 'staff-other',
+    salonId: 'salon-other',
+    name: 'Autre équipe',
+  };
+  const serviceActivations: Array<{ id: string; isActive: boolean }> = [];
+  const serviceCreates: ServiceMutation[] = [];
+  const serviceUpdates: Array<{ id: string; name: string }> = [];
+  const serviceDeletes: string[] = [];
+  const staffCreates: StaffMutation[] = [];
+  const staffUpdates: Array<{ id: string; name: string }> = [];
+  const staffDeletes: string[] = [];
+
+  const operationsApiFactory = () =>
+    ({
+      workspace: async () => ({
+        salon: {
+          id: SALON_ID,
+          name: 'Salon Opérations Mobile',
+          status: 'active',
+          is_published: true,
+          timezone: 'Africa/Abidjan',
+        },
+        branches: [{ id: BRANCH_ID, name: 'Plateau', timezone: 'Africa/Abidjan' }],
+        clients: [],
+        services: [existingService, otherSalonService],
+        staff: [existingStaff, otherSalonStaff],
+        expenses: [],
+        stock: [],
+        suppliers: [],
+        rewards: [],
+        reviews: [],
+      }),
+      services: {
+        create: async (data: ServiceMutation) => {
+          serviceCreates.push(data);
+          return { ...existingService, id: 'service-created-mobile', ...data, isActive: true };
+        },
+        update: async (id: string, data: ServiceMutation) => {
+          serviceUpdates.push({ id, name: data.name });
+          return { ...existingService, id, ...data, isActive: true };
+        },
+        setActive: async (id: string, isActive: boolean) => {
+          serviceActivations.push({ id, isActive });
+        },
+        remove: async (id: string) => {
+          serviceDeletes.push(id);
+        },
+      },
+      staff: {
+        create: async (data: StaffMutation) => {
+          staffCreates.push(data);
+          return {
+            ...existingStaff,
+            id: 'staff-created-mobile',
+            ...data,
+            isActive: true,
+            serviceIds: [],
+          };
+        },
+        update: async (id: string, data: StaffMutation) => {
+          staffUpdates.push({ id, name: data.name });
+          return { ...existingStaff, id, ...data };
+        },
+        remove: async (id: string) => {
+          staffDeletes.push(id);
+        },
+      },
+      appointments: { list: async () => [] },
+      payments: { list: async () => [] },
+      cash: { sessions: async () => [] },
+      reports: { summary: async () => null },
+      loyalty: { program: async () => null, accounts: async () => [], ledger: async () => [] },
+      notifications: { list: async () => [], health: async () => null },
+      suppliers: { list: async () => [] },
+      stock: { list: async () => [], movements: async () => [] },
+      expenses: { list: async () => [], events: async () => [] },
+    }) as unknown as SalonApiClient;
+
+  const servicesView = render(
+    <AuthContext.Provider value={buildAuth(['*'], 'owner')}>
+      <AppProvider apiClientFactory={operationsApiFactory}>
+        <ActiveSalonGate>
+          <ServicesView />
+        </ActiveSalonGate>
+      </AppProvider>
+    </AuthContext.Provider>,
+  );
+
+  await waitFor(() => {
+    const mobileList = within(servicesView.container).getByTestId('services-mobile-list');
+    assert.ok(within(mobileList).getByText('Coupe mobile'));
+    assert.equal(within(mobileList).queryByText('Autre service'), null);
+  });
+
+  let mobileServices = within(servicesView.container).getByTestId('services-mobile-list');
+  fireEvent.click(
+    within(mobileServices).getByRole('button', { name: 'Désactiver la prestation Coupe mobile' }),
+  );
+  await waitFor(() => {
+    assert.deepEqual(serviceActivations, [{ id: existingService.id, isActive: false }]);
+  });
+
+  fireEvent.click(within(servicesView.container).getByRole('button', { name: 'Nouvelle prestation' }));
+  const createServiceDialog = within(servicesView.container).getByRole('dialog', {
+    name: 'Nouvelle prestation',
+  });
+  fireEvent.change(within(createServiceDialog).getByLabelText(/^Nom/), { target: { value: 'Barbe mobile' } });
+  fireEvent.change(within(createServiceDialog).getByLabelText(/Prix/), { target: { value: '3500' } });
+  fireEvent.click(within(createServiceDialog).getByRole('button', { name: 'Créer' }));
+  await waitFor(() => {
+    assert.deepEqual(serviceCreates, [
+      {
+        name: 'Barbe mobile',
+        category: 'coupe',
+        description: '',
+        price: 3500,
+        durationMinutes: 30,
+        prepMinutes: 0,
+        popular: false,
+      },
+    ]);
+  });
+
+  mobileServices = within(servicesView.container).getByTestId('services-mobile-list');
+  fireEvent.click(
+    within(mobileServices).getByRole('button', { name: 'Modifier la prestation Coupe mobile' }),
+  );
+  const editServiceDialog = within(servicesView.container).getByRole('dialog', {
+    name: 'Modifier la prestation',
+  });
+  fireEvent.change(within(editServiceDialog).getByLabelText(/^Nom/), {
+    target: { value: 'Coupe mobile modifiée' },
+  });
+  fireEvent.click(within(editServiceDialog).getByRole('button', { name: 'Enregistrer' }));
+  await waitFor(() => {
+    assert.deepEqual(serviceUpdates, [{ id: existingService.id, name: 'Coupe mobile modifiée' }]);
+  });
+
+  const refreshedMobileServices = within(servicesView.container).getByTestId('services-mobile-list');
+  const editedServiceCard = within(refreshedMobileServices)
+    .getByText('Coupe mobile modifiée')
+    .closest('article');
+  assert.ok(editedServiceCard);
+  fireEvent.click(within(editedServiceCard).getByRole('button', { name: 'Supprimer' }));
+  fireEvent.click(within(editedServiceCard).getByRole('button', { name: 'Confirmer ?' }));
+  await waitFor(() => {
+    assert.deepEqual(serviceDeletes, [existingService.id]);
+  });
+
+  cleanup();
+
+  const staffView = render(
+    <AuthContext.Provider value={buildAuth(['*'], 'owner')}>
+      <AppProvider apiClientFactory={operationsApiFactory}>
+        <ActiveSalonGate>
+          <StaffView />
+        </ActiveSalonGate>
+      </AppProvider>
+    </AuthContext.Provider>,
+  );
+
+  await waitFor(() => {
+    const mobileList = within(staffView.container).getByTestId('staff-mobile-list');
+    assert.ok(within(mobileList).getByText('Kouassi Mobile'));
+    assert.equal(within(mobileList).queryByText('Autre équipe'), null);
+  });
+
+  fireEvent.click(within(staffView.container).getByRole('button', { name: 'Ajouter un collaborateur' }));
+  const createStaffDialog = within(staffView.container).getByRole('dialog', {
+    name: 'Nouveau collaborateur',
+  });
+  fireEvent.change(within(createStaffDialog).getByLabelText(/Nom complet/), {
+    target: { value: 'Aïcha Mobile' },
+  });
+  fireEvent.change(within(createStaffDialog).getByLabelText(/Téléphone/), {
+    target: { value: '+2250700000005' },
+  });
+  fireEvent.click(within(createStaffDialog).getByRole('button', { name: 'Ajouter' }));
+  await waitFor(() => {
+    assert.deepEqual(staffCreates, [
+      {
+        name: 'Aïcha Mobile',
+        role: 'barber',
+        phone: '+2250700000005',
+        specialties: [],
+        commissionRate: 25,
+        isAvailable: true,
+      },
+    ]);
+  });
+
+  let mobileStaff = within(staffView.container).getByTestId('staff-mobile-list');
+  fireEvent.click(
+    within(mobileStaff).getByRole('button', { name: 'Modifier le collaborateur Kouassi Mobile' }),
+  );
+  const editStaffDialog = within(staffView.container).getByRole('dialog', {
+    name: 'Modifier le collaborateur',
+  });
+  fireEvent.change(within(editStaffDialog).getByLabelText(/Nom complet/), {
+    target: { value: 'Kouassi Mobile modifié' },
+  });
+  fireEvent.click(within(editStaffDialog).getByRole('button', { name: 'Enregistrer' }));
+  await waitFor(() => {
+    assert.deepEqual(staffUpdates, [{ id: existingStaff.id, name: 'Kouassi Mobile modifié' }]);
+  });
+
+  mobileStaff = within(staffView.container).getByTestId('staff-mobile-list');
+  const editedStaffCard = within(mobileStaff).getByText('Kouassi Mobile modifié').closest('article');
+  assert.ok(editedStaffCard);
+  fireEvent.click(within(editedStaffCard).getByRole('button', { name: 'Supprimer' }));
+  fireEvent.click(within(editedStaffCard).getByRole('button', { name: 'Confirmer ?' }));
+  await waitFor(() => {
+    assert.deepEqual(staffDeletes, [existingStaff.id]);
   });
 });
 
