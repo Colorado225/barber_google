@@ -1,13 +1,23 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { Suspense, useState, useMemo, useEffect } from 'react';
 import { Link, useInRouterContext } from 'react-router-dom';
 import { useOptionalApp } from '../../context/AppContext';
 import type { MarketplaceDemoData } from '../../lib/marketplace-demo';
 import { listSavedBookings, setActiveBookingToken, type SavedBooking } from '../../lib/bookingVault';
+import { lazyNamed } from '../common/ViewLoader';
 import { SalonCard } from './SalonCard';
+import { FeaturedBarbersSection } from './FeaturedBarbersSection';
 import { FeaturedSectionCard } from './FeaturedSectionCard';
+import { MarketplaceFooter } from './MarketplaceFooter';
 import { useSalonDeepLink } from '../../hooks/useSalonDeepLink';
-import { useMarketplaceContent } from '../../lib/marketplace-content';
+import {
+  computeMarketplacePriceBounds,
+  matchesSalonCategory,
+  matchesSalonPriceRange,
+  matchesSalonSearch,
+  useMarketplaceContent,
+} from '../../lib/marketplace-content';
 import { isSlowOrConstrainedNetwork } from '../../lib/networkHints';
+import { isSupabaseConfigured } from '../../lib/supabase';
 import {
   Search,
   MapPin,
@@ -23,9 +33,10 @@ import {
   ShieldCheck,
   Award,
   CheckCircle2,
-  Tag,
-  HelpCircle,
+  X,
 } from 'lucide-react';
+
+const MarketplaceMapView = lazyNamed(() => import('./MarketplaceMapView'), 'MarketplaceMapView');
 
 const HERO_VIDEO_SRC = `/assets/video/${encodeURI(
   'Modern Classics Barbershop 📍Charlotte,NC Elite design for the future of barber industry.mp4',
@@ -41,6 +52,14 @@ export const MarketplaceHome: React.FC = () => {
     setSelectedSalonForModal,
     marketplaceLoading,
     marketplaceError,
+    selectedCategory,
+    setSelectedCategory,
+    searchQuery,
+    setSearchQuery,
+    priceRange,
+    setPriceRange,
+    marketplaceViewMode,
+    formatPrice,
   } = useOptionalApp();
 
   // Dynamic marketplace sections & content managed by SuperAdmin
@@ -66,15 +85,6 @@ export const MarketplaceHome: React.FC = () => {
   );
 
   const siteMetadata = config.siteMetadata;
-  const socialLinks = [
-    { label: 'Instagram', url: siteMetadata.instagramUrl },
-    { label: 'Facebook', url: siteMetadata.facebookUrl },
-    { label: 'TikTok', url: siteMetadata.tiktokUrl },
-    { label: 'WhatsApp', url: siteMetadata.whatsappUrl },
-  ].filter((link) => Boolean(link.url));
-  const hasContactOrSocial = Boolean(
-    siteMetadata.contactEmail || siteMetadata.contactPhone || socialLinks.length > 0,
-  );
 
   const featuredSections = useMemo(
     () =>
@@ -105,11 +115,8 @@ export const MarketplaceHome: React.FC = () => {
     setSavedBookings(listSavedBookings());
   }, []);
 
-  const [searchQuery, setSearchQuery] = useState('');
   const [selectedCommune, setSelectedCommune] = useState('all');
-  const [selectedCategorySlug, setSelectedCategorySlug] = useState<string | null>(null);
   const [activeTestimony, setActiveTestimony] = useState(0);
-  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
   const [videoUnavailable, setVideoUnavailable] = useState(false);
   const [slowNetwork] = useState(() => isSlowOrConstrainedNetwork());
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(
@@ -143,21 +150,33 @@ export const MarketplaceHome: React.FC = () => {
     [listedSalons],
   );
 
-  // Filter visible salons (suspension / publication already applied) by search and commune
+  const activeCategoryObj = useMemo(
+    () => (config.categories ?? []).find((cat) => cat.slug === selectedCategory) ?? null,
+    [config.categories, selectedCategory],
+  );
+
+  const priceBounds = useMemo(() => computeMarketplacePriceBounds(listedSalons), [listedSalons]);
+  const isPriceFiltered = Boolean(
+    priceRange && (priceRange[0] > priceBounds.min || priceRange[1] < priceBounds.max),
+  );
+
+  // Filter visible salons (suspension / publication already applied) by search, commune, category, and average price range
   const filteredSalons = useMemo(() => {
+    const serverFiltered = isSupabaseConfigured() && !demoMode;
     return listedSalons.filter((salon) => {
-      const matchQuery =
-        !searchQuery.trim() ||
-        salon.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (salon.tagline ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (salon.commune ?? '').toLowerCase().includes(searchQuery.toLowerCase());
+      const matchQuery = matchesSalonSearch(salon, searchQuery);
 
       const matchCommune =
         selectedCommune === 'all' || (salon.commune ?? '').toLowerCase() === selectedCommune.toLowerCase();
 
-      return matchQuery && matchCommune;
+      const matchCategory =
+        !activeCategoryObj || matchesSalonCategory(salon, activeCategoryObj, { serverFiltered });
+
+      const matchPrice = matchesSalonPriceRange(salon, priceRange, priceBounds);
+
+      return matchQuery && matchCommune && matchCategory && matchPrice;
     });
-  }, [listedSalons, searchQuery, selectedCommune]);
+  }, [listedSalons, searchQuery, selectedCommune, activeCategoryObj, demoMode, priceRange, priceBounds]);
 
   // Témoignages : avis réels ; à défaut, avis fictifs étiquetés en mode démo uniquement.
   const testimonials = useMemo(() => {
@@ -417,58 +436,6 @@ export const MarketplaceHome: React.FC = () => {
         </section>
       )}
 
-      {/* CATEGORIES / PRESTATION TAGS FILTER */}
-      {config.categories && config.categories.filter((c) => c.isVisible).length > 0 && (
-        <section className="py-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
-          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
-            <span className="text-[11px] uppercase tracking-wider font-bold text-stone-500 mr-2 shrink-0 flex items-center gap-1">
-              <Tag className="w-3 h-3 text-[#C9A45C]" />
-              Styles populaires :
-            </span>
-            <button
-              onClick={() => {
-                setSelectedCategorySlug(null);
-                setSearchQuery('');
-              }}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer shrink-0 ${
-                !selectedCategorySlug
-                  ? 'bg-[#C9A45C] text-[#101010] font-bold'
-                  : 'bg-[#16161c] text-stone-300 hover:text-white border border-[#262632]'
-              }`}
-            >
-              Tous les styles
-            </button>
-            {config.categories
-              .filter((c) => c.isVisible)
-              .map((cat) => {
-                const isSelected = selectedCategorySlug === cat.slug;
-                return (
-                  <button
-                    key={cat.id}
-                    onClick={() => {
-                      if (isSelected) {
-                        setSelectedCategorySlug(null);
-                        setSearchQuery('');
-                      } else {
-                        setSelectedCategorySlug(cat.slug);
-                        setSearchQuery(cat.label.split(' ')[0]);
-                      }
-                    }}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer shrink-0 flex items-center gap-1.5 ${
-                      isSelected
-                        ? 'bg-[#C9A45C] text-[#101010] font-bold'
-                        : 'bg-[#16161c] text-stone-300 hover:text-white border border-[#262632]'
-                    }`}
-                  >
-                    <span>{cat.label}</span>
-                    {cat.isPopular && <Sparkles className="w-3 h-3 text-[#C9A45C]" />}
-                  </button>
-                );
-              })}
-          </div>
-        </section>
-      )}
-
       {/* SAVED BOOKINGS (Device local storage) */}
       {savedBookings.length > 0 && (
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full pt-4">
@@ -527,15 +494,52 @@ export const MarketplaceHome: React.FC = () => {
         </section>
       )}
 
+      {/* BARBIERS À LA UNE (Salons les mieux notés) */}
+      <FeaturedBarbersSection salons={listedSalons} />
+
       {/* SALONS PUBLIÉS */}
       <section id="salons-section" className="py-14 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
-        <div className="flex items-end justify-between mb-8">
+        <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
           <div>
             <span className="text-[11px] uppercase tracking-wider text-[#C9A45C] font-semibold flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5" />
               ÉTABLISSEMENTS
             </span>
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-white mt-1">Salons publiés</h2>
+            <div className="flex flex-wrap items-center gap-3 mt-1">
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-white">Salons publiés</h2>
+              {activeCategoryObj && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedCategory(null)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#1b1913] border border-[#C9A45C]/40 text-xs font-semibold text-[#E5C378] hover:bg-[#252116] transition-colors cursor-pointer"
+                >
+                  <span>{activeCategoryObj.label}</span>
+                  <X className="w-3.5 h-3.5" aria-hidden="true" />
+                </button>
+              )}
+              {searchQuery.trim() && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#18181d] border border-[#2f2f38] text-xs font-medium text-stone-200 hover:border-[#C9A45C]/40 transition-colors cursor-pointer"
+                >
+                  <span>Recherche : {searchQuery.trim()}</span>
+                  <X className="w-3.5 h-3.5 text-stone-400" aria-hidden="true" />
+                </button>
+              )}
+              {isPriceFiltered && priceRange && (
+                <button
+                  type="button"
+                  onClick={() => setPriceRange(null)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#18181d] border border-[#2f2f38] text-xs font-medium text-stone-200 hover:border-[#C9A45C]/40 transition-colors cursor-pointer tabular-nums"
+                >
+                  <span>
+                    Prix moyen : {formatPrice(priceRange[0])} – {formatPrice(priceRange[1])}
+                  </span>
+                  <X className="w-3.5 h-3.5 text-stone-400" aria-hidden="true" />
+                </button>
+              )}
+            </div>
           </div>
           <span className="text-xs text-stone-400 hidden sm:inline">
             {demoMode
@@ -565,21 +569,38 @@ export const MarketplaceHome: React.FC = () => {
         {filteredSalons.length === 0 ? (
           <div className="text-center py-12 bg-[#141417] rounded-2xl border border-[#25252a]">
             <p className="text-stone-400 text-sm">
-              Aucun salon réel n’est actuellement publié dans la marketplace.
+              {listedSalons.length > 0
+                ? 'Aucun salon ne correspond à vos critères de recherche.'
+                : 'Aucun salon réel n’est actuellement publié dans la marketplace.'}
             </p>
             <button
+              type="button"
               onClick={() => {
                 setSearchQuery('');
                 setSelectedCommune('all');
-                setSelectedCategorySlug(null);
+                setSelectedCategory(null);
+                setPriceRange(null);
               }}
               className="mt-3 text-xs text-[#C9A45C] font-semibold hover:underline cursor-pointer"
             >
               Réinitialiser les filtres
             </button>
           </div>
+        ) : marketplaceViewMode === 'map' ? (
+          <Suspense
+            fallback={
+              <div className="h-[460px] rounded-2xl border border-[#27272c] bg-[#141418] flex items-center justify-center text-sm text-stone-400">
+                Chargement de la carte…
+              </div>
+            }
+          >
+            <MarketplaceMapView salons={filteredSalons} />
+          </Suspense>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div
+            data-testid="marketplace-list-view"
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+          >
             {filteredSalons.map((salon) => (
               <SalonCard key={salon.id} salon={salon} />
             ))}
@@ -853,54 +874,6 @@ export const MarketplaceHome: React.FC = () => {
         </div>
       </section>
 
-      {/* DYNAMIC FAQ SECTION */}
-      {config.faqs && config.faqs.filter((f) => f.isVisible).length > 0 && (
-        <section className="py-14 bg-[#0f0f12] border-t border-[#1f1f26]">
-          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-8">
-              <span className="text-[11px] uppercase tracking-wider text-[#C9A45C] font-semibold flex items-center justify-center gap-1.5">
-                <HelpCircle className="w-3.5 h-3.5" />
-                FOIRE AUX QUESTIONS
-              </span>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-white mt-1">
-                Tout ce que vous devez savoir
-              </h2>
-            </div>
-
-            <div className="space-y-3">
-              {config.faqs
-                .filter((f) => f.isVisible)
-                .map((faq, index) => {
-                  const isOpen = openFaqIndex === index;
-                  return (
-                    <div
-                      key={faq.id}
-                      className="bg-[#16161b] border border-[#272732] rounded-2xl overflow-hidden transition-colors"
-                    >
-                      <button
-                        onClick={() => setOpenFaqIndex(isOpen ? null : index)}
-                        className="w-full text-left p-4 sm:p-5 flex items-center justify-between gap-4 font-bold text-sm text-white hover:text-[#C9A45C] transition-colors cursor-pointer"
-                      >
-                        <span>{faq.question}</span>
-                        <ChevronDown
-                          className={`w-4 h-4 text-[#C9A45C] transition-transform duration-200 shrink-0 ${
-                            isOpen ? 'rotate-180' : ''
-                          }`}
-                        />
-                      </button>
-                      {isOpen && (
-                        <div className="px-4 pb-5 sm:px-5 sm:pb-6 text-xs text-stone-300 leading-relaxed border-t border-[#22222b] pt-3">
-                          {faq.answer}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-            </div>
-          </div>
-        </section>
-      )}
-
       {/* PRO CTA BANNER (BARBER CUTS BUSINESS ERP) */}
       {config.proCta?.isVisible !== false && (
         <section className="py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
@@ -944,118 +917,12 @@ export const MarketplaceHome: React.FC = () => {
         </section>
       )}
 
-      {/* FOOTER */}
-      <footer className="mt-auto bg-[#0a0a0c] border-t border-[#1a1a1d] py-12 text-xs text-stone-400">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-[#1c1a16] border border-[#C9A45C]/30 flex items-center justify-center text-[#C9A45C]">
-                  <Scissors className="w-4 h-4" />
-                </div>
-                <span className="text-lg font-bold text-white">{siteMetadata.siteName}</span>
-              </div>
-              {siteMetadata.tagline && (
-                <p className="text-xs text-[#E5C378] font-semibold">{siteMetadata.tagline}</p>
-              )}
-              {siteMetadata.footerText && (
-                <p className="text-xs text-stone-400 leading-relaxed">{siteMetadata.footerText}</p>
-              )}
-            </div>
-
-            <div>
-              <h4 className="text-xs font-bold text-[#C9A45C] uppercase tracking-wider mb-3">CLIENTS</h4>
-              <ul className="space-y-2">
-                <li>
-                  <a href="#salons-section" className="hover:text-white transition-colors">
-                    Trouver un salon
-                  </a>
-                </li>
-                {communes.map((commune) => (
-                  <li key={commune}>
-                    <button
-                      onClick={() => setSelectedCommune(commune)}
-                      className="hover:text-white transition-colors"
-                    >
-                      Salons à {commune}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="text-xs font-bold text-[#C9A45C] uppercase tracking-wider mb-3">
-                PROFESSIONNELS
-              </h4>
-              <ul className="space-y-2">
-                <li>
-                  <a
-                    href="/tarifs"
-                    className="text-[#E5C378] hover:underline font-semibold transition-colors"
-                  >
-                    Tarifs & Formules Salons
-                  </a>
-                </li>
-                <li>
-                  <a href="/inscription" className="hover:text-white transition-colors">
-                    Inscrire un établissement
-                  </a>
-                </li>
-                <li>
-                  <a href="/app/tableau-de-bord" className="hover:text-white transition-colors">
-                    Espace salon
-                  </a>
-                </li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="text-xs font-bold text-[#C9A45C] uppercase tracking-wider mb-3">INFORMATIONS</h4>
-              {hasContactOrSocial ? (
-                <ul className="space-y-2">
-                  {siteMetadata.contactEmail && (
-                    <li>
-                      <a
-                        href={`mailto:${siteMetadata.contactEmail}`}
-                        className="hover:text-white transition-colors"
-                      >
-                        {siteMetadata.contactEmail}
-                      </a>
-                    </li>
-                  )}
-                  {siteMetadata.contactPhone && <li>{siteMetadata.contactPhone}</li>}
-                  {socialLinks.map((link) => (
-                    <li key={link.label}>
-                      <a
-                        href={link.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="hover:text-white transition-colors"
-                      >
-                        {link.label}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-xs text-stone-400 leading-relaxed">
-                  Les établissements affichés proviennent des données publiées dans la plateforme.
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div className="pt-8 border-t border-[#19191c] flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-stone-400">
-            <span>{siteMetadata.copyrightText}</span>
-            <div className="flex gap-4">
-              <span>Conditions d'utilisation</span>
-              <span>Politique de confidentialité</span>
-              <span>Sécurité des paiements</span>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <MarketplaceFooter
+        faqs={config.faqs ?? []}
+        siteMetadata={siteMetadata}
+        communes={communes}
+        onSelectCommune={setSelectedCommune}
+      />
     </div>
   );
 };

@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
-import { getSupabaseClient, isSupabaseConfigured } from '../lib/supabase';
+import { getSupabaseClient, isSupabaseConfigured, resolveAuthRedirectUrl } from '../lib/supabase';
 import { getRolePermissions } from '../lib/permissions';
 import {
   type SalonMembership,
@@ -29,9 +29,11 @@ export interface AuthUser {
   name: string;
   email: string;
   emailVerified: boolean;
+  favoriteSalonIds?: string[];
 }
 
 export type SignUpResult = { status: 'confirmation-required' } | { status: 'authenticated' };
+export type EmailVerificationOtpType = 'signup' | 'email' | 'email_change' | 'magiclink';
 
 export interface AuthContextType {
   user: AuthUser | null;
@@ -46,7 +48,8 @@ export interface AuthContextType {
   signOut: () => Promise<void>;
   refreshSession: (preferredSalonId?: string) => Promise<void>;
   selectSalon: (salonId: string) => boolean;
-  verifyEmail: (tokenHash: string) => Promise<void>;
+  verifyEmail: (tokenHash: string, type?: EmailVerificationOtpType) => Promise<void>;
+  exchangeAuthCode?: (code: string) => Promise<void>;
   resendVerification: (email: string) => Promise<void>;
   requestPasswordReset: (email: string) => Promise<void>;
   resetPassword: (password: string) => Promise<void>;
@@ -64,12 +67,17 @@ const normalizeEmail = (email: string) => email.trim().toLowerCase();
 function normalizeUserFromSupabase(user: User | null): AuthUser | null {
   if (!user) return null;
   const appMetadata = user.app_metadata as { name?: string };
-  const userMetadata = user.user_metadata as { name?: string };
+  const userMetadata = user.user_metadata as { name?: string; favorite_salon_ids?: unknown };
+  const rawFavorites = userMetadata.favorite_salon_ids;
+  const favoriteSalonIds = Array.isArray(rawFavorites)
+    ? [...new Set(rawFavorites.filter((id): id is string => typeof id === 'string' && id.trim().length > 0))]
+    : undefined;
   return {
     id: user.id,
     name: userMetadata.name || appMetadata.name || user.email || '',
     email: user.email || '',
     emailVerified: Boolean(user.email_confirmed_at),
+    favoriteSalonIds,
   };
 }
 
@@ -228,6 +236,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     let cancelled = false;
+    let unsubscribe: (() => void) | undefined;
 
     async function bootstrap() {
       if (!isSupabaseConfigured()) {
@@ -235,11 +244,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
+      const supabase = getSupabaseClient();
+      const {
+        data: { subscription },
+      } = supabase.auth.onAuthStateChange((event, session) => {
+        if (cancelled || event === 'INITIAL_SESSION') return;
+        if (event === 'SIGNED_OUT' || !session) {
+          clearSessionState();
+          setError(null);
+          return;
+        }
+        if (
+          event === 'SIGNED_IN' ||
+          event === 'TOKEN_REFRESHED' ||
+          event === 'USER_UPDATED' ||
+          event === 'PASSWORD_RECOVERY'
+        ) {
+          void refreshSession().catch(() => {
+            // La synchronisation en arrière-plan ne doit pas bloquer un appel explicite en cours.
+          });
+        }
+      });
+      unsubscribe = () => subscription.unsubscribe();
+
       try {
         const {
           data: { session },
           error,
-        } = await getSupabaseClient().auth.getSession();
+        } = await supabase.auth.getSession();
         if (cancelled) return;
         if (error) throw error;
         if (!session) {
@@ -263,6 +295,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     void bootstrap();
     return () => {
       cancelled = true;
+      unsubscribe?.();
     };
   }, [clearSessionState, refreshSession]);
 
@@ -290,8 +323,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await refreshSession();
     });
 
-  const emailRedirectTo = () => new URL('/verifier-email', window.location.origin).toString();
-
   const signUp = (name: string, email: string, password: string): Promise<SignUpResult> =>
     handle(async (): Promise<SignUpResult> => {
       const { data, error } = await getSupabaseClient().auth.signUp({
@@ -299,10 +330,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         password,
         options: {
           data: { name: name.trim().replace(/\s+/g, ' ') },
-          emailRedirectTo: emailRedirectTo(),
+          emailRedirectTo: resolveAuthRedirectUrl('/verifier-email'),
         },
       });
       if (error) throw error;
+
+      if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+        throw Object.assign(new Error('User already registered'), {
+          code: 'user_already_exists',
+          status: 422,
+        });
+      }
 
       if (data.session) {
         await refreshSession();
@@ -320,10 +358,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
   const verifyEmail = useCallback(
-    (tokenHash: string) =>
+    (tokenHash: string, type: EmailVerificationOtpType = 'signup') =>
       handle(async () => {
-        const { error } = await getSupabaseClient().auth.verifyOtp({ token_hash: tokenHash, type: 'signup' });
-        if (error) throw error;
+        const supabase = getSupabaseClient();
+        const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type });
+        if (error) {
+          if (type === 'signup') {
+            const fallback = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'email' });
+            if (!fallback.error) {
+              await refreshSession();
+              return;
+            }
+          }
+          throw error;
+        }
+        await refreshSession();
+      }),
+    [handle, refreshSession],
+  );
+
+  const exchangeAuthCode = useCallback(
+    (code: string) =>
+      handle(async () => {
+        const supabase = getSupabaseClient();
+        const {
+          data: { session: existingSession },
+        } = await supabase.auth.getSession();
+        if (existingSession) {
+          await refreshSession();
+          return;
+        }
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        if (error) {
+          const {
+            data: { session: concurrentSession },
+          } = await supabase.auth.getSession();
+          if (concurrentSession) {
+            await refreshSession();
+            return;
+          }
+          throw error;
+        }
         await refreshSession();
       }),
     [handle, refreshSession],
@@ -331,18 +406,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const resendVerification = (email: string) =>
     handle(async () => {
+      const normalized = normalizeEmail(email);
+      if (!normalized) {
+        throw Object.assign(new Error('Invalid email'), {
+          code: 'invalid_email',
+          status: 400,
+        });
+      }
       const { error } = await getSupabaseClient().auth.resend({
         type: 'signup',
-        email: normalizeEmail(email),
-        options: { emailRedirectTo: emailRedirectTo() },
+        email: normalized,
+        options: { emailRedirectTo: resolveAuthRedirectUrl('/verifier-email') },
       });
       if (error) throw error;
     });
 
   const requestPasswordReset = (email: string) =>
     handle(async () => {
-      const { error } = await getSupabaseClient().auth.resetPasswordForEmail(normalizeEmail(email), {
-        redirectTo: new URL('/reinitialiser', window.location.origin).toString(),
+      const normalized = normalizeEmail(email);
+      if (!normalized) {
+        throw Object.assign(new Error('Invalid email'), {
+          code: 'invalid_email',
+          status: 400,
+        });
+      }
+      const { error } = await getSupabaseClient().auth.resetPasswordForEmail(normalized, {
+        redirectTo: resolveAuthRedirectUrl('/reinitialiser'),
       });
       if (error) throw error;
     });
@@ -351,6 +440,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     handle(async () => {
       const { error } = await getSupabaseClient().auth.updateUser({ password });
       if (error) throw error;
+      await refreshSession();
     });
 
   const createSalon = (data: { organizationName: string; salonName: string; branchName: string }) =>
@@ -424,6 +514,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         refreshSession,
         selectSalon,
         verifyEmail,
+        exchangeAuthCode,
         resendVerification,
         requestPasswordReset,
         resetPassword,
@@ -462,6 +553,7 @@ export const useOptionalAuth = (): AuthContextType => {
       refreshSession: async () => {},
       selectSalon: () => false,
       verifyEmail: async () => {},
+      exchangeAuthCode: async () => {},
       resendVerification: async () => {},
       requestPasswordReset: async () => {},
       resetPassword: async () => {},

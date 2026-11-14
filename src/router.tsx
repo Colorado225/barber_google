@@ -16,6 +16,10 @@ const BookingPortalView = lazyNamed(
   'BookingPortalView',
 );
 const MyBookingsView = lazyNamed(() => import('./components/marketplace/MyBookingsView'), 'MyBookingsView');
+const MyFavoritesView = lazyNamed(
+  () => import('./components/marketplace/MyFavoritesView'),
+  'MyFavoritesView',
+);
 const PricingView = lazyNamed(() => import('./components/marketplace/PricingView'), 'PricingView');
 const ShopView = lazyNamed(() => import('./components/erp/ShopView'), 'ShopView');
 const ErpLayout = lazyNamed(() => import('./components/erp/ErpLayout'), 'ErpLayout');
@@ -81,6 +85,10 @@ const router = createBrowserRouter([
       {
         path: 'mes-reservations',
         element: withSuspense(<MyBookingsView />, 'Chargement de vos réservations…'),
+      },
+      {
+        path: 'mes-favoris',
+        element: withSuspense(<MyFavoritesView />, 'Chargement de vos favoris…'),
       },
       {
         path: 'connexion',

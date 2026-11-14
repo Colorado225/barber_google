@@ -36,12 +36,15 @@ export interface Salon {
   commune?: string;
   quarter?: string;
   address?: string;
+  latitude?: number;
+  longitude?: number;
   phone?: string;
   whatsapp?: string;
   email?: string;
   openingHours?: OpeningHour[];
   paymentMethods?: PaymentMethod[];
   minPrice?: number;
+  avgPrice?: number;
   currency?: string;
   nextAvailableSlot?: string;
   isRecommended?: boolean;
@@ -56,6 +59,8 @@ export interface Salon {
   publicationDate?: string;
   subscriptionPlanId?: string;
   ownerName?: string;
+  /** Catégories de prestations actives du salon (utilisé pour le filtrage marketplace). */
+  serviceCategories?: ServiceCategory[];
   /** Fiche fictive du mode démonstration (VITE_MARKETPLACE_DEMO=true). Jamais un salon réel. */
   isDemo?: boolean;
 }

@@ -2,14 +2,22 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Salon } from '../../types';
 import { useOptionalApp } from '../../context/AppContext';
-import { Star, MapPin, Sparkles } from 'lucide-react';
+import { useOptionalAuth } from '../../context/AuthContext';
+import { isSalonRecommendedByHistory, useMarketplaceContent } from '../../lib/marketplace-content';
+import { Heart, MapPin, Sparkles, Star } from 'lucide-react';
 
 interface SalonCardProps {
   salon: Salon;
 }
 
 export const SalonCard: React.FC<SalonCardProps> = ({ salon }) => {
-  const { setSelectedSalonForModal, formatPrice } = useOptionalApp();
+  const { setSelectedSalonForModal, formatPrice, isFavoriteSalon, toggleFavoriteSalon, searchedCategories } =
+    useOptionalApp();
+  const { isAuthenticated, user } = useOptionalAuth();
+  const { config } = useMarketplaceContent();
+  const isLoggedIn = Boolean(isAuthenticated && user);
+  const isFavorite = isFavoriteSalon(salon.id);
+  const isRecommended = isSalonRecommendedByHistory(salon, searchedCategories, config.categories);
 
   const typeLabels: Record<string, string> = {
     barbershop: 'Barbershop',
@@ -45,15 +53,49 @@ export const SalonCard: React.FC<SalonCardProps> = ({ salon }) => {
           </span>
         </div>
 
-        {/* Verified Badge */}
-        {salon.isVerified && (
-          <div className="absolute top-3 right-3">
+        {/* Verified Badge & Favorite Heart Toggle */}
+        <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5">
+          {salon.isVerified && (
             <span className="text-[10px] font-semibold bg-[#C9A45C]/20 backdrop-blur-md text-[#E5C378] px-2 py-0.5 rounded-full border border-[#C9A45C]/40 flex items-center gap-1">
               <Sparkles className="w-2.5 h-2.5" />
               Certifié
             </span>
-          </div>
-        )}
+          )}
+
+          <button
+            type="button"
+            data-testid={`favorite-toggle-${salon.id}`}
+            aria-pressed={isFavorite}
+            aria-label={
+              isLoggedIn
+                ? isFavorite
+                  ? `Retirer ${salon.name} des favoris`
+                  : `Ajouter ${salon.name} aux favoris`
+                : `Connectez-vous pour ajouter ${salon.name} aux favoris`
+            }
+            title={
+              isLoggedIn
+                ? isFavorite
+                  ? 'Retirer des favoris'
+                  : 'Ajouter aux favoris'
+                : 'Connectez-vous pour ajouter aux favoris'
+            }
+            onClick={(event) => {
+              event.stopPropagation();
+              void toggleFavoriteSalon(salon.id);
+            }}
+            className={`w-8 h-8 rounded-full backdrop-blur-md border flex items-center justify-center transition-colors cursor-pointer ${
+              isFavorite
+                ? 'bg-rose-950/80 border-rose-400/50 text-rose-400 hover:bg-rose-900/90'
+                : 'bg-[#101010]/75 border-white/15 text-stone-200 hover:text-white hover:border-[#C9A45C]/50'
+            }`}
+          >
+            <Heart
+              className={`w-4 h-4 transition-transform ${isFavorite ? 'fill-rose-500 text-rose-500 scale-105' : ''}`}
+              aria-hidden="true"
+            />
+          </button>
+        </div>
 
         {/* Next Slot pill */}
         <div className="absolute bottom-3 left-3">
@@ -67,6 +109,16 @@ export const SalonCard: React.FC<SalonCardProps> = ({ salon }) => {
       {/* Card Info */}
       <div className="p-4 flex flex-col flex-1 justify-between gap-3">
         <div>
+          {isRecommended && (
+            <span
+              data-testid={`recommended-badge-${salon.id}`}
+              title="Recommandé selon vos recherches de catégories récentes"
+              className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#E5C378] mb-1"
+            >
+              <Sparkles className="w-3 h-3 text-[#C9A45C]" aria-hidden="true" />
+              <span>Recommandé</span>
+            </span>
+          )}
           <div className="flex items-center justify-between gap-2 mb-1">
             <div className="flex items-center gap-2 min-w-0">
               {salon.logo && (
@@ -98,9 +150,15 @@ export const SalonCard: React.FC<SalonCardProps> = ({ salon }) => {
         {/* Price & Action */}
         <div className="pt-3 border-t border-[#242428] flex items-center justify-between text-xs">
           <div>
-            <span className="text-stone-400 block text-[11px]">À partir de</span>
-            <span className="font-bold text-[#E5C378] text-sm">
-              {salon.minPrice !== undefined ? formatPrice(salon.minPrice) : 'Non renseigné'}
+            <span className="text-stone-400 block text-[11px]">
+              {salon.avgPrice !== undefined && salon.minPrice === undefined ? 'Prix moyen' : 'À partir de'}
+            </span>
+            <span className="font-bold text-[#E5C378] text-sm tabular-nums">
+              {salon.minPrice !== undefined
+                ? formatPrice(salon.minPrice)
+                : salon.avgPrice !== undefined
+                  ? formatPrice(salon.avgPrice)
+                  : 'Non renseigné'}
             </span>
           </div>
 

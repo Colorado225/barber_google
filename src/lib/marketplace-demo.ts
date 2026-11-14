@@ -23,6 +23,7 @@ const DEMO_SALON_SEED: Salon[] = [
     tagline: 'Fiche fictive pour tester la mise en page.',
     type: 'barbershop',
     commune: 'Plateau',
+    serviceCategories: ['coupe', 'barbe', 'visage', 'combo'],
   },
   {
     id: 'demo-salon-2',
@@ -30,6 +31,7 @@ const DEMO_SALON_SEED: Salon[] = [
     tagline: 'Fiche fictive. Aucun salon réel.',
     type: 'salon_mixte',
     commune: 'Cocody',
+    serviceCategories: ['coupe', 'barbe', 'tresses', 'soins', 'coloration', 'combo'],
   },
   {
     id: 'demo-salon-3',
@@ -37,6 +39,7 @@ const DEMO_SALON_SEED: Salon[] = [
     tagline: 'Fiche fictive de démonstration.',
     type: 'institut',
     commune: 'Marcory',
+    serviceCategories: ['soins', 'visage', 'coloration'],
   },
   {
     id: 'demo-salon-4',
@@ -44,6 +47,7 @@ const DEMO_SALON_SEED: Salon[] = [
     tagline: 'Fiche fictive de démonstration.',
     type: 'barbershop',
     commune: 'Yopougon',
+    serviceCategories: ['coupe', 'barbe', 'combo'],
   },
   {
     id: 'demo-salon-5',
@@ -51,6 +55,7 @@ const DEMO_SALON_SEED: Salon[] = [
     tagline: 'Fiche fictive. Aucun salon réel.',
     type: 'salon_femme',
     commune: 'Riviera',
+    serviceCategories: ['coupe', 'tresses', 'soins', 'coloration'],
   },
   {
     id: 'demo-salon-6',
@@ -58,6 +63,7 @@ const DEMO_SALON_SEED: Salon[] = [
     tagline: 'Fiche fictive pour tester les filtres.',
     type: 'salon_mixte',
     commune: 'Treichville',
+    serviceCategories: ['coupe', 'barbe', 'tresses', 'soins'],
   },
   {
     id: 'demo-salon-7',
@@ -65,6 +71,7 @@ const DEMO_SALON_SEED: Salon[] = [
     tagline: 'Fiche fictive de démonstration.',
     type: 'barbershop',
     commune: 'Adjamé',
+    serviceCategories: ['coupe', 'barbe'],
   },
   {
     id: 'demo-salon-8',
@@ -72,6 +79,7 @@ const DEMO_SALON_SEED: Salon[] = [
     tagline: 'Fiche fictive. Aucun salon réel.',
     type: 'institut',
     commune: 'Bingerville',
+    serviceCategories: ['soins', 'visage'],
   },
 ];
 

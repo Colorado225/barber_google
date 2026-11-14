@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowRight, Eye, EyeOff, Lock, Mail, Scissors } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { getSupabaseAuthErrorCode, getSupabaseAuthErrorMessage } from '../../lib/auth-errors';
+import { getSupabaseAuthErrorMessage, isEmailNotConfirmedError } from '../../lib/auth-errors';
 import {
   buildPlanSelectionQuery,
   parsePlanSelectionFromSearch,
@@ -11,16 +11,19 @@ import {
 } from '../../lib/saasPricing';
 import { isSupabaseConfigured } from '../../lib/supabase';
 
-export const LoginPage: React.FC = () => {
-  const [email, setEmail] = useState('');
+export interface LoginPageProps {
+  supabaseConfigured?: boolean;
+}
+
+export const LoginPage: React.FC<LoginPageProps> = ({ supabaseConfigured = isSupabaseConfigured() }) => {
+  const [searchParams] = useSearchParams();
+  const [email, setEmail] = useState(() => searchParams.get('email') ?? '');
   const [password, setPassword] = useState('');
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { signIn } = useAuth();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const supabaseConfigured = isSupabaseConfigured();
 
   const rawSearch = searchParams.toString();
   const urlIntent = parsePlanSelectionFromSearch(rawSearch ? `?${rawSearch}` : '');
@@ -32,6 +35,27 @@ export const LoginPage: React.FC = () => {
       savePlanSelectionIntent(urlIntent);
     }
   }, [urlIntent]);
+
+  useEffect(() => {
+    const hashParams =
+      typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.hash.replace(/^#/, ''))
+        : new URLSearchParams();
+    const errorCode = searchParams.get('error_code') ?? hashParams.get('error_code');
+    const errorDescription =
+      searchParams.get('error_description') ??
+      hashParams.get('error_description') ??
+      searchParams.get('error') ??
+      hashParams.get('error');
+    if (errorCode || errorDescription) {
+      setError(
+        getSupabaseAuthErrorMessage(
+          { code: errorCode ?? undefined, message: errorDescription ?? '' },
+          'sign-in',
+        ),
+      );
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,8 +74,7 @@ export const LoginPage: React.FC = () => {
       await signIn(normalizedEmail, password);
       navigate(planIntent ? `/app/abonnement${planQuerySuffix}` : '/app');
     } catch (err) {
-      const errorCode = getSupabaseAuthErrorCode(err);
-      if (errorCode === 'email_not_confirmed' || errorCode === 'user_not_confirmed') {
+      if (isEmailNotConfirmedError(err)) {
         const verifyParams = new URLSearchParams({ email: normalizedEmail });
         if (planIntent?.planSlug) verifyParams.set('plan', planIntent.planSlug);
         if (planIntent?.billingPeriod) verifyParams.set('billing', planIntent.billingPeriod);

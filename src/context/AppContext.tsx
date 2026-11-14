@@ -71,6 +71,7 @@ import {
   MarketplaceDomainContext,
   useMarketplaceDomain,
   useMarketplaceDomainState,
+  type MarketplaceViewMode,
 } from './domains/MarketplaceDomainContext';
 import {
   NotificationsDomainContext,
@@ -148,6 +149,18 @@ export interface AppContextValue {
   salons: Salon[];
   marketplaceLoading: boolean;
   marketplaceError: string | null;
+  selectedCategory: string | null;
+  setSelectedCategory: (slug: string | null) => void;
+  searchQuery: string;
+  setSearchQuery: (query: string) => void;
+  priceRange: [number, number] | null;
+  setPriceRange: (range: [number, number] | null) => void;
+  searchedCategories: string[];
+  marketplaceViewMode: MarketplaceViewMode;
+  setMarketplaceViewMode: (view: MarketplaceViewMode) => void;
+  favoriteSalonIds: string[];
+  isFavoriteSalon: (salonId: string) => boolean;
+  toggleFavoriteSalon: (salonId: string) => Promise<void>;
   refreshMarketplace: () => Promise<void>;
   services: Service[];
   staff: StaffMember[];
@@ -355,8 +368,10 @@ export const AppProvider: React.FC<{
   children: React.ReactNode;
   realtimeClient?: RealtimeClientLike;
   apiClientFactory?: (salonId: string) => SalonApiClient;
-}> = ({ children, realtimeClient, apiClientFactory }) => {
-  const { memberships, activeMembership, selectSalon, isAuthenticated, hasPermission } = useOptionalAuth();
+  initialSalons?: Salon[];
+}> = ({ children, realtimeClient, apiClientFactory, initialSalons }) => {
+  const { user, memberships, activeMembership, selectSalon, isAuthenticated, hasPermission } =
+    useOptionalAuth();
   const ui = useUiFeedbackState();
   const { mode, setMode, addToast, formatPrice } = ui;
 
@@ -434,6 +449,10 @@ export const AppProvider: React.FC<{
     remote,
     newIdempotencyKey,
     mode,
+    initialSalons,
+    isAuthenticated,
+    authUserId: user?.id ?? null,
+    userFavoriteIds: user?.favoriteSalonIds ?? null,
   });
 
   const activeSalon = useMemo(
@@ -865,6 +884,18 @@ export const AppProvider: React.FC<{
       reviews: marketplaceDomain.reviews,
       marketplaceLoading: marketplaceDomain.marketplaceLoading,
       marketplaceError: marketplaceDomain.marketplaceError,
+      selectedCategory: marketplaceDomain.selectedCategory,
+      setSelectedCategory: marketplaceDomain.setSelectedCategory,
+      searchQuery: marketplaceDomain.searchQuery,
+      setSearchQuery: marketplaceDomain.setSearchQuery,
+      priceRange: marketplaceDomain.priceRange,
+      setPriceRange: marketplaceDomain.setPriceRange,
+      searchedCategories: marketplaceDomain.searchedCategories,
+      marketplaceViewMode: marketplaceDomain.marketplaceViewMode,
+      setMarketplaceViewMode: marketplaceDomain.setMarketplaceViewMode,
+      favoriteSalonIds: marketplaceDomain.favoriteSalonIds,
+      isFavoriteSalon: marketplaceDomain.isFavoriteSalon,
+      toggleFavoriteSalon: marketplaceDomain.toggleFavoriteSalon,
       refreshMarketplace: marketplaceDomain.refreshMarketplace,
       addReview: marketplaceDomain.addReview,
       bookPublicAppointment: marketplaceDomain.bookPublicAppointment,
@@ -878,6 +909,18 @@ export const AppProvider: React.FC<{
       marketplaceDomain.reviews,
       marketplaceDomain.marketplaceLoading,
       marketplaceDomain.marketplaceError,
+      marketplaceDomain.selectedCategory,
+      marketplaceDomain.setSelectedCategory,
+      marketplaceDomain.searchQuery,
+      marketplaceDomain.setSearchQuery,
+      marketplaceDomain.priceRange,
+      marketplaceDomain.setPriceRange,
+      marketplaceDomain.searchedCategories,
+      marketplaceDomain.marketplaceViewMode,
+      marketplaceDomain.setMarketplaceViewMode,
+      marketplaceDomain.favoriteSalonIds,
+      marketplaceDomain.isFavoriteSalon,
+      marketplaceDomain.toggleFavoriteSalon,
       marketplaceDomain.refreshMarketplace,
       marketplaceDomain.addReview,
       marketplaceDomain.bookPublicAppointment,

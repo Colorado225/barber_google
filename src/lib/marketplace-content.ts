@@ -1,4 +1,5 @@
 import { useCallback, useSyncExternalStore } from 'react';
+import type { Salon, ServiceCategory } from '../types';
 
 export interface MarketplaceTabConfig {
   id: string;
@@ -22,6 +23,7 @@ export interface MarketplaceCategoryItem {
   id: string;
   label: string;
   slug: string;
+  serviceCategory?: ServiceCategory;
   iconName: string;
   description?: string;
   isPopular: boolean;
@@ -200,44 +202,79 @@ export const DEFAULT_MARKETPLACE_CONTENT: MarketplaceContentConfig = {
   categories: [
     {
       id: 'cat-1',
-      label: 'Dégradé Américain (Fade)',
+      label: 'Dégradé (Fade)',
       slug: 'degrade',
+      serviceCategory: 'coupe',
       iconName: 'Scissors',
-      description: 'Dégradé à blanc, taper fade, shadow fade',
+      description: 'Dégradé à blanc, taper fade, shadow fade et coupe homme',
       isPopular: true,
       isVisible: true,
     },
     {
       id: 'cat-2',
-      label: 'Taille & Traçage de Barbe',
+      label: 'Taille de Barbe',
       slug: 'barbe',
+      serviceCategory: 'barbe',
       iconName: 'Sparkles',
-      description: 'Rasage traditionnel à l’ancienne, contour au rasoir',
+      description: 'Traçage, sculpture et entretien complet de la barbe',
       isPopular: true,
       isVisible: true,
     },
     {
       id: 'cat-3',
-      label: 'Soin Capillaire & Visage',
-      slug: 'soins',
+      label: 'Rasage Traditionnel',
+      slug: 'rasage',
+      serviceCategory: 'barbe',
       iconName: 'ShieldCheck',
-      description: 'Masque noir purifiant, vapeur et serviette chaude',
-      isPopular: false,
+      description: 'Rasage à l’ancienne au coupe-chou et serviette chaude',
+      isPopular: true,
       isVisible: true,
     },
     {
       id: 'cat-4',
-      label: 'Coloration & Décoloration',
-      slug: 'coloration',
+      label: 'Soin Visage',
+      slug: 'visage',
+      serviceCategory: 'visage',
       iconName: 'Sparkles',
-      description: 'Teintures barbes et cheveux, mèches stylisées',
+      description: 'Nettoyage en profondeur, masque noir et vapeur',
       isPopular: false,
       isVisible: true,
     },
     {
       id: 'cat-5',
+      label: 'Soins Capillaires',
+      slug: 'soins',
+      serviceCategory: 'soins',
+      iconName: 'ShieldCheck',
+      description: 'Hydratation, soin du cuir chevelu et massage crânien',
+      isPopular: false,
+      isVisible: true,
+    },
+    {
+      id: 'cat-6',
+      label: 'Tresses & Locks',
+      slug: 'tresses',
+      serviceCategory: 'tresses',
+      iconName: 'Scissors',
+      description: 'Vanilles, nattes collées, locks et coiffures protectrices',
+      isPopular: false,
+      isVisible: true,
+    },
+    {
+      id: 'cat-7',
+      label: 'Coloration',
+      slug: 'coloration',
+      serviceCategory: 'coloration',
+      iconName: 'Sparkles',
+      description: 'Teinture barbe et cheveux, mèches et décoloration',
+      isPopular: false,
+      isVisible: true,
+    },
+    {
+      id: 'cat-8',
       label: 'Formule Combo VIP',
       slug: 'combo',
+      serviceCategory: 'combo',
       iconName: 'Award',
       description: 'Coupe + barbe complète + serviette chaude + soin',
       isPopular: true,
@@ -309,6 +346,20 @@ export const DEFAULT_MARKETPLACE_CONTENT: MarketplaceContentConfig = {
       question: 'Comment annuler ou modifier ma réservation ?',
       answer:
         'Ouvrez le lien de suivi de votre réservation : vous pouvez l’annuler ou contacter le salon. Les liens enregistrés sur cet appareil sont listés dans « Mes réservations ».',
+      isVisible: true,
+    },
+    {
+      id: 'faq-4',
+      question: 'Comment sont sélectionnés et vérifiés les salons affichés ?',
+      answer:
+        'Seuls les établissements actifs ayant complété et publié leur fiche (prestations, tarifs, horaires et coordonnées) apparaissent sur BarberCuts. Le badge de vérification est attribué par l’équipe après contrôle des informations du salon.',
+      isVisible: true,
+    },
+    {
+      id: 'faq-5',
+      question: 'Les avis clients publiés sur les fiches sont-ils authentiques ?',
+      answer:
+        'Oui. Un avis déposé via le lien de suivi d’un rendez-vous honoré et clôturé est marqué comme vérifié afin d’aider chaque client à choisir en toute confiance.',
       isVisible: true,
     },
   ],
@@ -520,4 +571,246 @@ export function useMarketplaceContent() {
   const resetConfig = useCallback((adminEmail?: string) => resetMarketplaceContent(adminEmail), []);
 
   return { config, updateConfig, resetConfig };
+}
+
+const SLUG_TO_SERVICE_CATEGORY: Record<string, ServiceCategory> = {
+  coupe: 'coupe',
+  degrade: 'coupe',
+  fade: 'coupe',
+  barbe: 'barbe',
+  beard: 'barbe',
+  rasage: 'barbe',
+  shave: 'barbe',
+  tresses: 'tresses',
+  braids: 'tresses',
+  soins: 'soins',
+  soin: 'soins',
+  coloration: 'coloration',
+  visage: 'visage',
+  facial: 'visage',
+  combo: 'combo',
+};
+
+/** Associe une catégorie éditoriale de la marketplace à la catégorie de prestation PostgreSQL. */
+export function resolveCategoryFilter(
+  category: Pick<MarketplaceCategoryItem, 'slug' | 'label' | 'serviceCategory'>,
+): ServiceCategory | null {
+  if (category.serviceCategory) return category.serviceCategory;
+  const slugKey = category.slug.trim().toLowerCase();
+  if (SLUG_TO_SERVICE_CATEGORY[slugKey]) return SLUG_TO_SERVICE_CATEGORY[slugKey];
+  const label = category.label.toLowerCase();
+  if (label.includes('fade') || label.includes('dégradé') || label.includes('coupe')) return 'coupe';
+  if (label.includes('barbe') || label.includes('rasage') || label.includes('shave')) return 'barbe';
+  if (label.includes('tresse') || label.includes('locks')) return 'tresses';
+  if (label.includes('visage')) return 'visage';
+  if (label.includes('color')) return 'coloration';
+  if (label.includes('combo')) return 'combo';
+  if (label.includes('soin')) return 'soins';
+  return null;
+}
+
+/** Filtre côté client (mode démo ou données déjà hydratées avec `serviceCategories`). */
+export function matchesSalonCategory(
+  salon: Salon,
+  category: MarketplaceCategoryItem,
+  options: { serverFiltered?: boolean } = {},
+): boolean {
+  const dbCategory = resolveCategoryFilter(category);
+  if (Array.isArray(salon.serviceCategories)) {
+    if (dbCategory && salon.serviceCategories.includes(dbCategory)) {
+      return true;
+    }
+    const keyword = category.slug.toLowerCase();
+    const haystack = `${salon.name} ${salon.tagline ?? ''} ${salon.description ?? ''}`.toLowerCase();
+    return haystack.includes(keyword) || haystack.includes(category.label.toLowerCase());
+  }
+  if (options.serverFiltered && dbCategory) {
+    return true;
+  }
+  const haystack =
+    `${salon.name} ${salon.tagline ?? ''} ${salon.description ?? ''} ${salon.type ?? ''}`.toLowerCase();
+  const tokens = [category.slug, ...category.label.split(/[\s&()/]+/)]
+    .map((t) => t.trim().toLowerCase())
+    .filter((t) => t.length >= 3);
+  if (tokens.some((token) => haystack.includes(token))) {
+    return true;
+  }
+  if (dbCategory === 'barbe' || dbCategory === 'coupe' || dbCategory === 'combo') {
+    return salon.type === 'barbershop' || salon.type === 'salon_mixte';
+  }
+  if (dbCategory === 'tresses') {
+    return salon.type === 'salon_femme' || salon.type === 'salon_mixte';
+  }
+  if (dbCategory === 'visage' || dbCategory === 'soins') {
+    return salon.type === 'institut' || salon.type === 'salon_mixte' || salon.type === 'salon_femme';
+  }
+  return false;
+}
+
+function normalizeSearchText(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+/** Filtre un salon en temps réel par nom ou localisation (ville, commune, quartier, adresse) ou slogan. */
+export function matchesSalonSearch(salon: Salon, query: string): boolean {
+  const normalizedQuery = normalizeSearchText(query);
+  if (!normalizedQuery) return true;
+
+  const tokens = normalizedQuery.split(/\s+/).filter(Boolean);
+  const haystack = normalizeSearchText(
+    [salon.name, salon.city, salon.commune, salon.quarter, salon.address, salon.country, salon.tagline]
+      .filter((part): part is string => Boolean(part))
+      .join(' '),
+  );
+
+  return tokens.every((token) => haystack.includes(token));
+}
+
+/** Extrait les slugs de catégories de services mentionnés dans une recherche texte libre. */
+export function extractSearchedCategoriesFromQuery(
+  query: string,
+  categories: MarketplaceCategoryItem[] = DEFAULT_MARKETPLACE_CONTENT.categories,
+): string[] {
+  const normalizedQuery = normalizeSearchText(query);
+  if (normalizedQuery.length < 3) return [];
+
+  const words = normalizedQuery.split(/[\s,.;:/()-]+/).filter((word) => word.length >= 3);
+  if (words.length === 0) return [];
+
+  const matchedSlugs = new Set<string>();
+
+  for (const cat of categories) {
+    const normSlug = normalizeSearchText(cat.slug);
+    const normLabel = normalizeSearchText(cat.label);
+    const labelTokens = normLabel.split(/[\s&()/]+/).filter((token) => token.length >= 4);
+
+    if (
+      words.some(
+        (word) =>
+          word === normSlug ||
+          normLabel.includes(word) ||
+          labelTokens.some((token) => token.startsWith(word) || word.startsWith(token)),
+      )
+    ) {
+      matchedSlugs.add(cat.slug);
+    }
+  }
+
+  for (const [alias, serviceCat] of Object.entries(SLUG_TO_SERVICE_CATEGORY)) {
+    const normAlias = normalizeSearchText(alias);
+    if (words.some((word) => word === normAlias || (word.length >= 4 && normAlias.startsWith(word)))) {
+      const catMatch = categories.find(
+        (cat) => cat.slug === alias || resolveCategoryFilter(cat) === serviceCat,
+      );
+      matchedSlugs.add(catMatch ? catMatch.slug : serviceCat);
+    }
+  }
+
+  return [...matchedSlugs];
+}
+
+/** Détermine si un salon doit recevoir le badge dynamique "Recommandé" selon les catégories recherchées. */
+export function isSalonRecommendedByHistory(
+  salon: Salon,
+  searchedCategories: string[],
+  categories: MarketplaceCategoryItem[] = DEFAULT_MARKETPLACE_CONTENT.categories,
+): boolean {
+  if (!searchedCategories || searchedCategories.length === 0) return false;
+
+  return searchedCategories.some((key) => {
+    const matchedCategory = categories.find((cat) => cat.slug === key || cat.serviceCategory === key) ?? {
+      id: `history-${key}`,
+      label: key,
+      slug: key,
+      serviceCategory: SLUG_TO_SERVICE_CATEGORY[key.toLowerCase()],
+      iconName: 'Sparkles',
+      isPopular: false,
+      isVisible: true,
+    };
+    return matchesSalonCategory(salon, matchedCategory);
+  });
+}
+
+/** Coût moyen représentatif d'un salon (prix moyen des prestations ou tarif d'entrée si absent). */
+export function resolveSalonAveragePrice(salon: Salon): number | null {
+  if (typeof salon.avgPrice === 'number' && Number.isFinite(salon.avgPrice) && salon.avgPrice >= 0) {
+    return salon.avgPrice;
+  }
+  if (typeof salon.minPrice === 'number' && Number.isFinite(salon.minPrice) && salon.minPrice >= 0) {
+    return salon.minPrice;
+  }
+  return null;
+}
+
+export interface MarketplacePriceBounds {
+  min: number;
+  max: number;
+  step: number;
+}
+
+/** Calcule les bornes du curseur de prix à partir des salons publiés. */
+export function computeMarketplacePriceBounds(salons: Salon[]): MarketplacePriceBounds {
+  const prices = salons
+    .map(resolveSalonAveragePrice)
+    .filter((price): price is number => price !== null && Number.isFinite(price));
+
+  const step = 500;
+  if (prices.length === 0) {
+    return { min: 0, max: 25000, step };
+  }
+
+  const maxObserved = Math.max(...prices);
+  const roundedMax = Math.max(2000, Math.ceil(maxObserved / step) * step);
+  return { min: 0, max: roundedMax, step };
+}
+
+/** Vérifie si un salon correspond à la fourchette de prix moyen choisie. */
+export function matchesSalonPriceRange(
+  salon: Salon,
+  priceRange: [number, number] | null,
+  bounds: Pick<MarketplacePriceBounds, 'min' | 'max'>,
+): boolean {
+  if (!priceRange) return true;
+  const [minFilter, maxFilter] = priceRange;
+  if (minFilter <= bounds.min && maxFilter >= bounds.max) return true;
+
+  const avgPrice = resolveSalonAveragePrice(salon);
+  if (avgPrice === null) return false;
+  return avgPrice >= minFilter && avgPrice <= maxFilter;
+}
+
+/** Sélectionne les salons les mieux notés parmi les établissements publiés et actifs. */
+export function selectTopRatedBarbers(salons: Salon[], limit = 8): Salon[] {
+  return salons
+    .filter(
+      (salon) =>
+        salon.isPublishedOnMarketplace === true &&
+        salon.status !== 'suspended' &&
+        typeof salon.rating === 'number' &&
+        Number.isFinite(salon.rating) &&
+        salon.rating > 0,
+    )
+    .slice()
+    .sort((a, b) => {
+      const ratingDiff = (b.rating ?? 0) - (a.rating ?? 0);
+      if (ratingDiff !== 0) return ratingDiff;
+
+      const reviewDiff = (b.reviewCount ?? 0) - (a.reviewCount ?? 0);
+      if (reviewDiff !== 0) return reviewDiff;
+
+      const verifiedDiff = Number(Boolean(b.isVerified)) - Number(Boolean(a.isVerified));
+      if (verifiedDiff !== 0) return verifiedDiff;
+
+      const barberPriority = (salon: Salon) =>
+        salon.type === 'barbershop' ? 2 : salon.type === 'salon_mixte' ? 1 : 0;
+      const typeDiff = barberPriority(b) - barberPriority(a);
+      if (typeDiff !== 0) return typeDiff;
+
+      return a.name.localeCompare(b.name, 'fr');
+    })
+    .slice(0, limit);
 }

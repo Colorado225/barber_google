@@ -21,9 +21,13 @@ const KNOWN_PLAN_NAMES: Record<string, string> = {
 
 export interface SignupPageProps {
   loadPlatformStatus?: typeof getPublicPlatformStatus;
+  supabaseConfigured?: boolean;
 }
 
-export const SignupPage: React.FC<SignupPageProps> = ({ loadPlatformStatus = getPublicPlatformStatus }) => {
+export const SignupPage: React.FC<SignupPageProps> = ({
+  loadPlatformStatus = getPublicPlatformStatus,
+  supabaseConfigured = isSupabaseConfigured(),
+}) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -36,7 +40,6 @@ export const SignupPage: React.FC<SignupPageProps> = ({ loadPlatformStatus = get
   const { signUp } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const supabaseConfigured = isSupabaseConfigured();
 
   const searchString = searchParams.toString();
   const urlIntent = parsePlanSelectionFromSearch(searchString ? `?${searchString}` : '');

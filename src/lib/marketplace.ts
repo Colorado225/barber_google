@@ -6,6 +6,7 @@ import type {
   SalonGalleryItem,
   SalonMarketplaceViewConfig,
   Service,
+  ServiceCategory,
   StaffMember,
 } from '../types';
 import { getSupabaseClient } from './supabase';
@@ -88,6 +89,8 @@ export function mapPublicSalon(row: DbRow): Salon {
     commune: str(row, 'commune') || undefined,
     quarter: str(row, 'quarter') || undefined,
     address: str(row, 'address') || undefined,
+    latitude: num(row, 'latitude'),
+    longitude: num(row, 'longitude'),
     phone: str(row, 'phone') || undefined,
     whatsapp: str(row, 'whatsapp') || undefined,
     email: str(row, 'email') || undefined,
@@ -95,6 +98,10 @@ export function mapPublicSalon(row: DbRow): Salon {
     rating: num(row, 'rating') ?? undefined,
     reviewCount: num(row, 'review_count') ?? undefined,
     minPrice: num(row, 'min_price') ?? undefined,
+    avgPrice: num(row, 'avg_price') ?? undefined,
+    serviceCategories: Array.isArray(row.service_categories)
+      ? row.service_categories.filter((c): c is ServiceCategory => typeof c === 'string')
+      : undefined,
     isPublishedOnMarketplace: row.is_published === true,
     isVerified: row.is_verified === true,
     verifiedAt: str(row, 'verified_at') || undefined,

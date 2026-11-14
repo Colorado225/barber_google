@@ -1,4 +1,4 @@
-import React, { Suspense } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import { Outlet, useInRouterContext, useLocation } from 'react-router-dom';
 import { AppProvider, useOptionalApp } from './context/AppContext';
 import { Navbar } from './components/common/Navbar';
@@ -40,9 +40,36 @@ const AppContent: React.FC = () => {
   const { selectedSalonForModal, setSelectedSalonForModal } = useOptionalApp();
   // Configuration globale (annonce, SEO) gérée par le SuperAdmin : mise à jour en direct.
   const { config } = useMarketplaceContent();
+  const [mapsQuotaExceeded, setMapsQuotaExceeded] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onQuotaExceeded = () => setMapsQuotaExceeded(true);
+    window.addEventListener('gmp-quota-exceeded', onQuotaExceeded);
+    return () => window.removeEventListener('gmp-quota-exceeded', onQuotaExceeded);
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#0d0d0e] text-[#f7f6f2] flex flex-col font-sans selection:bg-[#C9A45C] selection:text-[#101010]">
+      {mapsQuotaExceeded && (
+        <div
+          role="alert"
+          className="bg-amber-50 border-b border-amber-200 text-amber-900 px-4 py-2.5 text-xs md:text-sm text-center sticky top-0 z-50 shadow-sm"
+        >
+          <span>
+            Google Maps Platform quota reached. If you are the app owner, visit{' '}
+            <a
+              href="https://developers.google.com/maps/ai/ai-studio?utm_campaign=gmp_mcp_codeassist_v1_aistudio#quota_exceeded_errors"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline font-semibold text-amber-950 hover:text-amber-800"
+            >
+              maps developer site
+            </a>{' '}
+            for instructions to update your account.
+          </span>
+        </div>
+      )}
       {/* Bandeau d'annonce global (désactivé par défaut et isolé hors portail réservation) */}
       {routed ? (
         <RoutedAnnouncementBar announcement={config.announcement} />
