@@ -671,8 +671,8 @@ export const InventoryView: React.FC = () => {
 
       {/* MODAL NOUVEAU PRODUIT */}
       {isCreateOpen && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-[#161619] border border-[#2b2b30] rounded-3xl p-6 space-y-4">
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center overflow-y-auto p-4">
+          <div className="w-full max-w-md bg-[#161619] border border-[#2b2b30] rounded-3xl max-h-[calc(100dvh-2rem)] overflow-y-auto p-6 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold text-white">Nouveau produit en stock</h3>
               <button
@@ -806,8 +806,8 @@ export const InventoryView: React.FC = () => {
 
       {/* MODAL MOUVEMENT HISTORISÉ */}
       {movementTarget && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-[#161619] border border-[#2b2b30] rounded-3xl p-6 space-y-4">
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center overflow-y-auto p-4">
+          <div className="w-full max-w-md bg-[#161619] border border-[#2b2b30] rounded-3xl max-h-[calc(100dvh-2rem)] overflow-y-auto p-6 space-y-4">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-bold text-white">Mouvement de stock</h3>
@@ -973,8 +973,8 @@ export const InventoryView: React.FC = () => {
 
       {/* MODAL MODIFIER FICHE PRODUIT (SANS ÉCRASER QUANTITÉ) */}
       {editTarget && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-[#161619] border border-[#2b2b30] rounded-3xl p-6 space-y-4">
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center overflow-y-auto p-4">
+          <div className="w-full max-w-md bg-[#161619] border border-[#2b2b30] rounded-3xl max-h-[calc(100dvh-2rem)] overflow-y-auto p-6 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold text-white">Modifier la fiche produit</h3>
               <button
@@ -1086,8 +1086,8 @@ export const InventoryView: React.FC = () => {
 
       {/* MODAL FOURNISSEUR */}
       {supplierModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-[#161619] border border-[#2b2b30] rounded-3xl p-6 space-y-4">
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center overflow-y-auto p-4">
+          <div className="w-full max-w-md bg-[#161619] border border-[#2b2b30] rounded-3xl max-h-[calc(100dvh-2rem)] overflow-y-auto p-6 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold text-white">
                 {editingSupplier ? 'Modifier le fournisseur' : 'Nouveau fournisseur'}

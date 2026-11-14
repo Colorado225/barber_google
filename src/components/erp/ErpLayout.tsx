@@ -62,6 +62,8 @@ import {
   RefreshCw,
   Wifi,
   WifiOff,
+  Menu,
+  X,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -144,6 +146,7 @@ export const ErpLayout: React.FC = () => {
     return readTabFromPathname(window.location.pathname);
   });
   const [salonDropdownOpen, setSalonDropdownOpen] = useState(false);
+  const [isMobileNavigationOpen, setIsMobileNavigationOpen] = useState(false);
 
   // Quick modals
   const [isNewAppointmentOpen, setIsNewAppointmentOpen] = useState(false);
@@ -266,6 +269,7 @@ export const ErpLayout: React.FC = () => {
 
   const handleSelectSalon = (nextSalonId: string) => {
     setSalonDropdownOpen(false);
+    setIsMobileNavigationOpen(false);
     setIsWalkInOpen(false);
     setIsNewAppointmentOpen(false);
     setIsNewPaymentOpen(false);
@@ -293,6 +297,27 @@ export const ErpLayout: React.FC = () => {
       }
     }
   };
+
+  const handleSelectTab = (nextTab: ErpTab) => {
+    setActiveTab(nextTab);
+    setIsMobileNavigationOpen(false);
+
+    if (typeof window !== 'undefined') {
+      const nextUrl = buildErpUrl(TAB_PATHS[nextTab], expectedSalonId, activeMemberships.length > 0);
+      if (window.location.pathname + window.location.search !== nextUrl) {
+        window.history.pushState({}, '', nextUrl);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (!isMobileNavigationOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsMobileNavigationOpen(false);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [isMobileNavigationOpen]);
 
   if (
     activeMemberships.length > 0 &&
@@ -386,8 +411,38 @@ export const ErpLayout: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#0d0d0e] flex flex-col md:flex-row text-stone-200">
-      {/* SIDEBAR */}
-      <aside className="w-full md:w-64 bg-[#121214] border-r border-[#222226] flex flex-col shrink-0">
+      {isMobileNavigationOpen && (
+        <button
+          type="button"
+          aria-label="Fermer la navigation ERP"
+          onClick={() => setIsMobileNavigationOpen(false)}
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden"
+        />
+      )}
+
+      {/* SIDEBAR / mobile drawer — identical tabs, permissions and handlers on every viewport. */}
+      <aside
+        role={isMobileNavigationOpen ? 'dialog' : undefined}
+        aria-modal={isMobileNavigationOpen || undefined}
+        aria-label="Navigation ERP"
+        className={`${
+          isMobileNavigationOpen
+            ? 'fixed inset-y-0 left-0 z-50 flex w-[min(20rem,calc(100vw-3rem))] shadow-2xl'
+            : 'hidden'
+        } md:static md:z-auto md:flex md:w-64 md:shadow-none bg-[#121214] border-r border-[#222226] flex-col shrink-0`}
+      >
+        <div className="flex items-center justify-between px-4 pt-4 md:hidden">
+          <span className="text-xs font-bold uppercase tracking-wider text-stone-400">Navigation ERP</span>
+          <button
+            type="button"
+            onClick={() => setIsMobileNavigationOpen(false)}
+            className="flex h-10 w-10 items-center justify-center rounded-xl text-stone-300 hover:bg-[#1a1a1d] hover:text-white"
+            aria-label="Fermer la navigation ERP"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
         {/* Salon Selector Header */}
         <div className="p-4 border-b border-[#222226] relative">
           {switchableOptions.length > 1 ? (
@@ -471,17 +526,7 @@ export const ErpLayout: React.FC = () => {
             return (
               <button
                 key={item.id}
-                onClick={() => {
-                  setActiveTab(item.id);
-                  const nextUrl = buildErpUrl(
-                    TAB_PATHS[item.id],
-                    expectedSalonId,
-                    activeMemberships.length > 0,
-                  );
-                  if (window.location.pathname + window.location.search !== nextUrl) {
-                    window.history.pushState({}, '', nextUrl);
-                  }
-                }}
+                onClick={() => handleSelectTab(item.id)}
                 className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
                   isActive
                     ? 'bg-[#C9A45C] text-[#101010] shadow-sm font-bold'
@@ -535,8 +580,11 @@ export const ErpLayout: React.FC = () => {
           </div>
 
           <button
-            onClick={() => setMode('marketplace')}
-            className="w-full py-2 px-3 rounded-xl bg-[#18181b] hover:bg-[#202025] text-stone-400 hover:text-white text-xs flex items-center justify-center gap-1.5 transition-colors"
+            onClick={() => {
+              setIsMobileNavigationOpen(false);
+              setMode('marketplace');
+            }}
+            className="w-full min-h-10 py-2 px-3 rounded-xl bg-[#18181b] hover:bg-[#202025] text-stone-400 hover:text-white text-xs flex items-center justify-center gap-1.5 transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Retour Marketplace</span>
@@ -547,9 +595,18 @@ export const ErpLayout: React.FC = () => {
       {/* MAIN ERP WORKSPACE */}
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
         {/* Top Header */}
-        <header className="h-16 bg-[#121214] border-b border-[#222226] px-6 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3">
-            <h1 className="text-base font-bold text-white capitalize">
+        <header className="h-16 bg-[#121214] border-b border-[#222226] px-3 sm:px-6 flex items-center justify-between shrink-0">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={() => setIsMobileNavigationOpen(true)}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#2a2a32] bg-[#18181c] text-stone-200 hover:bg-[#24242a] hover:text-white md:hidden"
+              aria-label={`Ouvrir la navigation ERP — ${navItems.find((n) => n.id === visibleActiveTab)?.label ?? 'onglet actif'}`}
+              aria-expanded={isMobileNavigationOpen}
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <h1 className="hidden min-w-0 truncate text-base font-bold text-white capitalize sm:block">
               {navItems.find((n) => n.id === activeTab)?.label}
             </h1>
             <span className="text-xs text-stone-500 hidden sm:inline">• {activeSalon.name}</span>
@@ -565,14 +622,14 @@ export const ErpLayout: React.FC = () => {
             )}
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1 sm:gap-3">
             {memberships.length > 0 && (
               <button
                 type="button"
                 onClick={() => void syncNow()}
                 title="Synchroniser immédiatement les données du salon"
                 aria-label="Synchroniser les données"
-                className="p-2 rounded-xl bg-[#18181c] hover:bg-[#24242a] text-stone-300 hover:text-white border border-[#2a2a32] transition-colors cursor-pointer"
+                className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#18181c] hover:bg-[#24242a] text-stone-300 hover:text-white border border-[#2a2a32] transition-colors cursor-pointer"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
               </button>
@@ -580,7 +637,8 @@ export const ErpLayout: React.FC = () => {
             {(memberships.length === 0 || canSee('appointments.write')) && (
               <button
                 onClick={() => setIsWalkInOpen(true)}
-                className="bg-[#C9A45C]/15 hover:bg-[#C9A45C]/25 text-[#E5C378] border border-[#C9A45C]/40 font-semibold text-xs px-3.5 py-2 rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
+                aria-label="Ajouter un client de passage"
+                className="min-h-10 min-w-10 bg-[#C9A45C]/15 hover:bg-[#C9A45C]/25 text-[#E5C378] border border-[#C9A45C]/40 font-semibold text-xs px-3 py-2 rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
               >
                 <UserPlus className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">+ Client de passage</span>
@@ -591,7 +649,8 @@ export const ErpLayout: React.FC = () => {
                 setNewAppointmentSlot({});
                 setIsNewAppointmentOpen(true);
               }}
-              className="bg-[#242429] hover:bg-[#2d2d34] text-white border border-[#3b3b44] font-semibold text-xs px-3.5 py-2 rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
+              aria-label="Créer un nouveau rendez-vous"
+              className="min-h-10 min-w-10 bg-[#242429] hover:bg-[#2d2d34] text-white border border-[#3b3b44] font-semibold text-xs px-3 py-2 rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
             >
               <Calendar className="w-3.5 h-3.5 text-[#C9A45C]" />
               <span className="hidden sm:inline">+ Nouveau RDV</span>
@@ -603,10 +662,11 @@ export const ErpLayout: React.FC = () => {
                   setPreselectedAppointment(null);
                   setIsNewPaymentOpen(true);
                 }}
-                className="bg-[#C9A45C] hover:bg-[#d8b56d] text-[#101010] font-bold text-xs px-4 py-2 rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+                aria-label="Encaisser"
+                className="min-h-10 min-w-10 bg-[#C9A45C] hover:bg-[#d8b56d] text-[#101010] font-bold text-xs px-3 sm:px-4 py-2 rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
               >
                 <CreditCard className="w-3.5 h-3.5" />
-                <span>Encaisser</span>
+                <span className="hidden sm:inline">Encaisser</span>
               </button>
             )}
           </div>

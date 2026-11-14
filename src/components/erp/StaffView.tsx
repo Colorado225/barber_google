@@ -144,71 +144,78 @@ export const StaffView: React.FC = () => {
             <p className="text-sm mt-1">Ajoutez votre équipe</p>
           </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-[#2a2a2b] text-left">
-                {['Collaborateur', 'Rôle', 'Spécialités', 'Commission', 'Statut', ''].map((h) => (
-                  <th
-                    key={h}
-                    className="px-4 py-3 text-[11px] uppercase tracking-wider text-[#a9a9a9] font-bold"
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((member) => (
-                <tr key={member.id} className="border-b border-[#232326] last:border-0 hover:bg-[#18181b]">
-                  <td className="px-4 py-3">
-                    <span className="font-semibold text-[#f7f6f2]">{member.name}</span>
-                    {member.phone && <div className="text-[11px] text-[#a9a9a9]">{member.phone}</div>}
-                  </td>
-                  <td className="px-4 py-3 text-[#a9a9a9]">{ROLE_LABELS[member.role]}</td>
-                  <td className="px-4 py-3 text-[#a9a9a9] text-xs">
-                    {member.specialties.length ? member.specialties.join(', ') : '—'}
-                  </td>
-                  <td className="px-4 py-3 text-[#E5C378] font-semibold">{member.commissionRate} %</td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
-                        member.isActive === false
-                          ? 'bg-red-950/80 text-red-400'
-                          : member.isAvailable
-                            ? 'bg-emerald-950/80 text-emerald-400'
-                            : 'bg-stone-800 text-stone-400'
-                      }`}
+          <div
+            className="overflow-x-auto"
+            tabIndex={0}
+            role="region"
+            aria-label="Liste de l’équipe, défilement horizontal"
+          >
+            <table className="w-full min-w-[780px] text-sm">
+              <thead>
+                <tr className="border-b border-[#2a2a2b] text-left">
+                  {['Collaborateur', 'Rôle', 'Spécialités', 'Commission', 'Statut', ''].map((h) => (
+                    <th
+                      key={h}
+                      className="px-4 py-3 text-[11px] uppercase tracking-wider text-[#a9a9a9] font-bold"
                     >
-                      {member.isActive === false
-                        ? 'Inactif'
-                        : member.isAvailable
-                          ? 'Disponible'
-                          : 'Indisponible'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => setScheduleFor(member)}
-                        title="Horaires et absences"
-                        className="text-stone-400 hover:text-[#C9A45C] p-1 rounded cursor-pointer"
-                      >
-                        <Clock className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => openEdit(member)}
-                        title="Modifier"
-                        className="text-stone-400 hover:text-white p-1 rounded cursor-pointer"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      <ConfirmDelete onConfirm={() => deleteStaff(member.id)} />
-                    </div>
-                  </td>
+                      {h}
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {rows.map((member) => (
+                  <tr key={member.id} className="border-b border-[#232326] last:border-0 hover:bg-[#18181b]">
+                    <td className="px-4 py-3">
+                      <span className="font-semibold text-[#f7f6f2]">{member.name}</span>
+                      {member.phone && <div className="text-[11px] text-[#a9a9a9]">{member.phone}</div>}
+                    </td>
+                    <td className="px-4 py-3 text-[#a9a9a9]">{ROLE_LABELS[member.role]}</td>
+                    <td className="px-4 py-3 text-[#a9a9a9] text-xs">
+                      {member.specialties.length ? member.specialties.join(', ') : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-[#E5C378] font-semibold">{member.commissionRate} %</td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+                          member.isActive === false
+                            ? 'bg-red-950/80 text-red-400'
+                            : member.isAvailable
+                              ? 'bg-emerald-950/80 text-emerald-400'
+                              : 'bg-stone-800 text-stone-400'
+                        }`}
+                      >
+                        {member.isActive === false
+                          ? 'Inactif'
+                          : member.isAvailable
+                            ? 'Disponible'
+                            : 'Indisponible'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => setScheduleFor(member)}
+                          title="Horaires et absences"
+                          className="text-stone-400 hover:text-[#C9A45C] p-1 rounded cursor-pointer"
+                        >
+                          <Clock className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => openEdit(member)}
+                          title="Modifier"
+                          className="text-stone-400 hover:text-white p-1 rounded cursor-pointer"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <ConfirmDelete onConfirm={() => deleteStaff(member.id)} />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 

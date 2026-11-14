@@ -20,8 +20,10 @@ import {
   Settings,
   FileText,
   Bell,
+  Menu,
   X,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type {
   SaaSPlan,
   PlatformMetrics,
@@ -129,6 +131,16 @@ export const AdminDashboard: React.FC = () => {
   }, []);
 
   const [activeTab, setActiveTab] = useState<AdminDashboardTab>('overview');
+  const [isMobileNavigationOpen, setIsMobileNavigationOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isMobileNavigationOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsMobileNavigationOpen(false);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [isMobileNavigationOpen]);
 
   // Platform Data (100% server-backed)
   const [metricsPeriod, setMetricsPeriod] = useState<MetricsPeriodKey>('month');
@@ -394,12 +406,48 @@ export const AdminDashboard: React.FC = () => {
 
   const hiddenReviewsCount = reviews.filter((r) => r.isHidden).length;
   const repeatedNotificationAlertCount = notificationHealth?.repeatedFailures ?? 0;
+  const adminNavItems: Array<{
+    id: AdminDashboardTab;
+    label: string;
+    icon: LucideIcon;
+    count?: number;
+  }> = [
+    { id: 'overview', label: 'Vue d’Ensemble', icon: Activity },
+    { id: 'salons', label: 'Gestion des Salons', icon: Store, count: salons.length },
+    { id: 'reviews', label: 'Modération des Avis', icon: MessageSquare, count: reviews.length },
+    {
+      id: 'notifications',
+      label: 'Notifications & Alertes',
+      icon: Bell,
+      count: repeatedNotificationAlertCount > 0 ? repeatedNotificationAlertCount : undefined,
+    },
+    { id: 'audit', label: 'Journal d’Audit', icon: FileText, count: auditLogs.length },
+    { id: 'marketplace-sections', label: 'Sections Marketplace', icon: Globe },
+    { id: 'marketplace-config', label: 'Bannières & Métadonnées', icon: Sliders },
+    { id: 'pricing', label: 'Tarifs & Plans SaaS', icon: DollarSign, count: plans.length },
+    { id: 'subscriptions', label: 'Statuts d’Abonnement', icon: CreditCard, count: salons.length },
+    { id: 'settings', label: 'Paramètres Globaux', icon: Settings },
+  ];
+
+  const selectAdminTab = (nextTab: AdminDashboardTab) => {
+    setActiveTab(nextTab);
+    setIsMobileNavigationOpen(false);
+  };
 
   return (
     <div className="min-h-screen bg-[#070709] text-[#f7f6f2] font-sans flex flex-col selection:bg-[#C9A45C] selection:text-[#101010]">
       {/* Top Application Header */}
-      <header className="h-16 bg-[#0c0c10] border-b border-[#1c1c24] px-4 sm:px-8 flex items-center justify-between shrink-0 sticky top-0 z-40">
-        <div className="flex items-center gap-3 sm:gap-4">
+      <header className="h-16 bg-[#0c0c10] border-b border-[#1c1c24] px-3 sm:px-8 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-2 sm:gap-4">
+          <button
+            type="button"
+            onClick={() => setIsMobileNavigationOpen(true)}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#26262e] bg-[#141418] text-stone-200 hover:bg-[#1c1c22] hover:text-white md:hidden"
+            aria-label={`Ouvrir la navigation administration — ${adminNavItems.find((item) => item.id === activeTab)?.label ?? 'onglet actif'}`}
+            aria-expanded={isMobileNavigationOpen}
+          >
+            <Menu className="h-5 w-5" />
+          </button>
           <div className="w-9 h-9 rounded-xl bg-[#171612] border border-[#C9A45C]/40 flex items-center justify-center text-[#C9A45C]">
             <ShieldCheck className="w-5 h-5" />
           </div>
@@ -455,7 +503,7 @@ export const AdminDashboard: React.FC = () => {
             <button
               type="button"
               onClick={handleLogout}
-              className="p-2 sm:px-3 sm:py-1.5 rounded-xl bg-red-950/40 hover:bg-red-900/50 border border-red-800/40 text-xs font-bold text-red-300 flex items-center gap-1.5 transition-colors cursor-pointer"
+              className="flex h-10 w-10 items-center justify-center sm:h-auto sm:w-auto sm:px-3 sm:py-1.5 rounded-xl bg-red-950/40 hover:bg-red-900/50 border border-red-800/40 text-xs font-bold text-red-300 gap-1.5 transition-colors cursor-pointer"
               title="Déconnexion sécurisée"
             >
               <LogOut className="w-3.5 h-3.5" />
@@ -465,49 +513,55 @@ export const AdminDashboard: React.FC = () => {
         </div>
       </header>
 
+      {isMobileNavigationOpen && (
+        <button
+          type="button"
+          aria-label="Fermer la navigation administration"
+          onClick={() => setIsMobileNavigationOpen(false)}
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden"
+        />
+      )}
+
       {/* Main Layout Body */}
       <div className="flex-1 flex flex-col md:flex-row min-w-0">
-        {/* Navigation Sidebar */}
-        <aside className="w-full md:w-64 bg-[#0a0a0d] border-r border-[#1a1a22] p-4 flex flex-col shrink-0 space-y-6">
+        {/* Navigation Sidebar / mobile drawer — same active tab and server-backed panels. */}
+        <aside
+          role={isMobileNavigationOpen ? 'dialog' : undefined}
+          aria-modal={isMobileNavigationOpen || undefined}
+          aria-label="Navigation administration"
+          className={`${
+            isMobileNavigationOpen
+              ? 'fixed inset-y-0 left-0 z-50 flex w-[min(20rem,calc(100vw-3rem))] shadow-2xl'
+              : 'hidden'
+          } md:static md:z-auto md:flex md:w-64 md:shadow-none bg-[#0a0a0d] border-r border-[#1a1a22] overflow-y-auto p-4 flex-col shrink-0 space-y-6`}
+        >
+          <div className="flex items-center justify-between md:hidden">
+            <span className="text-xs font-bold uppercase tracking-wider text-stone-400">
+              Navigation plateforme
+            </span>
+            <button
+              type="button"
+              onClick={() => setIsMobileNavigationOpen(false)}
+              className="flex h-10 w-10 items-center justify-center rounded-xl text-stone-300 hover:bg-[#121217] hover:text-white"
+              aria-label="Fermer la navigation administration"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
           <div className="space-y-1">
             <div className="text-[10px] uppercase font-extrabold tracking-wider text-stone-500 px-3">
               Navigation Plateforme
             </div>
             <nav className="space-y-1">
-              {[
-                { id: 'overview', label: 'Vue d’Ensemble', icon: Activity },
-                { id: 'salons', label: 'Gestion des Salons', icon: Store, count: salons.length },
-                {
-                  id: 'reviews',
-                  label: 'Modération des Avis',
-                  icon: MessageSquare,
-                  count: reviews.length,
-                },
-                {
-                  id: 'notifications',
-                  label: 'Notifications & Alertes',
-                  icon: Bell,
-                  count: repeatedNotificationAlertCount > 0 ? repeatedNotificationAlertCount : undefined,
-                },
-                { id: 'audit', label: 'Journal d’Audit', icon: FileText, count: auditLogs.length },
-                { id: 'marketplace-sections', label: 'Sections Marketplace', icon: Globe },
-                { id: 'marketplace-config', label: 'Bannières & Métadonnées', icon: Sliders },
-                { id: 'pricing', label: 'Tarifs & Plans SaaS', icon: DollarSign, count: plans.length },
-                {
-                  id: 'subscriptions',
-                  label: 'Statuts d’Abonnement',
-                  icon: CreditCard,
-                  count: salons.length,
-                },
-                { id: 'settings', label: 'Paramètres Globaux', icon: Settings },
-              ].map((item) => {
+              {adminNavItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
                 return (
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => setActiveTab(item.id as AdminDashboardTab)}
+                    onClick={() => selectAdminTab(item.id)}
                     className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                       isActive
                         ? 'bg-[#C9A45C] text-[#101010] shadow-sm'
@@ -531,6 +585,40 @@ export const AdminDashboard: React.FC = () => {
                 );
               })}
             </nav>
+          </div>
+
+          <div className="space-y-2 border-y border-[#1a1a22] py-4 md:hidden">
+            <div className="px-3 text-[10px] font-extrabold uppercase tracking-wider text-stone-500">
+              Actions rapides
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setIsMobileNavigationOpen(false);
+                void refreshAllAndMarketplace();
+              }}
+              disabled={loading}
+              className="flex min-h-10 w-full items-center gap-2.5 rounded-xl px-3 text-left text-xs font-bold text-stone-300 hover:bg-[#121217] hover:text-white disabled:opacity-50"
+            >
+              <RefreshCw className={`h-4 w-4 text-[#C9A45C] ${loading ? 'animate-spin' : ''}`} />
+              Actualiser les données
+            </button>
+            <Link
+              to="/tarifs"
+              target="_blank"
+              className="flex min-h-10 items-center gap-2.5 rounded-xl px-3 text-xs font-bold text-stone-300 hover:bg-[#121217] hover:text-white"
+            >
+              <Eye className="h-4 w-4 text-[#C9A45C]" />
+              Tarifs publics
+            </Link>
+            <Link
+              to="/"
+              target="_blank"
+              className="flex min-h-10 items-center gap-2.5 rounded-xl px-3 text-xs font-bold text-stone-300 hover:bg-[#121217] hover:text-white"
+            >
+              <Globe className="h-4 w-4 text-[#C9A45C]" />
+              Ouvrir la marketplace
+            </Link>
           </div>
 
           <div className="p-3.5 rounded-2xl bg-[#0f0f13] border border-[#1e1e26] space-y-2 mt-auto">
@@ -851,10 +939,10 @@ export const AdminDashboard: React.FC = () => {
 
       {/* SUBSCRIPTION TAB STATUS TOGGLE MODAL */}
       {pendingStatusSalon && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center overflow-y-auto p-4">
           <form
             onSubmit={handleConfirmSubscriptionStatus}
-            className="bg-[#0f0f13] border border-[#262632] rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl"
+            className="bg-[#0f0f13] border border-[#262632] rounded-3xl max-w-md w-full max-h-[calc(100dvh-2rem)] overflow-y-auto p-6 space-y-4 shadow-2xl"
           >
             <div className="flex items-start justify-between gap-3">
               <div>

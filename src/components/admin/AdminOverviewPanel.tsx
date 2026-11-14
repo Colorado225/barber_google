@@ -610,44 +610,51 @@ export const AdminOverviewPanel: React.FC<AdminOverviewPanelProps> = ({
           </button>
         </div>
         <div className="rounded-2xl bg-[#0c0c10] border border-[#1a1a22] overflow-hidden">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-[#101014] border-b border-[#1a1a22] text-stone-400 text-[10px] uppercase">
-              <tr>
-                <th className="py-2.5 px-4">Horodatage</th>
-                <th className="py-2.5 px-4">Action</th>
-                <th className="py-2.5 px-4">Cible</th>
-                <th className="py-2.5 px-4">Motif</th>
-                <th className="py-2.5 px-4">Acteur</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#15151c] text-stone-300 text-[11px]">
-              {auditLogs.length === 0 ? (
+          <div
+            className="overflow-x-auto"
+            tabIndex={0}
+            role="region"
+            aria-label="Extrait du journal d’audit, défilement horizontal"
+          >
+            <table className="w-full min-w-[760px] text-left text-xs">
+              <thead className="bg-[#101014] border-b border-[#1a1a22] text-stone-400 text-[10px] uppercase">
                 <tr>
-                  <td colSpan={5} className="py-6 text-center text-stone-500">
-                    Aucune opération enregistrée pour le moment.
-                  </td>
+                  <th className="py-2.5 px-4">Horodatage</th>
+                  <th className="py-2.5 px-4">Action</th>
+                  <th className="py-2.5 px-4">Cible</th>
+                  <th className="py-2.5 px-4">Motif</th>
+                  <th className="py-2.5 px-4">Acteur</th>
                 </tr>
-              ) : (
-                auditLogs.slice(0, 6).map((log) => (
-                  <tr key={log.id}>
-                    <td className="py-2.5 px-4 text-stone-500 font-mono">
-                      {new Date(log.timestamp).toLocaleString('fr-FR')}
-                    </td>
-                    <td className="py-2.5 px-4 text-white font-semibold">{log.action}</td>
-                    <td className="py-2.5 px-4 text-[#E5C378]">
-                      {typeof log.details?.salon_name === 'string'
-                        ? log.details.salon_name
-                        : `${log.targetType}:${log.targetId}`}
-                    </td>
-                    <td className="py-2.5 px-4 text-stone-300">{log.reason || '—'}</td>
-                    <td className="py-2.5 px-4 text-stone-400">
-                      {log.actorEmail || log.actorRole || log.actorUserId?.slice(0, 8) || '—'}
+              </thead>
+              <tbody className="divide-y divide-[#15151c] text-stone-300 text-[11px]">
+                {auditLogs.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-6 text-center text-stone-500">
+                      Aucune opération enregistrée pour le moment.
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  auditLogs.slice(0, 6).map((log) => (
+                    <tr key={log.id}>
+                      <td className="py-2.5 px-4 text-stone-500 font-mono">
+                        {new Date(log.timestamp).toLocaleString('fr-FR')}
+                      </td>
+                      <td className="py-2.5 px-4 text-white font-semibold">{log.action}</td>
+                      <td className="py-2.5 px-4 text-[#E5C378]">
+                        {typeof log.details?.salon_name === 'string'
+                          ? log.details.salon_name
+                          : `${log.targetType}:${log.targetId}`}
+                      </td>
+                      <td className="py-2.5 px-4 text-stone-300">{log.reason || '—'}</td>
+                      <td className="py-2.5 px-4 text-stone-400">
+                        {log.actorEmail || log.actorRole || log.actorUserId?.slice(0, 8) || '—'}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>

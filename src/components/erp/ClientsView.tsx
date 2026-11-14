@@ -161,54 +161,61 @@ export const ClientsView: React.FC = () => {
             </p>
           </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-[#2a2a2b] text-left">
-                {['Client', 'Segment', 'Visites', 'Dépensé', 'Dernière visite', ''].map((h) => (
-                  <th
-                    key={h}
-                    className="px-4 py-3 text-[11px] uppercase tracking-wider text-[#a9a9a9] font-bold"
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((client) => (
-                <tr key={client.id} className="border-b border-[#232326] last:border-0 hover:bg-[#18181b]">
-                  <td className="px-4 py-3">
-                    <span className="font-semibold text-[#f7f6f2]">{client.name}</span>
-                    <div className="text-[11px] text-[#a9a9a9]">{client.phone}</div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[#232328] text-stone-300">
-                      {SEGMENT_LABELS[client.segment]}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-[#a9a9a9]">{client.visitsCount ?? '—'}</td>
-                  <td className="px-4 py-3 text-[#E5C378] font-semibold">
-                    {client.totalSpent === undefined
-                      ? '—'
-                      : `${client.totalSpent.toLocaleString('fr-FR')} FCFA`}
-                  </td>
-                  <td className="px-4 py-3 text-[#a9a9a9] text-xs">{client.lastVisit || '—'}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => openEdit(client)}
-                        title="Modifier"
-                        className="text-stone-400 hover:text-white p-1 rounded cursor-pointer"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      <ConfirmDelete onConfirm={() => deleteClient(client.id)} />
-                    </div>
-                  </td>
+          <div
+            className="overflow-x-auto"
+            tabIndex={0}
+            role="region"
+            aria-label="Liste des clients, défilement horizontal"
+          >
+            <table className="w-full min-w-[720px] text-sm">
+              <thead>
+                <tr className="border-b border-[#2a2a2b] text-left">
+                  {['Client', 'Segment', 'Visites', 'Dépensé', 'Dernière visite', ''].map((h) => (
+                    <th
+                      key={h}
+                      className="px-4 py-3 text-[11px] uppercase tracking-wider text-[#a9a9a9] font-bold"
+                    >
+                      {h}
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {rows.map((client) => (
+                  <tr key={client.id} className="border-b border-[#232326] last:border-0 hover:bg-[#18181b]">
+                    <td className="px-4 py-3">
+                      <span className="font-semibold text-[#f7f6f2]">{client.name}</span>
+                      <div className="text-[11px] text-[#a9a9a9]">{client.phone}</div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[#232328] text-stone-300">
+                        {SEGMENT_LABELS[client.segment]}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-[#a9a9a9]">{client.visitsCount ?? '—'}</td>
+                    <td className="px-4 py-3 text-[#E5C378] font-semibold">
+                      {client.totalSpent === undefined
+                        ? '—'
+                        : `${client.totalSpent.toLocaleString('fr-FR')} FCFA`}
+                    </td>
+                    <td className="px-4 py-3 text-[#a9a9a9] text-xs">{client.lastVisit || '—'}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => openEdit(client)}
+                          title="Modifier"
+                          className="text-stone-400 hover:text-white p-1 rounded cursor-pointer"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <ConfirmDelete onConfirm={() => deleteClient(client.id)} />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 

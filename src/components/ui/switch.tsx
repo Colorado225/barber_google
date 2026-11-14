@@ -10,14 +10,31 @@ export const Switch: React.FC<SwitchProps> = ({
   checked = false,
   onCheckedChange,
   className = '',
+  onChange,
+  disabled,
   ...props
 }) => (
-  <input
-    type="checkbox"
-    role="switch"
-    checked={checked}
-    onChange={(e) => onCheckedChange?.(e.target.checked)}
-    className={`peer h-[6px] w-[12px] shrink-0 cursor-pointer appearance-none rounded-full border border-transparent bg-[#27272c] transition-colors focus:outline-none focus:ring-2 focus:ring-[#C9A45c] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-[#C9A45C] ${className}`}
-    {...props}
-  />
+  <label
+    data-state={checked ? 'checked' : 'unchecked'}
+    className={`relative inline-flex h-11 w-11 shrink-0 items-center justify-center ${
+      disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+    } ${className}`}
+  >
+    <input
+      type="checkbox"
+      role="switch"
+      checked={checked}
+      disabled={disabled}
+      onChange={(event) => {
+        onCheckedChange?.(event.target.checked);
+        onChange?.(event);
+      }}
+      className="peer sr-only"
+      {...props}
+    />
+    <span
+      aria-hidden="true"
+      className="relative h-6 w-11 rounded-full bg-[#27272c] transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:bg-[#C9A45C] peer-checked:after:translate-x-5 peer-focus-visible:ring-2 peer-focus-visible:ring-[#C9A45C] peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-[#101010]"
+    />
+  </label>
 );

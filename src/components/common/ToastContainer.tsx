@@ -8,7 +8,7 @@ export const ToastContainer: React.FC = () => {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed bottom-5 right-5 z-[100] flex flex-col gap-2 max-w-md w-full px-4 pointer-events-none">
+    <div className="fixed inset-x-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-[100] flex w-auto max-w-md flex-col gap-2 pointer-events-none sm:inset-x-auto sm:bottom-5 sm:right-5 sm:w-full">
       {toasts.map((toast) => (
         <div
           key={toast.id}
@@ -27,8 +27,10 @@ export const ToastContainer: React.FC = () => {
           <div className="flex-1 text-sm leading-relaxed">{toast.message}</div>
 
           <button
+            type="button"
+            aria-label="Fermer la notification"
             onClick={() => removeToast(toast.id)}
-            className="text-stone-400 hover:text-white transition-colors"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-stone-400 hover:bg-black/20 hover:text-white transition-colors"
           >
             <X className="w-4 h-4" />
           </button>

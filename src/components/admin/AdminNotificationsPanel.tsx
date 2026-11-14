@@ -291,46 +291,53 @@ export const AdminNotificationsPanel: React.FC<AdminNotificationsPanelProps> = (
             </span>
           )}
         </div>
-        <table className="w-full text-left text-xs">
-          <thead className="bg-[#101014] border-b border-[#1a1a22] text-stone-400 text-[10px] uppercase">
-            <tr>
-              <th className="py-2.5 px-4">Salon</th>
-              <th className="py-2.5 px-4">Échecs répétés</th>
-              <th className="py-2.5 px-4">Échecs totaux</th>
-              <th className="py-2.5 px-4">En retard (&gt;15m)</th>
-              <th className="py-2.5 px-4">Dernier retour fournisseur</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[#15151c] text-stone-300 text-[11px]">
-            {!health || health.salonsWithIssues.length === 0 ? (
+        <div
+          className="overflow-x-auto"
+          tabIndex={0}
+          role="region"
+          aria-label="Santé des notifications, défilement horizontal"
+        >
+          <table className="w-full min-w-[780px] text-left text-xs">
+            <thead className="bg-[#101014] border-b border-[#1a1a22] text-stone-400 text-[10px] uppercase">
               <tr>
-                <td colSpan={5} className="py-6 text-center text-stone-500">
-                  Aucun salon en erreur ou en retard dans la file de notifications.
-                </td>
+                <th className="py-2.5 px-4">Salon</th>
+                <th className="py-2.5 px-4">Échecs répétés</th>
+                <th className="py-2.5 px-4">Échecs totaux</th>
+                <th className="py-2.5 px-4">En retard (&gt;15m)</th>
+                <th className="py-2.5 px-4">Dernier retour fournisseur</th>
               </tr>
-            ) : (
-              health.salonsWithIssues.map((row) => (
-                <tr key={row.salonId}>
-                  <td className="py-2.5 px-4 font-semibold text-white">{row.salonName}</td>
-                  <td className="py-2.5 px-4">
-                    {row.repeatedFailures > 0 ? (
-                      <span className="px-2 py-0.5 rounded-full bg-red-950 border border-red-500/40 text-red-200 font-bold">
-                        {row.repeatedFailures}
-                      </span>
-                    ) : (
-                      '0'
-                    )}
-                  </td>
-                  <td className="py-2.5 px-4">{row.failedCount}</td>
-                  <td className="py-2.5 px-4">{row.overduePending}</td>
-                  <td className="py-2.5 px-4 text-red-300 font-mono truncate max-w-xs">
-                    {row.latestError || '—'}
+            </thead>
+            <tbody className="divide-y divide-[#15151c] text-stone-300 text-[11px]">
+              {!health || health.salonsWithIssues.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-6 text-center text-stone-500">
+                    Aucun salon en erreur ou en retard dans la file de notifications.
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : (
+                health.salonsWithIssues.map((row) => (
+                  <tr key={row.salonId}>
+                    <td className="py-2.5 px-4 font-semibold text-white">{row.salonName}</td>
+                    <td className="py-2.5 px-4">
+                      {row.repeatedFailures > 0 ? (
+                        <span className="px-2 py-0.5 rounded-full bg-red-950 border border-red-500/40 text-red-200 font-bold">
+                          {row.repeatedFailures}
+                        </span>
+                      ) : (
+                        '0'
+                      )}
+                    </td>
+                    <td className="py-2.5 px-4">{row.failedCount}</td>
+                    <td className="py-2.5 px-4">{row.overduePending}</td>
+                    <td className="py-2.5 px-4 text-red-300 font-mono truncate max-w-xs">
+                      {row.latestError || '—'}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

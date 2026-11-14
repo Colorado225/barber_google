@@ -51,34 +51,41 @@ export function DataTableCard<T>({
             {emptyHint && <p className="text-sm mt-1">{emptyHint}</p>}
           </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-[#2a2a2b] text-left">
-                {columns.map((col) => (
-                  <th
-                    key={col.header}
-                    className="px-4 py-3 text-[11px] uppercase tracking-wider text-[#a9a9a9] font-bold"
-                  >
-                    {col.header}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr
-                  key={getRowKey(row)}
-                  className="border-b border-[#232326] last:border-0 hover:bg-[#18181b] transition-colors"
-                >
+          <div
+            className="overflow-x-auto"
+            tabIndex={0}
+            role="region"
+            aria-label={`${title}, défilement horizontal`}
+          >
+            <table className="w-full min-w-max text-sm">
+              <thead>
+                <tr className="border-b border-[#2a2a2b] text-left">
                   {columns.map((col) => (
-                    <td key={col.header} className={`px-4 py-3 ${col.className || 'text-[#f7f6f2]'}`}>
-                      {col.render(row)}
-                    </td>
+                    <th
+                      key={col.header}
+                      className="px-4 py-3 text-[11px] uppercase tracking-wider text-[#a9a9a9] font-bold"
+                    >
+                      {col.header}
+                    </th>
                   ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr
+                    key={getRowKey(row)}
+                    className="border-b border-[#232326] last:border-0 hover:bg-[#18181b] transition-colors"
+                  >
+                    {columns.map((col) => (
+                      <td key={col.header} className={`px-4 py-3 ${col.className || 'text-[#f7f6f2]'}`}>
+                        {col.render(row)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>

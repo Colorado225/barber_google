@@ -144,57 +144,64 @@ export const ServicesView: React.FC = () => {
             <p className="text-sm mt-1">Ajoutez vos services</p>
           </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-[#2a2a2b] text-left">
-                {['Prestation', 'Catégorie', 'Durée', 'Prix', ''].map((h) => (
-                  <th
-                    key={h}
-                    className="px-4 py-3 text-[11px] uppercase tracking-wider text-[#a9a9a9] font-bold"
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((srv) => (
-                <tr key={srv.id} className="border-b border-[#232326] last:border-0 hover:bg-[#18181b]">
-                  <td className="px-4 py-3">
-                    <span className="font-semibold text-[#f7f6f2]">{srv.name}</span>
-                    {srv.popular && (
-                      <span className="ml-2 text-[10px] bg-[#1d1b15] text-[#E5C378] border border-[#C9A45C]/30 px-1.5 py-0.5 rounded">
-                        Populaire
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-[#a9a9a9] uppercase text-[11px]">{srv.category}</td>
-                  <td className="px-4 py-3 text-[#a9a9a9]">{srv.durationMinutes} min</td>
-                  <td className="px-4 py-3 text-[#E5C378] font-semibold">{formatPrice(srv.price)}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => setServiceActive(srv.id, !(srv.isActive ?? true))}
-                        title={(srv.isActive ?? true) ? 'Désactiver (retirée du catalogue)' : 'Réactiver'}
-                        aria-pressed={srv.isActive ?? true}
-                        className={`p-1 rounded cursor-pointer ${(srv.isActive ?? true) ? 'text-emerald-400 hover:text-emerald-300' : 'text-stone-500 hover:text-stone-300'}`}
-                      >
-                        <Power className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => openEdit(srv)}
-                        title="Modifier"
-                        className="text-stone-400 hover:text-white p-1 rounded cursor-pointer"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      <ConfirmDelete onConfirm={() => deleteService(srv.id)} />
-                    </div>
-                  </td>
+          <div
+            className="overflow-x-auto"
+            tabIndex={0}
+            role="region"
+            aria-label="Liste des prestations, défilement horizontal"
+          >
+            <table className="w-full min-w-[620px] text-sm">
+              <thead>
+                <tr className="border-b border-[#2a2a2b] text-left">
+                  {['Prestation', 'Catégorie', 'Durée', 'Prix', ''].map((h) => (
+                    <th
+                      key={h}
+                      className="px-4 py-3 text-[11px] uppercase tracking-wider text-[#a9a9a9] font-bold"
+                    >
+                      {h}
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {rows.map((srv) => (
+                  <tr key={srv.id} className="border-b border-[#232326] last:border-0 hover:bg-[#18181b]">
+                    <td className="px-4 py-3">
+                      <span className="font-semibold text-[#f7f6f2]">{srv.name}</span>
+                      {srv.popular && (
+                        <span className="ml-2 text-[10px] bg-[#1d1b15] text-[#E5C378] border border-[#C9A45C]/30 px-1.5 py-0.5 rounded">
+                          Populaire
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-[#a9a9a9] uppercase text-[11px]">{srv.category}</td>
+                    <td className="px-4 py-3 text-[#a9a9a9]">{srv.durationMinutes} min</td>
+                    <td className="px-4 py-3 text-[#E5C378] font-semibold">{formatPrice(srv.price)}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => setServiceActive(srv.id, !(srv.isActive ?? true))}
+                          title={(srv.isActive ?? true) ? 'Désactiver (retirée du catalogue)' : 'Réactiver'}
+                          aria-pressed={srv.isActive ?? true}
+                          className={`p-1 rounded cursor-pointer ${(srv.isActive ?? true) ? 'text-emerald-400 hover:text-emerald-300' : 'text-stone-500 hover:text-stone-300'}`}
+                        >
+                          <Power className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => openEdit(srv)}
+                          title="Modifier"
+                          className="text-stone-400 hover:text-white p-1 rounded cursor-pointer"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <ConfirmDelete onConfirm={() => deleteService(srv.id)} />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
