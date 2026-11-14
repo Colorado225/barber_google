@@ -724,6 +724,38 @@ test('DashboardView & ReportsView : intégration reports.dashboard, filtres unif
     assert.ok(within(view.container).getByText('2 RDV exclus des revenus'));
   });
 
+  // Le détail du graphique est aussi atteignable au clic/toucher, sans dépendre du hover desktop.
+  await waitFor(() => {
+    const loadedRevenuePoint = within(view.container)
+      .getAllByRole('button')
+      .find(
+        (button) =>
+          button.getAttribute('aria-label')?.includes('Novembre 2026') &&
+          !button.getAttribute('aria-label')?.includes(': 0 FCFA'),
+      );
+    assert.ok(loadedRevenuePoint, 'Une barre de revenu doit rester une cible interactive accessible');
+  });
+  const revenuePoint = within(view.container)
+    .getAllByRole('button')
+    .find(
+      (button) =>
+        button.getAttribute('aria-label')?.includes('Novembre 2026') &&
+        !button.getAttribute('aria-label')?.includes(': 0 FCFA'),
+    );
+  assert.ok(revenuePoint, 'La barre doit utiliser la métrique chargée');
+  fireEvent.click(revenuePoint);
+  await waitFor(() => {
+    const selectedRevenuePoint = within(view.container)
+      .getAllByRole('button')
+      .find(
+        (button) =>
+          button.getAttribute('aria-label')?.includes('Novembre 2026') &&
+          button.getAttribute('aria-pressed') === 'true',
+      );
+    assert.ok(selectedRevenuePoint);
+    assert.ok(within(view.container).getByTestId('dashboard-revenue-point-detail'));
+  });
+
   // Changer la période KPI à 30 jours déclenche un nouvel appel serveur
   fireEvent.click(within(view.container).getByRole('button', { name: '30 jours' }));
   await waitFor(() => {

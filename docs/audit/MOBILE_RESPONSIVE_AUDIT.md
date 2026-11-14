@@ -458,6 +458,25 @@ Avant de considérer le lot mobile terminé :
 - `AdminDashboard.tsx` emploie le même principe avec une sidebar sticky décalée sous la navbar globale, une hauteur contrôlée et trois groupes : Supervision, Marketplace et Offre & plateforme. Les panneaux et appels serveur existants restent inchangés.
 - La suite structurelle vérifie les groupes, les largeurs/offsets sticky, le sélecteur de salon, l’état actif et le filtrage RBAC avant d’autoriser ces changements de présentation.
 
+### Phase 2 — 5.1 Tableau de bord : diagnostic avant adaptation
+
+**Périmètre vérifié (sans changement métier)** : `src/components/erp/DashboardView.tsx` (1 610 lignes), `AppContext`/`FinanceDomainContext`, `lib/analytics.ts`, `reports.dashboard`, la sélection de salon et les tests `erp-analytics-and-dashboard` et `saas-honest-plan-features`.
+
+- Les KPI viennent déjà des agrégats serveur `reports.dashboard` lorsque disponibles, avec un fallback local borné à la période et au fuseau du salon. Les permissions finance, dépenses et rendez-vous sont dérivées du même contrat ; elles ne doivent pas être dupliquées par une adaptation responsive.
+- Les callbacks existants de raccourcis ouvrent les modales ERP de rendez-vous, passage et paiement. La mise à jour de statut du planning du jour appelle toujours `updateAppointmentStatus`; la présentation mobile ne doit pas modifier ces callbacks, les mutations, RPC, RLS, URL, cache ou Realtime.
+- La grille de quatre KPI est déjà verticale sous `sm`, mais les cartes et les espaces restent généreux et le seuil de deux colonnes est trop tardif pour les larges téléphones. Le bandeau de période place quatre boutons dans une ligne non adaptée à 320 px.
+- Les contrôles de métrique et de période du graphique, les infobulles uniquement `hover`, les grands paddings (`p-6`) et les barres de graphique à hauteur fixe demandent une adaptation tactile et un redimensionnement avant `sm`.
+- Le planning du jour, l’alerte stock, le palmarès et les ventilations de paiement sont composés pour desktop : certains alignements horizontaux et actions/selects nécessitent des retours à la ligne, des tailles tactiles et une priorité mobile sans retirer le détail desktop.
+
+### Phase 2 — 5.1 Tableau de bord : réalisation
+
+- La grille KPI est maintenant une colonne jusqu’à 419 px, deux colonnes dès 420 px et quatre colonnes sur desktop. Les cartes et panneaux réduisent padding et espaces sous `sm`, sans masquer de KPI ni de montant autorisé.
+- Le choix de période devient une grille tactile 2 × 2 sur les petits écrans (quatre colonnes dès 420 px). Les contrôles de métrique/période du graphique restent complets avec des libellés courts mobiles, des états `aria-pressed` et des cibles de 44 px.
+- Les barres des graphiques financier et d’occupation sont des boutons accessibles au clavier et au toucher. Une sélection affiche son détail dans le flux, sans dépendre du seul `hover` ni risquer de dépasser l’écran ; elle est réinitialisée lors d’un changement de plage/filtre.
+- Les panneaux d’affluence, prestations, planning du jour, alertes, paiements et activité d’équipe s’empilent avec des paddings réduits. Les cartes de rendez-vous reviennent à la ligne et le select de statut reste tactile, mais appelle toujours `updateAppointmentStatus`.
+- Les raccourcis du dashboard sont conservés sur desktop. Sur mobile, leur doublon est retiré au profit de `MobileActionBar`, placé directement sous le header et déjà soumis aux permissions existantes.
+- La suite structurelle couvre les breakpoints KPI, les actions, le détail de graphique tactile, le formatage des montants et la conservation de la mutation de statut. Les tests dashboard existants couvrent toujours RBAC, `reports.dashboard`, fuseau et agrégats.
+
 ### Restant avant qualification mobile complète
 
 - Empiler et vérifier les grilles de formulaires ERP avant `sm` ; limiter le sticky booking après test réel.

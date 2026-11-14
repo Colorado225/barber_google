@@ -71,6 +71,20 @@ test('le layout desktop garde une sidebar sticky, catégorisée et reliée aux p
   assert.match(admin, /md:h-\[calc\(100dvh-4\.25rem\)\] md:w-72/);
 });
 
+test('le tableau de bord ERP priorise les KPI, actions et graphiques tactiles sur mobile', () => {
+  const dashboard = source('src/components/erp/DashboardView.tsx');
+
+  assert.match(dashboard, /grid grid-cols-1 gap-3 min-\[420px\]:grid-cols-2/);
+  assert.match(dashboard, /hidden flex-wrap items-center justify-between[\s\S]+md:flex/);
+  assert.match(dashboard, /grid w-full shrink-0 grid-cols-2[\s\S]+min-\[420px\]:grid-cols-4/);
+  assert.match(dashboard, /const \[selectedRevenueIndex, setSelectedRevenueIndex\]/);
+  assert.match(dashboard, /data-testid="dashboard-revenue-point-detail"/);
+  assert.match(dashboard, /aria-label=\{`\$\{item\.label\} : \$\{accessibleValue\}`\}/);
+  assert.match(dashboard, /min-h-11 w-full rounded-xl/);
+  assert.match(dashboard, /updateAppointmentStatus\(apt\.id, e\.target\.value as AppointmentStatus\)/);
+  assert.match(dashboard, /formatPrice\(totalRevenue\)/);
+});
+
 test('les tableaux P0 disposent tous d’un conteneur horizontal accessible sur écran étroit', () => {
   const expectedTables = [
     ['src/components/erp/ClientsView.tsx', 'Liste des clients, défilement horizontal'],

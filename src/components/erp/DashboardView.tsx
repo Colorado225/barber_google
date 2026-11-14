@@ -138,10 +138,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [revenuePeriod, setRevenuePeriod] = useState<PeriodKey>('6m');
   const [revenueMetric, setRevenueMetric] = useState<'revenue' | 'appointments' | 'margin'>('revenue');
   const [hoveredMonthIndex, setHoveredMonthIndex] = useState<number | null>(null);
+  const [selectedRevenueIndex, setSelectedRevenueIndex] = useState<number | null>(null);
 
   // Contrôles d'occupation horaire
   const [busyHoursDayFilter, setBusyHoursDayFilter] = useState<HourlyDayFilter>('all');
   const [hoveredHour, setHoveredHour] = useState<string | null>(null);
+  const [selectedHour, setSelectedHour] = useState<string | null>(null);
 
   // Contrôles du palmarès prestations
   const [serviceMetricSort, setServiceMetricSort] = useState<'revenue' | 'volume'>('revenue');
@@ -499,6 +501,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       .filter((h) => h.occupiedMinutes > 0)
       .sort((a, b) => b.occupancyRate - a.occupancyRate || b.occupiedMinutes - a.occupiedMinutes)[0];
   }, [hourlyData]);
+  const activeHourlyPoint = useMemo(() => {
+    const activeHour = selectedHour ?? hoveredHour;
+    return activeHour ? (hourlyData.find((point) => point.hour === activeHour) ?? null) : null;
+  }, [hourlyData, hoveredHour, selectedHour]);
 
   // Palmarès des prestations sur [kpiRange.from, kpiRange.to]
   const topServicesData = useMemo(() => {
@@ -602,27 +608,30 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         : kpiPeriod === '6m'
           ? '6 derniers mois'
           : '12 derniers mois';
+  const activeRevenuePointIndex = selectedRevenueIndex ?? hoveredMonthIndex;
+  const activeRevenuePoint =
+    activeRevenuePointIndex === null ? null : (monthlyData[activeRevenuePointIndex] ?? null);
 
   return (
-    <div className="space-y-8 animate-in fade-in">
+    <div className="space-y-5 animate-in fade-in sm:space-y-8">
       {/* 0. Alerte stock critique */}
       {lowStockItems.length > 0 && (
-        <div className="p-4 rounded-2xl bg-amber-950/40 border border-amber-600/40 flex items-center justify-between text-amber-200 text-xs shadow-md">
-          <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-3 rounded-2xl border border-amber-600/40 bg-amber-950/40 p-4 text-xs text-amber-200 shadow-md sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
             <div>
               <span className="font-bold">Alerte Stock Critique :</span> {lowStockItems.length} produit(s) en
               dessous du seuil minimum ({lowStockItems.map((i) => i.name).join(', ')}).
             </div>
           </div>
-          <span className="font-semibold text-xs text-amber-300 bg-amber-900/60 px-2.5 py-1 rounded-lg border border-amber-500/30">
+          <span className="self-start rounded-lg border border-amber-500/30 bg-amber-900/60 px-2.5 py-1 text-xs font-semibold text-amber-300 sm:self-auto">
             À réapprovisionner
           </span>
         </div>
       )}
 
       {/* BANDEAU PÉRIMÈTRE TEMPOREL & FUSEAU MÉTIER */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 p-4 rounded-2xl bg-[#161619] border border-[#27272c] shadow-sm">
+      <div className="flex flex-col justify-between gap-3 rounded-2xl border border-[#27272c] bg-[#161619] p-3.5 shadow-sm lg:flex-row lg:items-center sm:p-4">
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <span className="font-bold text-white">Périmètre des indicateurs : {periodLabel}</span>
@@ -632,17 +641,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <span className="font-mono text-[11px] bg-[#1d1c17] border border-[#C9A45C]/30 text-[#C9A45C] px-2 py-0.5 rounded-md">
               Fuseau {salonTimezone}
             </span>
-            <span className="text-[11px] text-stone-400">
+            <span className="hidden text-[11px] text-stone-400 sm:block">
               {resolvedKpiMetrics ? '• Agrégat serveur complet' : '• Vue locale (fenêtre chargée)'}
             </span>
           </div>
-          <p className="text-[11px] text-stone-400">
+          <p className="hidden text-[11px] text-stone-400 sm:block">
             Encaissé = paiements confirmés nets des remboursements · Facturé = RDV actifs hors annulés/absents
             · Réalisé = RDV terminés (<span className="font-mono text-stone-300">completed</span>)
           </p>
         </div>
 
-        <div className="flex bg-[#111113] p-1 rounded-xl border border-[#29292e] self-start lg:self-auto shrink-0">
+        <div className="grid w-full shrink-0 grid-cols-2 gap-1 rounded-xl border border-[#29292e] bg-[#111113] p-1 min-[420px]:grid-cols-4 lg:w-auto">
           {(
             [
               ['month', 'Mois en cours'],
@@ -654,8 +663,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <button
               key={key}
               type="button"
+              aria-pressed={kpiPeriod === key}
               onClick={() => setKpiPeriod(key)}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              className={`min-h-11 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-all ${
                 kpiPeriod === key
                   ? 'bg-[#C9A45C] text-[#101010] font-bold shadow-sm'
                   : 'text-stone-400 hover:text-white'
@@ -668,9 +678,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       </div>
 
       {/* 1. HERO KPI GRID */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 sm:gap-4 lg:grid-cols-4">
         {/* KPI 1: Encaissé Net sur la période */}
-        <div className="p-5 rounded-2xl bg-[#161619] border border-[#27272c] relative overflow-hidden shadow-sm hover:border-[#C9A45C]/40 transition-all">
+        <div className="relative overflow-hidden rounded-2xl border border-[#27272c] bg-[#161619] p-4 shadow-sm transition-all hover:border-[#C9A45C]/40 sm:p-5">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-semibold text-stone-400">CA Encaissé Net ({periodLabel})</span>
             <div className="w-8 h-8 rounded-xl bg-[#201e19] border border-[#C9A45C]/30 text-[#C9A45C] flex items-center justify-center">
@@ -714,7 +724,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* KPI 2: Rendez-vous actifs aujourd'hui */}
-        <div className="p-5 rounded-2xl bg-[#161619] border border-[#27272c] relative overflow-hidden shadow-sm hover:border-emerald-500/40 transition-all">
+        <div className="relative overflow-hidden rounded-2xl border border-[#27272c] bg-[#161619] p-4 shadow-sm transition-all hover:border-emerald-500/40 sm:p-5">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-semibold text-stone-400">RDV actifs du jour</span>
             <div className="w-8 h-8 rounded-xl bg-[#17201c] border border-emerald-500/30 text-emerald-400 flex items-center justify-center">
@@ -744,7 +754,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* KPI 3: Panier Moyen Encaissé */}
-        <div className="p-5 rounded-2xl bg-[#161619] border border-[#27272c] relative overflow-hidden shadow-sm hover:border-purple-500/40 transition-all">
+        <div className="relative overflow-hidden rounded-2xl border border-[#27272c] bg-[#161619] p-4 shadow-sm transition-all hover:border-purple-500/40 sm:p-5">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-semibold text-stone-400">Panier Moyen Encaissé</span>
             <div className="w-8 h-8 rounded-xl bg-[#1f1b24] border border-purple-500/30 text-purple-400 flex items-center justify-center">
@@ -764,7 +774,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* KPI 4: Résultat Net sur la même période */}
-        <div className="p-5 rounded-2xl bg-[#161619] border border-[#27272c] relative overflow-hidden shadow-sm hover:border-[#C9A45C]/40 transition-all">
+        <div className="relative overflow-hidden rounded-2xl border border-[#27272c] bg-[#161619] p-4 shadow-sm transition-all hover:border-[#C9A45C]/40 sm:p-5">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-semibold text-stone-400">Résultat Net ({periodLabel})</span>
             <div className="w-8 h-8 rounded-xl bg-[#191e24] border border-blue-500/30 text-blue-400 flex items-center justify-center">
@@ -792,7 +802,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       {/* SYNTHÈSE FACTURÉ vs RÉALISÉ vs ENCAISSÉ */}
       {canViewAppointments && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 bg-[#141417] border border-[#242429] rounded-2xl p-4 text-xs">
+        <div className="grid grid-cols-2 gap-2 rounded-2xl border border-[#242429] bg-[#141417] p-3 text-xs sm:gap-3 sm:p-4 lg:grid-cols-4">
           <div>
             <span className="text-stone-400 block">Facturé actif (hors annulés/absents)</span>
             <span className="text-sm font-bold text-white mt-0.5 block">{formatPrice(billedRevenue)}</span>
@@ -819,7 +829,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       )}
 
       {/* QUICK ACTIONS COUNTER BAR */}
-      <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-[#18181b] border border-[#27272c] shadow-sm">
+      <div className="hidden flex-wrap items-center justify-between gap-4 rounded-2xl border border-[#27272c] bg-[#18181b] p-4 shadow-sm md:flex">
         <div className="flex items-center gap-2 text-xs text-stone-300">
           <Clock className="w-4 h-4 text-[#C9A45C]" />
           <span>Raccourcis comptoir :</span>
@@ -855,9 +865,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {/* ============================================================ */}
       {/* 2. INTERACTIVE CHART: MONTHLY REVENUE (Évolution du CA)      */}
       {/* ============================================================ */}
-      <div className="bg-[#161619] border border-[#27272c] rounded-3xl p-6 shadow-xl space-y-6">
+      <div className="space-y-4 rounded-3xl border border-[#27272c] bg-[#161619] p-4 shadow-xl sm:space-y-6 sm:p-6">
         {/* Chart Header & Controls */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#242428] pb-5">
+        <div className="flex flex-col justify-between gap-4 border-b border-[#242428] pb-4 sm:flex-row sm:items-center sm:pb-5">
           <div>
             <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#C9A45C] mb-1">
               <BarChart3 className="w-4 h-4" />
@@ -870,56 +880,66 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 ? 'Évolution Hebdomadaire du Mois en Cours'
                 : "Évolution du Chiffre d'Affaires Mensuel"}
             </h2>
-            <p className="text-xs text-stone-400 mt-1">
+            <p className="mt-1 hidden text-xs text-stone-400 sm:block">
               Encaissements confirmés nets, rendez-vous réalisés (<span className="font-mono">completed</span>
               ) et résultat net de {activeSalon.name} · Fuseau {salonTimezone}.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="grid w-full gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:gap-3">
             {/* Metric Selector */}
-            <div className="flex bg-[#111113] p-1 rounded-xl border border-[#29292e]">
+            <div className="grid grid-cols-3 rounded-xl border border-[#29292e] bg-[#111113] p-1">
               <button
                 type="button"
+                aria-pressed={revenueMetric === 'revenue'}
                 onClick={() => setRevenueMetric('revenue')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                className={`min-h-11 rounded-lg px-1.5 py-1.5 text-[11px] font-semibold transition-all sm:px-3 sm:text-xs ${
                   revenueMetric === 'revenue'
                     ? 'bg-[#C9A45C] text-[#101010] font-bold shadow-sm'
                     : 'text-stone-400 hover:text-white'
                 }`}
               >
-                Encaissé Net
+                <span className="sm:hidden">CA</span>
+                <span className="hidden sm:inline">Encaissé Net</span>
               </button>
               <button
                 type="button"
+                aria-pressed={revenueMetric === 'appointments'}
                 onClick={() => setRevenueMetric('appointments')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                className={`min-h-11 rounded-lg px-1.5 py-1.5 text-[11px] font-semibold transition-all sm:px-3 sm:text-xs ${
                   revenueMetric === 'appointments'
                     ? 'bg-[#C9A45C] text-[#101010] font-bold shadow-sm'
                     : 'text-stone-400 hover:text-white'
                 }`}
               >
-                RDV Réalisés
+                <span className="sm:hidden">RDV</span>
+                <span className="hidden sm:inline">RDV Réalisés</span>
               </button>
               <button
                 type="button"
+                aria-pressed={revenueMetric === 'margin'}
                 onClick={() => setRevenueMetric('margin')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                className={`min-h-11 rounded-lg px-1.5 py-1.5 text-[11px] font-semibold transition-all sm:px-3 sm:text-xs ${
                   revenueMetric === 'margin'
                     ? 'bg-[#C9A45C] text-[#101010] font-bold shadow-sm'
                     : 'text-stone-400 hover:text-white'
                 }`}
               >
-                Résultat Net
+                <span className="sm:hidden">Net</span>
+                <span className="hidden sm:inline">Résultat Net</span>
               </button>
             </div>
 
             {/* Timeframe Selector */}
-            <div className="flex bg-[#111113] p-1 rounded-xl border border-[#29292e]">
+            <div className="grid grid-cols-3 rounded-xl border border-[#29292e] bg-[#111113] p-1">
               <button
                 type="button"
-                onClick={() => setRevenuePeriod('6m')}
-                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                aria-pressed={revenuePeriod === '6m'}
+                onClick={() => {
+                  setSelectedRevenueIndex(null);
+                  setRevenuePeriod('6m');
+                }}
+                className={`min-h-11 rounded-lg px-1.5 py-1.5 text-[11px] font-semibold transition-all sm:px-2.5 sm:text-xs ${
                   revenuePeriod === '6m' ? 'bg-[#25252b] text-white' : 'text-stone-400 hover:text-white'
                 }`}
               >
@@ -927,8 +947,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => setRevenuePeriod('12m')}
-                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                aria-pressed={revenuePeriod === '12m'}
+                onClick={() => {
+                  setSelectedRevenueIndex(null);
+                  setRevenuePeriod('12m');
+                }}
+                className={`min-h-11 rounded-lg px-1.5 py-1.5 text-[11px] font-semibold transition-all sm:px-2.5 sm:text-xs ${
                   revenuePeriod === '12m' ? 'bg-[#25252b] text-white' : 'text-stone-400 hover:text-white'
                 }`}
               >
@@ -936,61 +960,64 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => setRevenuePeriod('month_weeks')}
-                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                aria-pressed={revenuePeriod === 'month_weeks'}
+                onClick={() => {
+                  setSelectedRevenueIndex(null);
+                  setRevenuePeriod('month_weeks');
+                }}
+                className={`min-h-11 rounded-lg px-1.5 py-1.5 text-[11px] font-semibold transition-all sm:px-2.5 sm:text-xs ${
                   revenuePeriod === 'month_weeks'
                     ? 'bg-[#25252b] text-white'
                     : 'text-stone-400 hover:text-white'
                 }`}
               >
-                Mois (semaines)
+                <span className="sm:hidden">Semaines</span>
+                <span className="hidden sm:inline">Mois (semaines)</span>
               </button>
             </div>
           </div>
         </div>
 
         {/* Interactive Chart Container */}
-        <div className="relative pt-4 pb-2">
-          {hoveredMonthIndex !== null && monthlyData[hoveredMonthIndex] && (
-            <div className="absolute top-0 right-4 bg-[#1e1e24] border border-[#C9A45C]/60 rounded-xl p-3 shadow-2xl z-20 pointer-events-none animate-in fade-in zoom-in-95">
-              <div className="text-[11px] font-bold text-stone-300">
-                {monthlyData[hoveredMonthIndex].label}
-              </div>
-              <div className="text-base font-extrabold text-[#E5C378] mt-0.5">
+        <div className="pt-3 sm:pt-4">
+          {activeRevenuePoint && (
+            <div
+              role="status"
+              data-testid="dashboard-revenue-point-detail"
+              className="mb-3 rounded-xl border border-[#C9A45C]/60 bg-[#1e1e24] p-3 shadow-lg"
+            >
+              <div className="text-[11px] font-bold text-stone-300">{activeRevenuePoint.label}</div>
+              <div className="mt-0.5 text-base font-extrabold text-[#E5C378]">
                 {revenueMetric === 'revenue'
-                  ? formatPrice(monthlyData[hoveredMonthIndex].revenue)
+                  ? formatPrice(activeRevenuePoint.revenue)
                   : revenueMetric === 'appointments'
-                    ? `${monthlyData[hoveredMonthIndex].appointments} RDV réalisés`
-                    : formatPrice(monthlyData[hoveredMonthIndex].margin)}
+                    ? `${activeRevenuePoint.appointments} RDV réalisés`
+                    : formatPrice(activeRevenuePoint.margin)}
               </div>
-              <div className="text-[10px] text-stone-400 mt-1 flex items-center gap-2">
+              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-stone-400">
                 <span>
-                  Réalisés :{' '}
-                  <strong className="text-white">{monthlyData[hoveredMonthIndex].appointments}</strong>
+                  Réalisés : <strong className="text-white">{activeRevenuePoint.appointments}</strong>
                   {' / '}Actifs :{' '}
-                  <strong className="text-stone-200">
-                    {monthlyData[hoveredMonthIndex].activeAppointments}
-                  </strong>
+                  <strong className="text-stone-200">{activeRevenuePoint.activeAppointments}</strong>
                 </span>
-                <span>•</span>
+                <span aria-hidden="true">•</span>
                 <span
                   className={
-                    monthlyData[hoveredMonthIndex].growth !== null &&
-                    monthlyData[hoveredMonthIndex].growth! >= 0
-                      ? 'text-emerald-400 font-semibold'
-                      : 'text-red-400 font-semibold'
+                    activeRevenuePoint.growth !== null && activeRevenuePoint.growth >= 0
+                      ? 'font-semibold text-emerald-400'
+                      : 'font-semibold text-red-400'
                   }
                 >
-                  {monthlyData[hoveredMonthIndex].growth === null
-                    ? '—'
-                    : `${monthlyData[hoveredMonthIndex].growth! >= 0 ? '+' : ''}${monthlyData[hoveredMonthIndex].growth}%`}
+                  {activeRevenuePoint.growth === null
+                    ? 'Variation indisponible'
+                    : `${activeRevenuePoint.growth >= 0 ? '+' : ''}${activeRevenuePoint.growth}%`}
                 </span>
               </div>
             </div>
           )}
 
           {/* Bars */}
-          <div className="h-64 sm:h-72 w-full flex items-end gap-2 sm:gap-4 px-2 pt-6">
+          <div className="flex h-56 w-full items-end gap-1.5 px-1 pt-4 sm:h-72 sm:gap-4 sm:px-2 sm:pt-6">
             {monthlyData.map((item, idx) => {
               const currentVal =
                 revenueMetric === 'revenue'
@@ -1006,56 +1033,70 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   ? 4
                   : Math.max(8, Math.round((currentVal / maxRevenueVal) * 100));
               const isHovered = hoveredMonthIndex === idx;
+              const isSelected = selectedRevenueIndex === idx;
+              const isActive = isHovered || isSelected;
+              const accessibleValue =
+                revenueMetric === 'appointments'
+                  ? `${currentVal} rendez-vous réalisés`
+                  : formatPrice(currentVal);
 
               return (
-                <div
-                  key={idx}
+                <button
+                  key={item.label}
+                  type="button"
+                  aria-pressed={isSelected}
+                  aria-label={`${item.label} : ${accessibleValue}`}
                   onMouseEnter={() => setHoveredMonthIndex(idx)}
                   onMouseLeave={() => setHoveredMonthIndex(null)}
-                  className="flex-1 h-full flex flex-col justify-end items-center group cursor-pointer relative"
+                  onFocus={() => setHoveredMonthIndex(idx)}
+                  onBlur={() => setHoveredMonthIndex(null)}
+                  onClick={() => setSelectedRevenueIndex((current) => (current === idx ? null : idx))}
+                  className="group relative flex h-full min-w-0 flex-1 cursor-pointer flex-col items-center justify-end rounded-lg text-left outline-none focus-visible:ring-2 focus-visible:ring-[#E5C378] focus-visible:ring-offset-2 focus-visible:ring-offset-[#161619]"
                 >
-                  <div
-                    className={`text-[10px] font-bold mb-1 transition-all ${
+                  <span
+                    className={`mb-1 text-[10px] font-bold transition-all ${
                       isNegative
                         ? 'text-red-400'
-                        : isHovered
-                          ? 'text-[#C9A45C] scale-110 opacity-100'
+                        : isActive
+                          ? 'scale-110 text-[#C9A45C] opacity-100'
                           : 'text-stone-500 opacity-70 group-hover:opacity-100'
                     }`}
+                    aria-hidden="true"
                   >
                     {revenueMetric === 'appointments' ? currentVal : `${Math.round(currentVal / 1000)}k`}
-                  </div>
+                  </span>
 
-                  <div className="w-full max-w-[48px] flex-1 bg-[#121215] rounded-xl overflow-hidden flex flex-col justify-end border border-[#242429] group-hover:border-[#C9A45C]/50 transition-all p-1">
-                    <div
+                  <span className="flex w-full max-w-[48px] flex-1 flex-col justify-end overflow-hidden rounded-xl border border-[#242429] bg-[#121215] p-1 transition-all group-hover:border-[#C9A45C]/50">
+                    <span
                       style={{ height: `${heightPercent}%` }}
                       className={`w-full rounded-lg transition-all duration-500 ${
                         isNegative
                           ? 'bg-red-500/70'
-                          : isHovered
+                          : isActive
                             ? 'bg-gradient-to-t from-[#C9A45C] to-[#E5C378] shadow-[0_0_20px_rgba(201,164,92,0.5)]'
                             : idx === monthlyData.length - 1
                               ? 'bg-gradient-to-t from-[#a88237] to-[#C9A45C]'
                               : 'bg-gradient-to-t from-[#26241e] to-[#594726] group-hover:from-[#C9A45C]/60 group-hover:to-[#C9A45C]'
                       }`}
                     />
-                  </div>
+                  </span>
 
                   <span
-                    className={`text-[10px] sm:text-xs font-semibold mt-2.5 transition-colors ${
-                      isHovered ? 'text-[#E5C378] font-bold' : 'text-stone-400'
+                    className={`mt-2.5 text-[10px] font-semibold transition-colors sm:text-xs ${
+                      isActive ? 'font-bold text-[#E5C378]' : 'text-stone-400'
                     }`}
+                    aria-hidden="true"
                   >
                     {item.shortLabel}
                   </span>
-                </div>
+                </button>
               );
             })}
           </div>
 
           {/* Baseline Indicator */}
-          <div className="w-full border-t border-[#222226] mt-2 pt-3 flex items-center justify-between text-[11px] text-stone-500">
-            <div className="flex items-center gap-4">
+          <div className="mt-2 flex flex-col gap-2 border-t border-[#222226] pt-3 text-[11px] text-stone-500 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-4">
               <span className="flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full bg-[#C9A45C]" />
                 {revenueMetric === 'revenue'
@@ -1064,6 +1105,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     ? 'Rendez-vous Réalisés (completed)'
                     : 'Résultat Net (Encaissé − Dépenses)'}
               </span>
+              <span className="text-stone-400 sm:hidden">Touchez une barre pour consulter le détail.</span>
               <span className="items-center gap-1.5 hidden sm:inline-flex">
                 <span className="w-2.5 h-2.5 rounded-full bg-[#353023]" />
                 Moyenne période :{' '}
@@ -1084,9 +1126,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {/* ============================================================ */}
       {/* 3. TWO COLUMNS: BUSY HOURS & TOP-SELLING SERVICES            */}
       {/* ============================================================ */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-12">
         {/* LEFT (7 cols): BUSY HOURS / HEURES DE POINTE */}
-        <div className="lg:col-span-7 bg-[#161619] border border-[#27272c] rounded-3xl p-6 shadow-xl space-y-5">
+        <div className="space-y-4 rounded-3xl border border-[#27272c] bg-[#161619] p-4 shadow-xl sm:space-y-5 sm:p-6 lg:col-span-7">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#242428] pb-4">
             <div>
               <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#C9A45C] mb-1">
@@ -1100,8 +1142,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
             <select
               value={busyHoursDayFilter}
-              onChange={(e) => setBusyHoursDayFilter(e.target.value as HourlyDayFilter)}
-              className="bg-[#111113] border border-[#2a2a2f] rounded-xl px-3 py-1.5 text-xs text-stone-200 focus:outline-none focus:border-[#C9A45C]"
+              aria-label="Filtrer l’occupation par jour"
+              onChange={(e) => {
+                setSelectedHour(null);
+                setBusyHoursDayFilter(e.target.value as HourlyDayFilter);
+              }}
+              className="min-h-11 w-full rounded-xl border border-[#2a2a2f] bg-[#111113] px-3 py-1.5 text-xs text-stone-200 focus:border-[#C9A45C] focus:outline-none sm:w-auto"
             >
               <option value="all">Toute la semaine (Lun - Dim)</option>
               <option value="saturday">Samedi (Grande Affluence)</option>
@@ -1144,6 +1190,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
             ) : (
               <>
+                {activeHourlyPoint && (
+                  <div
+                    role="status"
+                    className="mb-2 rounded-xl border border-[#C9A45C]/40 bg-[#1e1c15] px-3 py-2 text-xs text-stone-300"
+                  >
+                    <strong className="text-[#E5C378]">{activeHourlyPoint.hour}</strong> ·{' '}
+                    {activeHourlyPoint.occupancyRate}% d’occupation · {activeHourlyPoint.occupiedMinutes}/
+                    {activeHourlyPoint.availableMinutes} min · {activeHourlyPoint.activeAppointments} RDV
+                    actif(s)
+                  </div>
+                )}
                 <div className="flex gap-1 sm:gap-1.5 px-2 text-center text-[10px] text-stone-500 font-bold mb-1">
                   {hourlyData.map((h, i) => {
                     const step = Math.max(2, Math.ceil(hourlyData.length / 12));
@@ -1162,40 +1219,39 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       Math.min(100, h.occupancyRate),
                     );
                     const isHovered = hoveredHour === h.hour;
+                    const isSelected = selectedHour === h.hour;
+                    const isActive = isHovered || isSelected;
 
                     return (
-                      <div
+                      <button
                         key={h.hour}
+                        type="button"
+                        aria-pressed={isSelected}
+                        aria-label={`${h.hour} : ${h.occupancyRate}% d’occupation, ${h.occupiedMinutes} minutes occupées sur ${h.availableMinutes}`}
                         onMouseEnter={() => setHoveredHour(h.hour)}
                         onMouseLeave={() => setHoveredHour(null)}
-                        className="flex-1 h-full flex flex-col justify-end items-center group relative cursor-pointer"
+                        onFocus={() => setHoveredHour(h.hour)}
+                        onBlur={() => setHoveredHour(null)}
+                        onClick={() => setSelectedHour((current) => (current === h.hour ? null : h.hour))}
+                        className="group relative flex h-full min-w-0 flex-1 cursor-pointer flex-col items-center justify-end rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-[#E5C378]"
                       >
-                        {isHovered && (
-                          <div className="absolute -top-14 bg-[#1e1e24] border border-[#C9A45C] rounded-lg p-1.5 shadow-xl text-[10px] whitespace-nowrap z-30 pointer-events-none">
-                            <div className="font-bold text-white">{h.hour}</div>
-                            <div className="text-[#E5C378] font-extrabold">
-                              {h.occupancyRate}% · {h.occupiedMinutes}/{h.availableMinutes} min
-                            </div>
-                          </div>
-                        )}
-
-                        <div
+                        <span
                           style={{ height: `${heightPercent}%` }}
                           className={`w-full rounded-t-md transition-all duration-300 ${
                             h.intensity === 'peak'
-                              ? isHovered
+                              ? isActive
                                 ? 'bg-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.8)]'
                                 : 'bg-amber-500'
                               : h.intensity === 'moderate'
-                                ? isHovered
+                                ? isActive
                                   ? 'bg-[#C9A45C]'
                                   : 'bg-[#8f743c]'
-                                : isHovered
+                                : isActive
                                   ? 'bg-emerald-400'
                                   : 'bg-[#293b33]'
                           }`}
                         />
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
@@ -1203,7 +1259,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             )}
 
             <div className="flex flex-wrap items-center justify-between text-[11px] text-stone-400 pt-2 px-1">
-              <div className="flex items-center gap-3">
+              <div className="flex items-start gap-3">
                 <span className="flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-600" />
                   Calme (&lt;45%)
@@ -1225,7 +1281,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* RIGHT (5 cols): TOP-SELLING SERVICES */}
-        <div className="lg:col-span-5 bg-[#161619] border border-[#27272c] rounded-3xl p-6 shadow-xl space-y-5 flex flex-col justify-between">
+        <div className="flex flex-col justify-between space-y-4 rounded-3xl border border-[#27272c] bg-[#161619] p-4 shadow-xl sm:space-y-5 sm:p-6 lg:col-span-5">
           <div>
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#242428] pb-4">
               <div>
@@ -1240,8 +1296,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <div className="flex bg-[#111113] p-1 rounded-xl border border-[#27272c]">
                   <button
                     type="button"
+                    aria-pressed={serviceScope === 'completed'}
                     onClick={() => setServiceScope('completed')}
-                    className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                    className={`min-h-10 rounded-lg px-2 py-1 text-[10px] font-bold transition-all ${
                       serviceScope === 'completed'
                         ? 'bg-[#2a2a31] text-white'
                         : 'text-stone-400 hover:text-white'
@@ -1251,8 +1308,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   </button>
                   <button
                     type="button"
+                    aria-pressed={serviceScope === 'billed'}
                     onClick={() => setServiceScope('billed')}
-                    className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                    className={`min-h-10 rounded-lg px-2 py-1 text-[10px] font-bold transition-all ${
                       serviceScope === 'billed'
                         ? 'bg-[#2a2a31] text-white'
                         : 'text-stone-400 hover:text-white'
@@ -1265,8 +1323,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <div className="flex bg-[#111113] p-1 rounded-xl border border-[#27272c]">
                   <button
                     type="button"
+                    aria-pressed={serviceMetricSort === 'revenue'}
                     onClick={() => setServiceMetricSort('revenue')}
-                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                    className={`min-h-10 rounded-lg px-2.5 py-1 text-[10px] font-bold transition-all ${
                       serviceMetricSort === 'revenue'
                         ? 'bg-[#C9A45C] text-[#101010]'
                         : 'text-stone-400 hover:text-white'
@@ -1276,8 +1335,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   </button>
                   <button
                     type="button"
+                    aria-pressed={serviceMetricSort === 'volume'}
                     onClick={() => setServiceMetricSort('volume')}
-                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                    className={`min-h-10 rounded-lg px-2.5 py-1 text-[10px] font-bold transition-all ${
                       serviceMetricSort === 'volume'
                         ? 'bg-[#C9A45C] text-[#101010]'
                         : 'text-stone-400 hover:text-white'
@@ -1295,13 +1355,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 const percentage = serviceMetricSort === 'revenue' ? srv.revenueShare : srv.volumeShare;
 
                 return (
-                  <div
+                  <button
                     key={srv.id}
+                    type="button"
+                    aria-pressed={isSelected}
                     onClick={() => setSelectedServiceId(isSelected ? null : srv.id)}
-                    className={`p-3 rounded-2xl border transition-all cursor-pointer ${
+                    className={`w-full rounded-2xl border p-3 text-left transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E5C378] ${
                       isSelected
-                        ? 'bg-[#1e1c15] border-[#C9A45C] shadow-md'
-                        : 'bg-[#121214] border-[#242428] hover:border-stone-500'
+                        ? 'border-[#C9A45C] bg-[#1e1c15] shadow-md'
+                        : 'border-[#242428] bg-[#121214] hover:border-stone-500'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1.5">
@@ -1351,13 +1413,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         }`}
                       />
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
           </div>
 
-          <div className="p-3 rounded-2xl bg-[#131316] border border-[#222226] text-[11px] text-stone-400 flex items-center justify-between mt-2">
+          <div className="mt-2 flex flex-col gap-2 rounded-2xl border border-[#222226] bg-[#131316] p-3 text-[11px] text-stone-400 sm:flex-row sm:items-center sm:justify-between">
             {starService && starService.volume > 0 ? (
               <>
                 <span className="flex items-center gap-1.5">
@@ -1385,10 +1447,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {/* ============================================================ */}
       {/* 4. TODAY'S REAL-TIME SCHEDULE & PAYMENT CHANNELS             */}
       {/* ============================================================ */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-12">
         {/* LEFT (8 cols): Today's Schedule & Status updater */}
-        <div className="lg:col-span-8 bg-[#161619] border border-[#27272c] rounded-3xl p-6 space-y-4 shadow-xl">
-          <div className="flex items-center justify-between border-b border-[#242428] pb-3">
+        <div className="space-y-4 rounded-3xl border border-[#27272c] bg-[#161619] p-4 shadow-xl sm:p-6 lg:col-span-8">
+          <div className="flex flex-col gap-2 border-b border-[#242428] pb-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
               <Calendar className="w-4 h-4 text-[#C9A45C]" />
               <h3 className="font-bold text-white text-sm">
@@ -1407,10 +1469,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               {todayAppointmentsAll.map((apt) => (
                 <div
                   key={apt.id}
-                  className="p-3.5 rounded-2xl bg-[#121214] border border-[#242428] flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-stone-500 transition-colors"
+                  className="flex flex-col gap-3 rounded-2xl border border-[#242428] bg-[#121214] p-3 transition-colors hover:border-stone-500 sm:flex-row sm:items-center sm:p-3.5"
                 >
                   <div className="space-y-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className="text-xs font-bold text-white font-mono">{apt.time}</span>
                       <span className="text-xs text-stone-500">•</span>
                       <span className="text-xs font-bold text-[#E5C378]">{apt.clientName}</span>
@@ -1424,7 +1486,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="text-xs font-bold text-white mr-1 font-mono">
                       {formatPrice(apt.price)}
                     </span>
@@ -1432,7 +1494,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     <select
                       value={apt.status}
                       onChange={(e) => updateAppointmentStatus(apt.id, e.target.value as AppointmentStatus)}
-                      className={`text-xs px-2.5 py-1.5 rounded-xl border font-semibold focus:outline-none cursor-pointer ${
+                      aria-label={`Mettre à jour le statut du rendez-vous de ${apt.clientName}`}
+                      className={`min-h-11 rounded-xl border px-2.5 py-1.5 text-xs font-semibold cursor-pointer focus:outline-none ${
                         apt.status === 'completed'
                           ? 'bg-stone-800 text-stone-300 border-stone-700'
                           : apt.status === 'in_progress'
@@ -1474,8 +1537,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* RIGHT (4 cols): Payment Channels & Staff Activity */}
-        <div className="lg:col-span-4 space-y-6">
-          <div className="bg-[#161619] border border-[#27272c] rounded-3xl p-6 space-y-4 shadow-xl">
+        <div className="space-y-4 sm:space-y-6 lg:col-span-4">
+          <div className="space-y-4 rounded-3xl border border-[#27272c] bg-[#161619] p-4 shadow-xl sm:p-6">
             <h4 className="font-bold text-xs uppercase tracking-wider text-stone-300 flex items-center gap-2">
               <CreditCard className="w-4 h-4 text-[#C9A45C]" />
               Encaissements Nets ({periodLabel})
@@ -1551,7 +1614,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             )}
           </div>
 
-          <div className="bg-[#161619] border border-[#27272c] rounded-3xl p-6 space-y-3 shadow-xl">
+          <div className="space-y-3 rounded-3xl border border-[#27272c] bg-[#161619] p-4 shadow-xl sm:p-6">
             <div className="flex items-center justify-between">
               <h4 className="font-bold text-xs uppercase tracking-wider text-stone-300 flex items-center gap-2">
                 <Users className="w-4 h-4 text-[#C9A45C]" />
