@@ -119,19 +119,26 @@ export const NewPaymentModal: React.FC<NewPaymentModalProps> = ({
   const pending = createdReceipt?.status === 'pending';
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">
-      <div className="relative w-full max-w-md bg-[#161619] border border-[#2b2b30] rounded-3xl shadow-2xl p-6 sm:p-8">
+    <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/85 p-0 backdrop-blur-md animate-in fade-in sm:items-center sm:p-4">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Nouvel encaissement"
+        className="relative max-h-[calc(100dvh-0.75rem)] w-full max-w-md overflow-y-auto rounded-t-3xl border border-[#2b2b30] bg-[#161619] p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-3xl sm:p-8"
+      >
         <button
+          type="button"
           onClick={onClose}
-          className="absolute top-5 right-5 w-8 h-8 rounded-full bg-[#222226] text-stone-400 hover:text-white flex items-center justify-center"
+          aria-label="Fermer"
+          className="absolute right-3 top-3 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#222226] text-stone-400 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A45C] sm:right-5 sm:top-5"
         >
-          <X className="w-4 h-4" />
+          <X className="h-4 w-4" aria-hidden="true" />
         </button>
 
         {!createdReceipt ? (
           <div>
-            <div className="mb-5">
-              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#C9A45C] mb-1">
+            <div className="mb-5 pr-12">
+              <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#C9A45C]">
                 <CreditCard className="w-4 h-4" />
                 <span>Caisse & Encaissement</span>
               </div>
@@ -152,7 +159,7 @@ export const NewPaymentModal: React.FC<NewPaymentModalProps> = ({
                   onChange={(e) => setLinkedAptId(e.target.value)}
                   disabled={Boolean(preselectedAppointmentId)}
                   required
-                  className="w-full bg-[#111113] border border-[#29292e] rounded-xl px-3 py-2 text-xs text-stone-200 focus:outline-none focus:border-[#C9A45C] disabled:opacity-70"
+                  className="min-h-11 w-full rounded-xl border border-[#29292e] bg-[#111113] px-3 py-2 text-sm text-stone-200 focus:outline-none focus:border-[#C9A45C] disabled:opacity-70"
                 >
                   <option value="">-- Sélectionner un rendez-vous ou passage --</option>
                   {payableAppointments.map((apt) => (
@@ -195,7 +202,7 @@ export const NewPaymentModal: React.FC<NewPaymentModalProps> = ({
                   max={balance?.outstanding || undefined}
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  className="w-full bg-[#111113] border border-[#29292e] rounded-xl px-3 py-2.5 text-base font-extrabold text-[#E5C378] focus:outline-none focus:border-[#C9A45C]"
+                  className="min-h-11 w-full rounded-xl border border-[#29292e] bg-[#111113] px-3 py-2.5 text-base font-extrabold text-[#E5C378] focus:outline-none focus:border-[#C9A45C]"
                 />
               </div>
 
@@ -203,16 +210,17 @@ export const NewPaymentModal: React.FC<NewPaymentModalProps> = ({
                 <label className="text-[11px] font-semibold text-stone-300 block mb-1.5">
                   Moyen de paiement
                 </label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 gap-2 min-[380px]:grid-cols-2">
                   {METHODS.map((m) => (
                     <button
                       key={m.id}
                       type="button"
                       onClick={() => setMethod(m.id)}
-                      className={`p-2.5 rounded-xl border text-left text-xs font-semibold transition-all ${
+                      aria-pressed={method === m.id}
+                      className={`min-h-11 rounded-xl border px-3 text-left text-sm font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A45C] min-[380px]:text-xs ${
                         method === m.id
-                          ? 'bg-[#C9A45C]/15 border-[#C9A45C] text-[#C9A45C]'
-                          : 'bg-[#111113] border-[#29292e] text-stone-400 hover:border-stone-500'
+                          ? 'border-[#C9A45C] bg-[#C9A45C]/15 text-[#C9A45C]'
+                          : 'border-[#29292e] bg-[#111113] text-stone-400 hover:border-stone-500'
                       }`}
                     >
                       {m.label}
@@ -232,7 +240,7 @@ export const NewPaymentModal: React.FC<NewPaymentModalProps> = ({
                     value={providerReference}
                     onChange={(e) => setProviderReference(e.target.value)}
                     placeholder="Ex: WAVE-123456789"
-                    className="w-full bg-[#111113] border border-[#29292e] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#C9A45C]"
+                    className="min-h-11 w-full rounded-xl border border-[#29292e] bg-[#111113] px-3 py-2 text-sm text-white focus:outline-none focus:border-[#C9A45C]"
                   />
                   <p className="text-[10px] text-stone-500 mt-1">
                     Cette référence ne confirme pas le paiement : un responsable devra la vérifier
@@ -256,7 +264,7 @@ export const NewPaymentModal: React.FC<NewPaymentModalProps> = ({
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                   placeholder="Ex: acompte, solde, geste commercial"
-                  className="w-full bg-[#111113] border border-[#29292e] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#C9A45C]"
+                  className="min-h-11 w-full rounded-xl border border-[#29292e] bg-[#111113] px-3 py-2 text-sm text-white focus:outline-none focus:border-[#C9A45C]"
                 />
               </div>
 
@@ -269,7 +277,7 @@ export const NewPaymentModal: React.FC<NewPaymentModalProps> = ({
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full bg-[#C9A45C] hover:bg-[#d8b56d] disabled:opacity-60 text-[#101010] font-bold text-xs py-3 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#C9A45C] px-4 text-sm font-bold text-[#101010] shadow-lg transition-all hover:bg-[#d8b56d] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-60 min-[380px]:text-xs"
                 >
                   <CheckCircle2 className="w-4 h-4" />
                   <span>
@@ -340,17 +348,19 @@ export const NewPaymentModal: React.FC<NewPaymentModalProps> = ({
               </div>
             </div>
 
-            <div className="flex gap-2 pt-2">
+            <div className="flex flex-col gap-2 pt-2 min-[380px]:flex-row">
               <button
+                type="button"
                 onClick={() => window.print()}
-                className="flex-1 py-2.5 rounded-xl bg-[#222226] hover:bg-[#2b2b30] text-stone-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+                className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#222226] px-3 text-sm font-semibold text-stone-200 transition-colors hover:bg-[#2b2b30] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A45C] min-[380px]:text-xs"
               >
-                <Printer className="w-4 h-4 text-[#C9A45C]" />
+                <Printer className="h-4 w-4 text-[#C9A45C]" aria-hidden="true" />
                 <span>Imprimer</span>
               </button>
               <button
+                type="button"
                 onClick={onClose}
-                className="flex-1 py-2.5 rounded-xl bg-[#C9A45C] hover:bg-[#d8b56d] text-[#101010] text-xs font-bold transition-colors"
+                className="min-h-11 flex-1 rounded-xl bg-[#C9A45C] px-3 text-sm font-bold text-[#101010] transition-colors hover:bg-[#d8b56d] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white min-[380px]:text-xs"
               >
                 Terminer
               </button>

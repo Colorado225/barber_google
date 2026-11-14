@@ -494,9 +494,28 @@ Avant de considérer le lot mobile terminé :
 - Aucun contrat métier n’a changé : création via `bookAppointment`, modification via `updateAppointment`/`reschedule_appointment`, transitions, annulation, cache et Realtime restent assurés par le domaine existant. La chronologie ne propose pas de disponibilité locale comme garantie.
 - Validation automatisée ajoutée : le test d’intégration `PlanningView` vérifie le rendu de la chronologie, l’ouverture du formulaire et le passage Confirmé → Arrivé via la transition serveur mockée. Le test structurel mobile couvre le rendu mobile/desktop, les cibles tactiles, les grilles et les handlers conservés.
 
+### Phase 2 — 5.3 Caisse et encaissements : diagnostic avant adaptation
+
+**Périmètre vérifié (sans changement métier)** : route ERP `cash` dans `ErpLayout`, `CashRegisterView`, la modal globale `NewPaymentModal`, `FinanceDomainContext`, `salonApi.payments`/`salonApi.cash`, permissions et `database/tests/supabase-finance.test.mjs`.
+
+- L’onglet actif `cash` monte `CashRegisterView`. L’encaissement est aussi ouvert depuis les actions rapides ERP via `NewPaymentModal` ; les deux parcours sont donc concernés, sans déplacer la route ni les modales globales.
+- `CashRegisterView` garde les gardes UI `cash.open`, `cash.close`, `cash.reconcile` et `payments.correct`. Les actions délèguent déjà aux handlers finance : ouverture, clôture, rapprochement, confirmation/rejet et correction, suivis du rafraîchissement finance existant.
+- Les cartes et listes de caisse se replient partiellement, mais le padding initial, les boutons secondaires et les actions de journal restent compacts. Ses six formulaires emploient un panneau défilable, mais centré avec fermeture et champs sous-dimensionnés, sans feuille mobile ni safe area explicite.
+- `NewPaymentModal` conserve les validations client sur rendez-vous, montant, solde, référence opérateur et session espèces, puis appelle `recordPayment`. Son panneau n’est pas contraint en hauteur sur mobile court ; la fermeture, les moyens de paiement, certains champs et les actions de ticket n’atteignent pas uniformément 44 px.
+- Le domaine finance appelle les RPC existantes `record_payment`, `confirm_pending_payment`, `reject_pending_payment`, `record_payment_correction`, `open_cash_session`, `close_cash_session` et `reconcile_cash_session`. Il gère idempotence, invalidation finance/dashboard/loyalty, rechargement et recalcul du solde ; la présentation ne doit pas dupliquer ces contrôles ni fabriquer de confirmation locale.
+- Les tests SQL couvrent permissions, isolation, session ouverte unique, idempotence, paiements espèces, Mobile Money en attente, confirmation/rejet, corrections, clôture et rapprochement. Les adaptations doivent préserver ces contrats serveur.
+
+### Phase 2 — 5.3 Caisse et encaissements : réalisation
+
+- `CashRegisterView` réduit ses espacements mobiles, empile son en-tête avant 480 px et rend les actions d’ouverture, clôture, vérification, rejet, correction et rapprochement directement touchables (hauteur minimale 44 px). Les listes et historiques gardent les mêmes données et handlers.
+- Sa primitive locale de modal devient une feuille basse défilable sur mobile court, avec fermeture de 44 px, `safe-area-inset-bottom`, panneau contraint par `100dvh` et formulaire conservé. Sur desktop, elle reste centrée.
+- `NewPaymentModal`, réellement ouverte par les actions rapides ERP, adopte la même contrainte de hauteur et safe area. Les moyens de paiement s’affichent sur une colonne à 320–379 px puis deux colonnes ; leur état sélectionné est exposé par `aria-pressed`. Les champs, fermeture, validation et actions de ticket ont des cibles de 44 px.
+- Aucun contrôle financier n’est recréé dans l’interface : permissions existantes, validation de solde/référence/session espèces, idempotence, RPC, invalidation finance/dashboard/loyalty et rechargement restent dans le domaine finance.
+- Validation automatisée ajoutée : le test d’intégration `CashRegisterView` ouvre une session depuis la modal et confirme l’appel du domaine finance, suivi de l’état de session affiché. Le test structurel mobile couvre les permissions, handlers de caisse, hauteur/safe area des modales et l’encaissement global.
+
 ### Restant avant qualification mobile complète
 
-- Vérifier manuellement 320/360/375/390/430 px, puis 768/1024/1280+ px, avec faible hauteur et clavier virtuel, notamment le planning, la barre basse ERP, le sheet Plus, le changement de salon, le drawer admin, les actions caisse/RDV, les modales longues, tables, toast et booking. Aucun navigateur automatisé n’est disponible dans cet environnement.
+- Vérifier manuellement 320/360/375/390/430 px, puis 768/1024/1280+ px, avec faible hauteur et clavier virtuel, notamment le planning, la caisse, la barre basse ERP, le sheet Plus, le changement de salon, le drawer admin, les actions caisse/RDV, les modales longues, tables, toast et booking. Aucun navigateur automatisé n’est disponible dans cet environnement.
 - Évaluer séparément les modales calendrier riches non montées et le sticky booking marketplace, sans les substituer à la vue ERP active sans décision de câblage.
 - Aucune modification de route, de rôle/permission, de contexte, de RPC, de migration, de RLS ou de cycle Realtime n’a été effectuée dans ce lot.
-- Le build est valide, mais `npm run perf:check` reste non conforme au budget initial existant : 171,54 kB gzip de JavaScript initial pour un budget de 166,02 kB. Cette non-conformité P2 doit être résolue avant de déclarer une CI entièrement verte.
+- Le build est valide, mais `npm run perf:check` reste non conforme au budget initial existant : 171,53 kB gzip de JavaScript initial pour un budget de 166,02 kB. Cette non-conformité P2 doit être résolue avant de déclarer une CI entièrement verte.

@@ -143,16 +143,48 @@ test('le planning actif rend une chronologie tactile sans changer les mutations 
   assert.match(formModal, /min-h-11 rounded-xl bg-\[#C9A45C\]/);
 });
 
+test('la caisse et l’encaissement restent tactiles sans contourner le domaine finance', () => {
+  const cash = source('src/components/erp/CashRegisterView.tsx');
+  const payment = source('src/components/erp/NewPaymentModal.tsx');
+
+  assert.match(cash, /const canOpen = hasPermission\('cash.open', activeSalon.id\)/);
+  assert.match(cash, /const canClose = hasPermission\('cash.close', activeSalon.id\)/);
+  assert.match(cash, /const canReconcile = hasPermission\('cash.reconcile', activeSalon.id\)/);
+  assert.match(cash, /const canCorrect = hasPermission\('payments.correct', activeSalon.id\)/);
+  assert.match(cash, /await openNewCashSession\(/);
+  assert.match(cash, /await closeCurrentCashSession\(/);
+  assert.match(cash, /await reconcileCashSession\(/);
+  assert.match(cash, /await confirmPendingPayment\(/);
+  assert.match(cash, /await rejectPendingPayment\(/);
+  assert.match(cash, /await recordPaymentCorrection\(/);
+  assert.match(cash, /items-end justify-center overflow-y-auto/);
+  assert.match(cash, /max-h-\[calc\(100dvh-0\.75rem\)\]/);
+  assert.match(cash, /safe-area-inset-bottom/);
+  assert.match(cash, /min-h-11 flex-1 items-center justify-center/);
+
+  assert.match(payment, /aria-label="Nouvel encaissement"/);
+  assert.match(payment, /max-h-\[calc\(100dvh-0\.75rem\)\]/);
+  assert.match(payment, /safe-area-inset-bottom/);
+  assert.match(payment, /grid grid-cols-1 gap-2 min-\[380px\]:grid-cols-2/);
+  assert.match(payment, /aria-pressed=\{method === m\.id\}/);
+  assert.match(payment, /const tx = await recordPayment\(/);
+  assert.match(payment, /min-h-11 w-full/);
+});
+
 test('les modales métier longues P0 restent défilables dans un viewport mobile court', () => {
   const expectedPanels = [
-    ['src/components/erp/CashRegisterView.tsx', 1],
-    ['src/components/erp/FinanceExpensesView.tsx', 3],
-    ['src/components/erp/InventoryView.tsx', 4],
+    [
+      'src/components/erp/CashRegisterView.tsx',
+      1,
+      /max-h-\[calc\(100dvh-0\.75rem\)\][\s\S]+overflow-y-auto/g,
+    ],
+    ['src/components/erp/FinanceExpensesView.tsx', 3, /max-h-\[calc\(100dvh-2rem\)\] overflow-y-auto/g],
+    ['src/components/erp/InventoryView.tsx', 4, /max-h-\[calc\(100dvh-2rem\)\] overflow-y-auto/g],
   ];
 
-  for (const [file, expectedCount] of expectedPanels) {
+  for (const [file, expectedCount, panelPattern] of expectedPanels) {
     const content = source(file);
-    const panels = content.match(/max-h-\[calc\(100dvh-2rem\)\] overflow-y-auto/g) ?? [];
+    const panels = content.match(panelPattern) ?? [];
     const overlays = content.match(/fixed inset-0 z-50[^"]+overflow-y-auto/g) ?? [];
     assert.equal(panels.length, expectedCount, `${file} doit contraindre chaque panneau modal`);
     assert.equal(overlays.length, expectedCount, `${file} doit laisser défiler chaque overlay modal`);

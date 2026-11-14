@@ -4,6 +4,7 @@ import React from 'react';
 import { JSDOM } from 'jsdom';
 import { AppProvider, useOptionalApp, type SalonApiClient } from '../src/context/AppContext';
 import { AuthContext, type AuthContextType, type SalonMembership } from '../src/context/AuthContext';
+import { CashRegisterView } from '../src/components/erp/CashRegisterView';
 import { DashboardView } from '../src/components/erp/DashboardView';
 import { PlanningView } from '../src/components/erp/PlanningView';
 import { ReportsView } from '../src/components/erp/ReportsView';
@@ -837,6 +838,7 @@ test('PlanningView : la chronologie tactile utilise la transition serveur exista
     paymentStatus: 'unpaid',
     source: 'direct',
     notes: '',
+    createdAt: '2026-11-13T08:00:00.000Z',
   };
   const transitionCalls: Array<{ id: string; status: string }> = [];
 
@@ -946,6 +948,98 @@ test('PlanningView : la chronologie tactile utilise la transition serveur exista
   await waitFor(() => {
     assert.ok(within(view.container).getByRole('dialog', { name: 'Nouveau rendez-vous' }));
     assert.ok(within(view.container).getByLabelText(/Nom du client/));
+  });
+});
+
+test('CashRegisterView : la feuille mobile conserve l’ouverture de caisse via le domaine finance', async () => {
+  ensureDom();
+  cleanup();
+
+  const cashOpenCalls: Array<{ branchId: string; openingBalance: number; note: string }> = [];
+  let isSessionOpen = false;
+  const openedSession = {
+    id: 'cash-session-mobile',
+    salonId: SALON_ID,
+    branchId: BRANCH_ID,
+    registerId: 'register-mobile',
+    registerName: 'Caisse principale',
+    status: 'open' as const,
+    openingBalance: 12500,
+    theoreticalBalance: 12500,
+    totalCashIn: 0,
+    totalCashOut: 0,
+    totalMobileMoneyIn: 0,
+    totalMobileMoneyOut: 0,
+    openedAt: '2026-11-13T08:00:00.000Z',
+    closedAt: null,
+    expectedBalance: null,
+    countedBalance: null,
+    difference: null,
+    openingNote: 'Fond initial',
+    closingNote: '',
+  };
+
+  const cashApiFactory = () =>
+    ({
+      workspace: async () => ({
+        salon: {
+          id: SALON_ID,
+          name: 'Salon Caisse Test',
+          status: 'active',
+          is_published: true,
+          timezone: 'Europe/Paris',
+        },
+        branches: [{ id: BRANCH_ID, name: 'Marais', timezone: 'Europe/Paris' }],
+        clients: [],
+        services: [],
+        staff: [],
+        expenses: [],
+        stock: [],
+        suppliers: [],
+        rewards: [],
+        reviews: [],
+      }),
+      appointments: { list: async () => [] },
+      payments: { list: async () => [] },
+      cash: {
+        sessions: async () => (isSessionOpen ? [openedSession] : []),
+        open: async (branchId: string, openingBalance: number, note: string) => {
+          cashOpenCalls.push({ branchId, openingBalance, note });
+          isSessionOpen = true;
+          return openedSession;
+        },
+      },
+      reports: { summary: async () => null },
+      loyalty: { program: async () => null, accounts: async () => [], ledger: async () => [] },
+      notifications: { list: async () => [], health: async () => null },
+      suppliers: { list: async () => [] },
+      stock: { list: async () => [], movements: async () => [] },
+      expenses: { list: async () => [], events: async () => [] },
+    }) as unknown as SalonApiClient;
+
+  const view = render(
+    <AuthContext.Provider value={buildAuth(['*'], 'owner')}>
+      <AppProvider apiClientFactory={cashApiFactory}>
+        <ActiveSalonGate>
+          <CashRegisterView />
+        </ActiveSalonGate>
+      </AppProvider>
+    </AuthContext.Provider>,
+  );
+
+  await waitFor(() => {
+    assert.ok(within(view.container).getByRole('button', { name: 'Ouvrir une session' }));
+  });
+
+  fireEvent.click(within(view.container).getByRole('button', { name: 'Ouvrir une session' }));
+  const dialog = within(view.container).getByRole('dialog', { name: 'Ouvrir une session' });
+  fireEvent.change(within(dialog).getByRole('spinbutton'), { target: { value: '12500' } });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Ouvrir' }));
+
+  await waitFor(() => {
+    assert.deepEqual(cashOpenCalls, [{ branchId: BRANCH_ID, openingBalance: 12500, note: '' }]);
+    assert.ok(within(view.container).getByRole('button', { name: 'Clôturer' }));
+    assert.ok(within(view.container).getByText(/Caisse principale/));
   });
 });
 
