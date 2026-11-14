@@ -119,6 +119,30 @@ test('les contrôles tactiles et le toast P1 conservent une zone d’action mobi
   assert.match(toastSource, /aria-label="Fermer la notification"/);
 });
 
+test('le planning actif rend une chronologie tactile sans changer les mutations de rendez-vous', () => {
+  const planning = source('src/components/erp/PlanningView.tsx');
+  const formModal = source('src/components/erp/FormModal.tsx');
+
+  assert.match(planning, /data-testid="planning-mobile-list"/);
+  assert.match(planning, /Liste chronologique des rendez-vous/);
+  assert.match(planning, /className="space-y-4 p-3 md:hidden"/);
+  assert.match(planning, /className="hidden overflow-x-auto md:block"/);
+  assert.match(planning, /min-h-11 min-w-11/);
+  assert.match(planning, /grid grid-cols-1 gap-3 min-\[480px\]:grid-cols-2/);
+  assert.match(planning, /const handleAdvance = \(apt: Appointment\)/);
+  assert.match(planning, /void startWalkIn\(apt.id, apt.staffId\)/);
+  assert.match(planning, /void completeWalkIn\(apt.id\)/);
+  assert.match(planning, /updateAppointmentStatus\(apt.id, next\)/);
+  assert.match(planning, /const result = await bookAppointment\(/);
+  assert.match(planning, /updateAppointment\(editing.id,/);
+  assert.match(planning, /deleteAppointment\(appointment.id\)/);
+
+  assert.match(formModal, /items-end justify-center overflow-y-auto/);
+  assert.match(formModal, /max-h-\[calc\(100dvh-0\.75rem\)\]/);
+  assert.match(formModal, /min-h-11 w-full/);
+  assert.match(formModal, /min-h-11 rounded-xl bg-\[#C9A45C\]/);
+});
+
 test('les modales métier longues P0 restent défilables dans un viewport mobile court', () => {
   const expectedPanels = [
     ['src/components/erp/CashRegisterView.tsx', 1],

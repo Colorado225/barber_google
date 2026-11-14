@@ -477,9 +477,26 @@ Avant de considérer le lot mobile terminé :
 - Les raccourcis du dashboard sont conservés sur desktop. Sur mobile, leur doublon est retiré au profit de `MobileActionBar`, placé directement sous le header et déjà soumis aux permissions existantes.
 - La suite structurelle couvre les breakpoints KPI, les actions, le détail de graphique tactile, le formatage des montants et la conservation de la mutation de statut. Les tests dashboard existants couvrent toujours RBAC, `reports.dashboard`, fuseau et agrégats.
 
+### Phase 2 — 5.2 Planning et rendez-vous : diagnostic avant adaptation
+
+**Périmètre vérifié (sans changement métier)** : route ERP `calendar` dans `ErpLayout`, `PlanningView`, `AppointmentsCalendarView`, `NewAppointmentModal`, `AppointmentsDomainContext`, `salonApi.appointments` et les tests SQL opérations.
+
+- La route active rend aujourd’hui `PlanningView`, un tableau de gestion horizontal de 760 px et un formulaire local. Ses filtres et actions restent reliés aux callbacks existants, mais cette présentation ne fournit pas de calendrier mobile, de navigation quotidienne ni de liste chronologique adaptée.
+- `AppointmentsCalendarView` contient déjà les vues jour, semaine et liste, les sélecteurs de collaborateur/statut/recherche, la navigation par date, l’inspection d’un rendez-vous et les actions de paiement/statut. Il n’est toutefois pas monté par la route ERP actuelle ; son calendrier fixe dépasse 750/950 px et ses interactions de créneau reposent par endroits sur le survol desktop.
+- La création globale `NewAppointmentModal` récupère les disponibilités par `day_availability` avant l’envoi. Le domaine rendez-vous appelle les RPC existantes de création, transition, annulation et replanification ; les tests SQL vérifient déjà chevauchements, horaires d’ouverture, absences, transitions et recalcul de durée. L’adaptation doit conserver ces appels et laisser le serveur autoritaire.
+- L’édition complète date/heure/prestation/collaborateur peut réemployer `reschedule_appointment` via `updateAppointment`. Les détails calendaires ne doivent jamais faire croire qu’un créneau est garanti localement : toute disponibilité affichée est indicative jusqu’à la réponse RPC.
+
+### Phase 2 — 5.2 Planning et rendez-vous : réalisation
+
+- `PlanningView`, seule vue montée par l’onglet ERP Planning, affiche désormais sous `md` une chronologie par date avec cartes de rendez-vous, plutôt que de réduire le tableau de 760 px. Le tableau horizontal reste disponible à partir de `md`, avec une région nommée et focalisable.
+- Les filtres, les actions de création et de client de passage se répartissent sans débordement, et les actions par rendez-vous sur mobile ont des cibles d’au moins 44 px. Les deux rendus réemploient les mêmes callbacks : avancement, `startWalkIn`, `completeWalkIn`, annulation et annulation conservant l’historique.
+- Le formulaire local empile ses champs avant 480 px. `FormModal`, primitive effectivement utilisée, devient une feuille basse défilable sur mobile court, ajoute la safe area basse et conserve des boutons et contrôles de 44 px ; le comportement desktop reste centré.
+- Aucun contrat métier n’a changé : création via `bookAppointment`, modification via `updateAppointment`/`reschedule_appointment`, transitions, annulation, cache et Realtime restent assurés par le domaine existant. La chronologie ne propose pas de disponibilité locale comme garantie.
+- Validation automatisée ajoutée : le test d’intégration `PlanningView` vérifie le rendu de la chronologie, l’ouverture du formulaire et le passage Confirmé → Arrivé via la transition serveur mockée. Le test structurel mobile couvre le rendu mobile/desktop, les cibles tactiles, les grilles et les handlers conservés.
+
 ### Restant avant qualification mobile complète
 
-- Empiler et vérifier les grilles de formulaires ERP avant `sm` ; limiter le sticky booking après test réel.
-- Valider au navigateur 320/360/375/390/430 px, puis 768/1024/1280+ px, avec faible hauteur et clavier virtuel, notamment la barre basse ERP, le sheet Plus, le changement de salon, le drawer admin, les actions caisse/RDV, modales longues, tables, toast et booking.
+- Vérifier manuellement 320/360/375/390/430 px, puis 768/1024/1280+ px, avec faible hauteur et clavier virtuel, notamment le planning, la barre basse ERP, le sheet Plus, le changement de salon, le drawer admin, les actions caisse/RDV, les modales longues, tables, toast et booking. Aucun navigateur automatisé n’est disponible dans cet environnement.
+- Évaluer séparément les modales calendrier riches non montées et le sticky booking marketplace, sans les substituer à la vue ERP active sans décision de câblage.
 - Aucune modification de route, de rôle/permission, de contexte, de RPC, de migration, de RLS ou de cycle Realtime n’a été effectuée dans ce lot.
-- Le build est valide, mais `npm run perf:check` reste non conforme au budget initial existant : 171,55 kB gzip de JavaScript initial pour un budget de 166,02 kB. Cette non-conformité P2 doit être résolue avant de déclarer une CI entièrement verte.
+- Le build est valide, mais `npm run perf:check` reste non conforme au budget initial existant : 171,54 kB gzip de JavaScript initial pour un budget de 166,02 kB. Cette non-conformité P2 doit être résolue avant de déclarer une CI entièrement verte.

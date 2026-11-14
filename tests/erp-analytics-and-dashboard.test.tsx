@@ -5,6 +5,7 @@ import { JSDOM } from 'jsdom';
 import { AppProvider, useOptionalApp, type SalonApiClient } from '../src/context/AppContext';
 import { AuthContext, type AuthContextType, type SalonMembership } from '../src/context/AuthContext';
 import { DashboardView } from '../src/components/erp/DashboardView';
+import { PlanningView } from '../src/components/erp/PlanningView';
 import { ReportsView } from '../src/components/erp/ReportsView';
 import { TodayView } from '../src/components/erp/TodayView';
 import { mapErpDashboardMetrics } from '../src/lib/api';
@@ -808,6 +809,143 @@ test('DashboardView & ReportsView : intégration reports.dashboard, filtres unif
     assert.ok(within(reportsView.container).getByText('Encaissé net'));
     assert.ok(within(reportsView.container).getByText('CA réalisé (terminés)'));
     assert.ok(within(reportsView.container).getByText('Coupe Classique'));
+  });
+});
+
+test('PlanningView : la chronologie tactile utilise la transition serveur existante', async () => {
+  ensureDom();
+  cleanup();
+
+  const scheduledAppointment: Appointment = {
+    id: 'apt-planning-confirmed',
+    salonId: SALON_ID,
+    branchId: BRANCH_ID,
+    clientId: 'client-planning',
+    clientName: 'Awa Planning',
+    clientPhone: '+2250700000001',
+    serviceId: 'srv-planning',
+    serviceName: 'Coupe Signature',
+    staffId: 'staff-planning',
+    staffName: 'Moussa Planning',
+    date: '2026-11-13',
+    time: '10:00',
+    startsAt: '2026-11-13T09:00:00.000Z',
+    endsAt: '2026-11-13T09:45:00.000Z',
+    durationMinutes: 45,
+    price: 6500,
+    status: 'confirmed',
+    paymentStatus: 'unpaid',
+    source: 'direct',
+    notes: '',
+  };
+  const transitionCalls: Array<{ id: string; status: string }> = [];
+
+  const planningApiFactory = () =>
+    ({
+      workspace: async () => ({
+        salon: {
+          id: SALON_ID,
+          name: 'Salon Planning Test',
+          status: 'active',
+          is_published: true,
+          timezone: 'Europe/Paris',
+        },
+        branches: [{ id: BRANCH_ID, name: 'Marais', timezone: 'Europe/Paris' }],
+        clients: [
+          {
+            id: 'client-planning',
+            salonId: SALON_ID,
+            name: 'Awa Planning',
+            phone: '+2250700000001',
+            email: '',
+            visits: 0,
+            totalSpent: 0,
+            createdAt: '2026-11-01T00:00:00.000Z',
+          },
+        ],
+        services: [
+          {
+            id: 'srv-planning',
+            salonId: SALON_ID,
+            name: 'Coupe Signature',
+            category: 'coupe',
+            description: '',
+            price: 6500,
+            durationMinutes: 45,
+            isActive: true,
+          },
+        ],
+        staff: [
+          {
+            id: 'staff-planning',
+            salonId: SALON_ID,
+            branchId: BRANCH_ID,
+            name: 'Moussa Planning',
+            role: 'barber',
+            phone: '',
+            specialties: [],
+            commissionRate: 0,
+            isAvailable: true,
+            isActive: true,
+            serviceIds: ['srv-planning'],
+          },
+        ],
+        expenses: [],
+        stock: [],
+        suppliers: [],
+        rewards: [],
+        reviews: [],
+      }),
+      appointments: {
+        list: async () => [scheduledAppointment],
+        transition: async (id: string, status: Appointment['status']) => {
+          transitionCalls.push({ id, status });
+          return { ...scheduledAppointment, status };
+        },
+      },
+      payments: { list: async () => [] },
+      cash: { sessions: async () => [] },
+      reports: { summary: async () => null },
+      loyalty: { program: async () => null, accounts: async () => [], ledger: async () => [] },
+      notifications: { list: async () => [], health: async () => null },
+      suppliers: { list: async () => [] },
+      stock: { list: async () => [], movements: async () => [] },
+      expenses: { list: async () => [], events: async () => [] },
+    }) as unknown as SalonApiClient;
+
+  const view = render(
+    <AuthContext.Provider value={buildAuth(['*'], 'owner')}>
+      <AppProvider apiClientFactory={planningApiFactory}>
+        <ActiveSalonGate>
+          <PlanningView onOpenWalkIn={() => {}} />
+        </ActiveSalonGate>
+      </AppProvider>
+    </AuthContext.Provider>,
+  );
+
+  await waitFor(() => {
+    const mobileList = within(view.container).getByTestId('planning-mobile-list');
+    assert.ok(within(mobileList).getByText('Awa Planning'));
+    assert.ok(within(mobileList).getByText('Coupe Signature'));
+    assert.ok(within(mobileList).getByText('Moussa Planning'));
+  });
+
+  const mobileList = within(view.container).getByTestId('planning-mobile-list');
+  fireEvent.click(
+    within(mobileList).getByRole('button', {
+      name: 'Passer le rendez-vous de Awa Planning à Arrivé',
+    }),
+  );
+
+  await waitFor(() => {
+    assert.deepEqual(transitionCalls, [{ id: 'apt-planning-confirmed', status: 'checked_in' }]);
+    assert.ok(within(mobileList).getByText('Arrivé'));
+  });
+
+  fireEvent.click(within(view.container).getByRole('button', { name: 'Nouveau rendez-vous' }));
+  await waitFor(() => {
+    assert.ok(within(view.container).getByRole('dialog', { name: 'Nouveau rendez-vous' }));
+    assert.ok(within(view.container).getByLabelText(/Nom du client/));
   });
 });
 

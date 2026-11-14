@@ -40,6 +40,86 @@ interface PlanningViewProps {
   onOpenWalkIn?: () => void;
 }
 
+interface AppointmentActionsProps {
+  appointment: Appointment;
+  density: 'table' | 'touch';
+  onEdit: (appointment: Appointment) => void;
+  onAdvance: (appointment: Appointment) => void;
+  onCancel: (appointment: Appointment) => void;
+  onDelete: (appointment: Appointment) => void;
+}
+
+/**
+ * The same domain callbacks power compact desktop controls and 44px mobile controls.
+ * Keeping this presentational component local prevents a mobile-only action from drifting
+ * from the established appointment workflow.
+ */
+const AppointmentActions: React.FC<AppointmentActionsProps> = ({
+  appointment,
+  density,
+  onEdit,
+  onAdvance,
+  onCancel,
+  onDelete,
+}) => {
+  const nextStatus = forwardStatus(appointment.status);
+  const isTouch = density === 'touch';
+  const iconButtonClass = isTouch
+    ? 'inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-[#303036] bg-[#1c1c20] text-stone-300 transition-colors hover:bg-[#28282e] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A45C]'
+    : 'inline-flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition-colors hover:bg-[#242429] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A45C]';
+
+  return (
+    <div className={`flex flex-wrap items-center ${isTouch ? 'gap-2' : 'justify-end gap-1.5'}`}>
+      {appointment.source !== 'walk_in' && (
+        <button
+          type="button"
+          onClick={() => onEdit(appointment)}
+          title="Modifier le rendez-vous"
+          aria-label={`Modifier le rendez-vous de ${appointment.clientName}`}
+          className={iconButtonClass}
+        >
+          <Pencil className={isTouch ? 'h-4 w-4' : 'h-3.5 w-3.5'} aria-hidden="true" />
+        </button>
+      )}
+
+      {nextStatus && (
+        <button
+          type="button"
+          onClick={() => onAdvance(appointment)}
+          title={`Passer à « ${STATUS_LABELS[nextStatus]} »`}
+          aria-label={`Passer le rendez-vous de ${appointment.clientName} à ${STATUS_LABELS[nextStatus]}`}
+          className={`${iconButtonClass} text-emerald-400 hover:text-emerald-300`}
+        >
+          <Check className={isTouch ? 'h-4 w-4' : 'h-3.5 w-3.5'} aria-hidden="true" />
+        </button>
+      )}
+
+      {appointment.status !== 'cancelled' && (
+        <button
+          type="button"
+          onClick={() => onCancel(appointment)}
+          title="Annuler le rendez-vous"
+          aria-label={`Annuler le rendez-vous de ${appointment.clientName}`}
+          className={`${iconButtonClass} text-amber-400 hover:text-amber-300`}
+        >
+          <Ban className={isTouch ? 'h-4 w-4' : 'h-3.5 w-3.5'} aria-hidden="true" />
+        </button>
+      )}
+
+      {appointment.source !== 'walk_in' && (
+        <ConfirmDelete
+          onConfirm={() => onDelete(appointment)}
+          className={
+            isTouch
+              ? 'min-h-11 border-[#5e2020] px-3 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A45C]'
+              : undefined
+          }
+        />
+      )}
+    </div>
+  );
+};
+
 export const PlanningView: React.FC<PlanningViewProps> = ({ onOpenWalkIn }) => {
   const {
     activeSalon,
@@ -103,6 +183,14 @@ export const PlanningView: React.FC<PlanningViewProps> = ({ onOpenWalkIn }) => {
       .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
   }, [appointments, activeSalon.id, filterDate, filterStaff, filterType]);
 
+  const groupedRows = useMemo(() => {
+    const rowsByDate = rows.reduce<Record<string, Appointment[]>>((groups, appointment) => {
+      (groups[appointment.date] ??= []).push(appointment);
+      return groups;
+    }, {});
+    return Object.entries(rowsByDate);
+  }, [rows]);
+
   const openCreate = () => {
     setEditing(null);
     setForm(emptyForm());
@@ -129,6 +217,17 @@ export const PlanningView: React.FC<PlanningViewProps> = ({ onOpenWalkIn }) => {
   const fail = (message: string) => {
     setFormError(message);
     addToast(message, 'error');
+  };
+
+  const handleAdvance = (apt: Appointment) => {
+    if (apt.source === 'walk_in') {
+      if (apt.status === 'checked_in') void startWalkIn(apt.id, apt.staffId);
+      else if (apt.status === 'in_progress') void completeWalkIn(apt.id);
+      return;
+    }
+
+    const next = forwardStatus(apt.status);
+    if (next) updateAppointmentStatus(apt.id, next);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -188,183 +287,240 @@ export const PlanningView: React.FC<PlanningViewProps> = ({ onOpenWalkIn }) => {
     setIsFormOpen(false);
   };
 
+  const hasFilters = Boolean(filterDate || filterStaff || filterType !== 'all');
+  const controlClass =
+    'min-h-11 min-w-0 rounded-xl border border-[#2a2a2b] bg-[#151516] px-3 text-sm text-[#f7f6f2] focus:outline-none focus:border-[#C9A45C]';
+
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="space-y-5 p-4 sm:space-y-6 sm:p-6">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-[#f7f6f2] flex items-center gap-2">
-            <CalendarIcon className="w-6 h-6 text-[#C9A45C]" />
+          <h1 className="flex items-center gap-2 text-2xl font-bold text-[#f7f6f2]">
+            <CalendarIcon className="h-6 w-6 text-[#C9A45C]" />
             Planning
           </h1>
-          <p className="text-[#a9a9a9] mt-1">Gérer les rendez-vous</p>
+          <p className="mt-1 text-[#a9a9a9]">Gérer les rendez-vous</p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <input
-            type="date"
-            value={filterDate}
-            onChange={(e) => setFilterDate(e.target.value)}
-            aria-label="Filtrer par date"
-            className="bg-[#151516] border border-[#2a2a2b] rounded-lg px-3 py-2 text-xs text-[#f7f6f2] focus:outline-none focus:border-[#C9A45C]"
-          />
-          <select
-            value={filterStaff}
-            onChange={(e) => setFilterStaff(e.target.value)}
-            aria-label="Filtrer par employé"
-            className="bg-[#151516] border border-[#2a2a2b] rounded-lg px-3 py-2 text-xs text-[#f7f6f2] focus:outline-none focus:border-[#C9A45C]"
+        <div className="w-full space-y-2 xl:w-auto">
+          <div
+            aria-label="Filtres du planning"
+            className="grid grid-cols-2 gap-2 min-[480px]:grid-cols-3 xl:flex xl:flex-wrap xl:items-center"
           >
-            <option value="">Tous les employés</option>
-            {salonStaff.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
-            ))}
-          </select>
-          <select
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value as typeof filterType)}
-            aria-label="Filtrer par type"
-            className="bg-[#151516] border border-[#2a2a2b] rounded-lg px-3 py-2 text-xs text-[#f7f6f2] focus:outline-none focus:border-[#C9A45C]"
-          >
-            <option value="all">Tous</option>
-            <option value="appointments">Rendez-vous</option>
-            <option value="walk_in">Sans rendez-vous</option>
-            <option value="marketplace">Réservations en ligne</option>
-          </select>
-          {(filterDate || filterStaff || filterType !== 'all') && (
-            <button
-              onClick={() => {
-                setFilterDate('');
-                setFilterStaff('');
-                setFilterType('all');
-              }}
-              className="text-xs text-stone-400 hover:text-white px-2 py-2 cursor-pointer"
+            <input
+              type="date"
+              value={filterDate}
+              onChange={(e) => setFilterDate(e.target.value)}
+              aria-label="Filtrer par date"
+              className={`${controlClass} col-span-2 min-[480px]:col-span-1 xl:w-auto`}
+            />
+            <select
+              value={filterStaff}
+              onChange={(e) => setFilterStaff(e.target.value)}
+              aria-label="Filtrer par employé"
+              className={`${controlClass} col-span-1 w-full xl:w-auto`}
             >
-              Réinitialiser
-            </button>
-          )}
-          {onOpenWalkIn && (
-            <button
-              onClick={onOpenWalkIn}
-              className="flex items-center gap-2 px-4 py-2 bg-[#242429] text-white border border-[#3b3b44] rounded-lg font-semibold hover:bg-[#2d2d34] cursor-pointer shrink-0"
+              <option value="">Tous les employés</option>
+              {salonStaff.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value as typeof filterType)}
+              aria-label="Filtrer par type"
+              className={`${controlClass} col-span-1 w-full xl:w-auto`}
             >
-              <Plus className="w-4 h-4 text-[#C9A45C]" />
-              Client de passage
+              <option value="all">Tous</option>
+              <option value="appointments">Rendez-vous</option>
+              <option value="walk_in">Sans rendez-vous</option>
+              <option value="marketplace">Réservations en ligne</option>
+            </select>
+            {hasFilters && (
+              <button
+                type="button"
+                onClick={() => {
+                  setFilterDate('');
+                  setFilterStaff('');
+                  setFilterType('all');
+                }}
+                className="col-span-2 min-h-11 rounded-xl px-3 text-sm font-semibold text-stone-300 transition-colors hover:bg-[#202024] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A45C] min-[480px]:col-span-1 xl:col-auto"
+              >
+                Réinitialiser
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 gap-2 min-[440px]:grid-cols-2 xl:flex xl:justify-end">
+            {onOpenWalkIn && (
+              <button
+                type="button"
+                onClick={onOpenWalkIn}
+                className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#3b3b44] bg-[#242429] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#2d2d34] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A45C] xl:w-auto"
+              >
+                <Plus className="h-4 w-4 text-[#C9A45C]" aria-hidden="true" />
+                Client de passage
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={openCreate}
+              className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#C9A45C] px-4 text-sm font-bold text-[#101010] transition-colors hover:bg-[#d4b26a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white xl:w-auto"
+            >
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Nouveau rendez-vous
             </button>
-          )}
-          <button
-            onClick={openCreate}
-            className="flex items-center gap-2 px-4 py-2 bg-[#C9A45C] text-[#101010] rounded-lg font-semibold hover:bg-[#d4b26a] cursor-pointer shrink-0"
-          >
-            <Plus className="w-4 h-4" />
-            Nouveau rendez-vous
-          </button>
+          </div>
         </div>
       </div>
 
-      <div className="bg-[#151516] rounded-xl border border-[#2a2a2b] overflow-x-auto">
+      <div className="rounded-xl border border-[#2a2a2b] bg-[#151516]">
         {rows.length === 0 ? (
-          <div className="p-6 text-center py-12 text-[#a9a9a9]">
-            <CalendarIcon className="w-12 h-12 mx-auto mb-4 opacity-50" />
+          <div className="px-6 py-12 text-center text-[#a9a9a9]">
+            <CalendarIcon className="mx-auto mb-4 h-12 w-12 opacity-50" />
             <p>Aucun rendez-vous</p>
-            <p>
-              {filterDate || filterStaff
-                ? 'Aucun rendez-vous pour ce filtre'
-                : 'Créez votre premier rendez-vous'}
-            </p>
+            <p>{hasFilters ? 'Aucun rendez-vous pour ce filtre' : 'Créez votre premier rendez-vous'}</p>
           </div>
         ) : (
-          <table className="w-full text-sm min-w-[760px]">
-            <thead>
-              <tr className="border-b border-[#2a2a2b] text-left">
-                {['Date', 'Heure', 'Client', 'Prestation', 'Barbier', 'Statut', 'Montant', ''].map((h) => (
-                  <th
-                    key={h}
-                    className="px-3 py-3 text-[11px] uppercase tracking-wider text-[#a9a9a9] font-bold"
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((apt) => (
-                <tr key={apt.id} className="border-b border-[#232326] last:border-0 hover:bg-[#18181b]">
-                  <td className="px-3 py-3 text-[#a9a9a9] text-xs">{apt.date}</td>
-                  <td className="px-3 py-3 text-[#C9A45C] font-mono text-xs">{apt.time}</td>
-                  <td className="px-3 py-3">
-                    <span className="font-semibold text-[#f7f6f2]">{apt.clientName}</span>
-                    {apt.source === 'walk_in' && (
-                      <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[#C9A45C]/15 text-[#E5C378] border border-[#C9A45C]/30">
-                        Sans RDV
-                      </span>
-                    )}
-                    {apt.source === 'marketplace' && (
-                      <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-sky-500/15 text-sky-300 border border-sky-500/30">
-                        En ligne
-                      </span>
-                    )}
-                    <div className="text-[11px] text-[#a9a9a9]">{apt.clientPhone}</div>
-                  </td>
-                  <td className="px-3 py-3 text-[#a9a9a9] text-xs">{apt.serviceName}</td>
-                  <td className="px-3 py-3 text-[#a9a9a9] text-xs">{apt.staffName}</td>
-                  <td className="px-3 py-3">
-                    <span
-                      className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${STATUS_STYLES[apt.status]}`}
+          <>
+            <section
+              data-testid="planning-mobile-list"
+              aria-label="Liste chronologique des rendez-vous"
+              className="space-y-4 p-3 md:hidden"
+            >
+              {groupedRows.map(([date, appointmentsForDate]) => (
+                <div key={date} className="space-y-2">
+                  <h2 className="px-1 text-xs font-bold uppercase tracking-wider text-[#C9A45C]">{date}</h2>
+                  {appointmentsForDate.map((apt) => (
+                    <article
+                      key={apt.id}
+                      className="rounded-xl border border-[#2a2a2b] bg-[#19191b] p-3 shadow-sm"
                     >
-                      {STATUS_LABELS[apt.status]}
-                    </span>
-                  </td>
-                  <td className="px-3 py-3 text-[#E5C378] font-semibold">{formatPrice(apt.price)}</td>
-                  <td className="px-3 py-3">
-                    <div className="flex items-center justify-end gap-1.5">
-                      {apt.source !== 'walk_in' && (
-                        <button
-                          onClick={() => openEdit(apt)}
-                          title="Modifier"
-                          className="text-stone-400 hover:text-white p-1 rounded cursor-pointer"
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex min-w-0 items-start gap-3">
+                          <time
+                            dateTime={`${apt.date}T${apt.time}`}
+                            className="shrink-0 rounded-lg bg-[#27231a] px-2 py-1.5 font-mono text-sm font-bold text-[#E5C378]"
+                          >
+                            {apt.time}
+                          </time>
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <h3 className="truncate font-semibold text-[#f7f6f2]">{apt.clientName}</h3>
+                              {apt.source === 'walk_in' && (
+                                <span className="rounded-full border border-[#C9A45C]/30 bg-[#C9A45C]/15 px-1.5 py-0.5 text-[10px] font-bold text-[#E5C378]">
+                                  Sans RDV
+                                </span>
+                              )}
+                              {apt.source === 'marketplace' && (
+                                <span className="rounded-full border border-sky-500/30 bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-bold text-sky-300">
+                                  En ligne
+                                </span>
+                              )}
+                            </div>
+                            {apt.clientPhone && (
+                              <p className="mt-0.5 text-xs text-[#a9a9a9]">{apt.clientPhone}</p>
+                            )}
+                          </div>
+                        </div>
+                        <span
+                          className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-semibold ${STATUS_STYLES[apt.status]}`}
                         >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                      )}
+                          {STATUS_LABELS[apt.status]}
+                        </span>
+                      </div>
 
-                      {forwardStatus(apt.status) && (
-                        <button
-                          onClick={() => {
-                            if (apt.source === 'walk_in') {
-                              if (apt.status === 'checked_in') void startWalkIn(apt.id, apt.staffId);
-                              else if (apt.status === 'in_progress') void completeWalkIn(apt.id);
-                              return;
-                            }
-                            const next = forwardStatus(apt.status);
-                            if (next) updateAppointmentStatus(apt.id, next);
-                          }}
-                          title={`Passer à « ${STATUS_LABELS[forwardStatus(apt.status)!]} »`}
-                          className="text-emerald-400 hover:text-emerald-300 p-1 rounded cursor-pointer"
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                        </button>
-                      )}
+                      <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1.5 border-y border-[#2a2a2b] py-3 text-xs">
+                        <p className="truncate text-[#a9a9a9]">{apt.serviceName}</p>
+                        <p className="font-semibold text-[#E5C378]">{formatPrice(apt.price)}</p>
+                        <p className="truncate text-[#a9a9a9]">{apt.staffName}</p>
+                        <p className="text-right text-stone-500">{apt.durationMinutes} min</p>
+                      </div>
 
-                      {apt.status !== 'cancelled' && (
-                        <button
-                          onClick={() => updateAppointmentStatus(apt.id, 'cancelled')}
-                          title="Annuler"
-                          className="text-amber-400 hover:text-amber-300 p-1 rounded cursor-pointer"
-                        >
-                          <Ban className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-
-                      {apt.source !== 'walk_in' && (
-                        <ConfirmDelete onConfirm={() => deleteAppointment(apt.id)} />
-                      )}
-                    </div>
-                  </td>
-                </tr>
+                      <div className="mt-3">
+                        <AppointmentActions
+                          appointment={apt}
+                          density="touch"
+                          onEdit={openEdit}
+                          onAdvance={handleAdvance}
+                          onCancel={(appointment) => updateAppointmentStatus(appointment.id, 'cancelled')}
+                          onDelete={(appointment) => deleteAppointment(appointment.id)}
+                        />
+                      </div>
+                    </article>
+                  ))}
+                </div>
               ))}
-            </tbody>
-          </table>
+            </section>
+
+            <div
+              className="hidden overflow-x-auto md:block"
+              role="region"
+              aria-label="Liste des rendez-vous, défilement horizontal"
+              tabIndex={0}
+            >
+              <table className="min-w-[760px] w-full text-sm">
+                <thead>
+                  <tr className="border-b border-[#2a2a2b] text-left">
+                    {['Date', 'Heure', 'Client', 'Prestation', 'Barbier', 'Statut', 'Montant', ''].map(
+                      (h) => (
+                        <th
+                          key={h}
+                          className="px-3 py-3 text-[11px] font-bold uppercase tracking-wider text-[#a9a9a9]"
+                        >
+                          {h}
+                        </th>
+                      ),
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((apt) => (
+                    <tr key={apt.id} className="border-b border-[#232326] last:border-0 hover:bg-[#18181b]">
+                      <td className="px-3 py-3 text-xs text-[#a9a9a9]">{apt.date}</td>
+                      <td className="px-3 py-3 font-mono text-xs text-[#C9A45C]">{apt.time}</td>
+                      <td className="px-3 py-3">
+                        <span className="font-semibold text-[#f7f6f2]">{apt.clientName}</span>
+                        {apt.source === 'walk_in' && (
+                          <span className="ml-2 rounded-full border border-[#C9A45C]/30 bg-[#C9A45C]/15 px-1.5 py-0.5 text-[10px] font-bold text-[#E5C378]">
+                            Sans RDV
+                          </span>
+                        )}
+                        {apt.source === 'marketplace' && (
+                          <span className="ml-2 rounded-full border border-sky-500/30 bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-bold text-sky-300">
+                            En ligne
+                          </span>
+                        )}
+                        <div className="text-[11px] text-[#a9a9a9]">{apt.clientPhone}</div>
+                      </td>
+                      <td className="px-3 py-3 text-xs text-[#a9a9a9]">{apt.serviceName}</td>
+                      <td className="px-3 py-3 text-xs text-[#a9a9a9]">{apt.staffName}</td>
+                      <td className="px-3 py-3">
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${STATUS_STYLES[apt.status]}`}
+                        >
+                          {STATUS_LABELS[apt.status]}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 font-semibold text-[#E5C378]">{formatPrice(apt.price)}</td>
+                      <td className="px-3 py-3">
+                        <AppointmentActions
+                          appointment={apt}
+                          density="table"
+                          onEdit={openEdit}
+                          onAdvance={handleAdvance}
+                          onCancel={(appointment) => updateAppointmentStatus(appointment.id, 'cancelled')}
+                          onDelete={(appointment) => deleteAppointment(appointment.id)}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 
@@ -380,13 +536,13 @@ export const PlanningView: React.FC<PlanningViewProps> = ({ onOpenWalkIn }) => {
           {formError && (
             <p
               role="alert"
-              className="text-xs text-red-300 bg-red-950/50 border border-red-800/50 rounded-lg px-3 py-2"
+              className="rounded-lg border border-red-800/50 bg-red-950/50 px-3 py-2 text-xs text-red-300"
             >
               {formError}
             </p>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 min-[480px]:grid-cols-2">
             <Field label="Nom du client" required>
               <input
                 className={inputClass}
@@ -422,7 +578,7 @@ export const PlanningView: React.FC<PlanningViewProps> = ({ onOpenWalkIn }) => {
             </Field>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 min-[480px]:grid-cols-2">
             <Field label="Prestation" required>
               <select
                 className={inputClass}
@@ -455,14 +611,14 @@ export const PlanningView: React.FC<PlanningViewProps> = ({ onOpenWalkIn }) => {
                     </option>
                   ))}
               </select>
-              <p className="text-[11px] text-stone-500 mt-1">
+              <p className="mt-1 text-[11px] text-stone-500">
                 Seuls les employés actifs maîtrisant la prestation sont proposés. La disponibilité réelle est
                 vérifiée par le serveur à l'enregistrement.
               </p>
             </Field>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 min-[480px]:grid-cols-2">
             <Field label="Date" required>
               <input
                 type="date"
