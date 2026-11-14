@@ -10,7 +10,7 @@ import {
   type SavedBooking,
 } from '../../lib/bookingVault';
 import { applyStrictPortalPrivacy } from '../../lib/portalIsolation';
-import { useOptionalApp } from '../../context/AppContext';
+import { useUI } from '../../context/UIContext';
 
 function formatWhen(iso: string): string {
   const d = new Date(iso);
@@ -27,7 +27,7 @@ function formatWhen(iso: string): string {
 }
 
 export const MyBookingsView: React.FC = () => {
-  const { addToast } = useOptionalApp();
+  const { addToast } = useUI();
   const [bookings, setBookings] = useState<SavedBooking[]>([]);
 
   useEffect(() => applyStrictPortalPrivacy({ title: 'Mes réservations — Barber Cuts' }), []);

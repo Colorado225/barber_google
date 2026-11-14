@@ -1,6 +1,6 @@
 import React, { Suspense, useState, useMemo, useEffect } from 'react';
 import { Link, useInRouterContext } from 'react-router-dom';
-import { useOptionalApp } from '../../context/AppContext';
+import { useMarketplaceApp } from '../../context/useMarketplaceApp';
 import type { MarketplaceDemoData } from '../../lib/marketplace-demo';
 import { listSavedBookings, setActiveBookingToken, type SavedBooking } from '../../lib/bookingVault';
 import { lazyNamed } from '../common/ViewLoader';
@@ -60,7 +60,7 @@ export const MarketplaceHome: React.FC = () => {
     setPriceRange,
     marketplaceViewMode,
     formatPrice,
-  } = useOptionalApp();
+  } = useMarketplaceApp();
 
   // Dynamic marketplace sections & content managed by SuperAdmin
   const { config: storedConfig } = useMarketplaceContent();
@@ -534,7 +534,7 @@ export const MarketplaceHome: React.FC = () => {
                   className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#18181d] border border-[#2f2f38] text-xs font-medium text-stone-200 hover:border-[#C9A45C]/40 transition-colors cursor-pointer tabular-nums"
                 >
                   <span>
-                    Prix moyen : {formatPrice(priceRange[0])} – {formatPrice(priceRange[1])}
+                    Prix moyen ou tarif d’entrée : {formatPrice(priceRange[0])} – {formatPrice(priceRange[1])}
                   </span>
                   <X className="w-3.5 h-3.5 text-stone-400" aria-hidden="true" />
                 </button>

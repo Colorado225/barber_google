@@ -72,7 +72,7 @@ jobs:
       - name: Installer Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 3.1.0
 
       - name: Démarrer Supabase local
         run: supabase start
@@ -81,4 +81,4 @@ jobs:
         run: supabase db reset
 
       - name: Vérifier les migrations avec PostgreSQL Supabase
-        run: supabase db lint --local
+        run: supabase db lint

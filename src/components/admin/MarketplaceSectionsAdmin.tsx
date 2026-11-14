@@ -22,7 +22,7 @@ import {
   type MarketplaceTabConfig,
   type MarketplaceFaqItem,
 } from '../../lib/marketplace-content';
-import { useOptionalApp } from '../../context/AppContext';
+import { useUI } from '../../context/UIContext';
 
 interface MarketplaceSectionsAdminProps {
   adminEmail: string;
@@ -32,7 +32,7 @@ interface MarketplaceSectionsAdminProps {
 type AdminSectionSubTab = 'tabs' | 'trust' | 'categories' | 'steps' | 'custom' | 'faq';
 
 export const MarketplaceSectionsAdmin: React.FC<MarketplaceSectionsAdminProps> = ({ adminEmail }) => {
-  const { addToast } = useOptionalApp();
+  const { addToast } = useUI();
   const { config, updateConfig, resetConfig } = useMarketplaceContent();
 
   // Local editable draft state

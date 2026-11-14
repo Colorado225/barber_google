@@ -6,6 +6,7 @@ import { JSDOM } from 'jsdom';
 import { ESLint } from 'eslint';
 import { AppProvider, useOptionalApp } from '../src/context/AppContext';
 import { ToastContainer } from '../src/components/common/ToastContainer';
+import { UIProvider, useUI } from '../src/context/UIContext';
 
 const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://localhost/' });
 const win = dom.window as unknown as Window & typeof globalThis;
@@ -126,4 +127,23 @@ test('Configuration héritée nettoyée (.env.example, vite.config.ts) et docume
   assert.ok(readme.includes('docs/CONFIGURATION-PRODUCTION.md'));
   assert.ok(backlog.includes('livré') && backlog.includes('bloqué par configuration'));
   assert.ok(prodChecklist.includes('salon-seo') && prodChecklist.includes('notifications-dispatcher'));
+});
+
+test('les toasts fonctionnent avec UIProvider seul, sans charger le fournisseur ERP', () => {
+  function Trigger() {
+    const { addToast } = useUI();
+    return <button onClick={() => addToast('Toast isolé', 'info')}>Ajouter</button>;
+  }
+  try {
+    render(
+      <UIProvider>
+        <Trigger />
+        <ToastContainer />
+      </UIProvider>,
+    );
+    fireEvent.click(screen.getByText('Ajouter'));
+    assert.ok(screen.getByText('Toast isolé'));
+  } finally {
+    cleanup();
+  }
 });

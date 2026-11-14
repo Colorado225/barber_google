@@ -29,7 +29,7 @@ Application web multi-tenant destinée aux salons de coiffure et barbershops (ge
 ## Prérequis
 
 - **Node.js** 22+ et **npm** (installation stricte via `npm ci`, sans `--legacy-peer-deps`)
-- Optionnel pour la base locale complète : **Supabase CLI** et **Docker Desktop** (les tests unitaires et PostgreSQL/PGlite de `npm test` s'exécutent sans Docker)
+- La **CLI Supabase 3.1.0** est installée par `npm ci` ; **Docker Desktop** est nécessaire pour la base locale complète (les tests unitaires et PostgreSQL/PGlite de `npm test` s'exécutent sans Docker)
 
 ---
 
@@ -138,7 +138,7 @@ npm run supabase:db:linked:push    # Applique les migrations sur le projet lié
 ## Déploiement et mise en production
 
 1. **Base de données (`supabase/migrations/`)** :
-   - Sur `main`, exécuter manuellement le workflow GitHub `.github/workflows/supabase-migrations.yml` (avec `confirm_production_migration=true`) ou `supabase db push --linked` après revue du `--dry-run`.
+   - Après réconciliation des migrations et validation en staging, sur `main`, exécuter manuellement le workflow GitHub `.github/workflows/supabase-migrations.yml` (avec `confirm_production_migration=true`) ou `supabase db push --remote --skip-vault` après revue du `--dry-run`.
 2. **Authentification Supabase (`supabase/config.toml` / Dashboard Auth)** :
    - Configurer l'URL du site (`site_url`) et `additional_redirect_urls` avec le domaine de production.
    - Configurer un serveur SMTP dédié (le SMTP par défaut est plafonné à 2 e-mails/h) et traduire les modèles d'e-mails Auth en français.

@@ -10,10 +10,10 @@ import {
   type SaasBillingPeriod,
 } from '../../lib/saasPricing';
 import { SMS_UNAVAILABLE_MESSAGE, SMS_UNAVAILABLE_TITLE } from '../../lib/notifications';
-import { useOptionalApp } from '../../context/AppContext';
+import { useUI } from '../../context/UIContext';
 
 export const PricingView: React.FC = () => {
-  const { formatPrice } = useOptionalApp();
+  const { formatPrice } = useUI();
   const [plans, setPlans] = useState<SaaSPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [billingPeriod, setBillingPeriod] = useState<SaasBillingPeriod>(() => {

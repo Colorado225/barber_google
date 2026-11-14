@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useInRouterContext } from 'react-router-dom';
 import { Award, ChevronLeft, ChevronRight, Heart, MapPin, ShieldCheck, Sparkles, Star } from 'lucide-react';
-import { useOptionalApp } from '../../context/AppContext';
+import { useMarketplaceApp } from '../../context/useMarketplaceApp';
 import { useOptionalAuth } from '../../context/AuthContext';
 import {
   isSalonRecommendedByHistory,
@@ -24,7 +24,7 @@ const SALON_TYPE_LABELS: Record<string, string> = {
 export const FeaturedBarbersSection: React.FC<FeaturedBarbersSectionProps> = ({ salons }) => {
   const routed = useInRouterContext();
   const { setSelectedSalonForModal, formatPrice, isFavoriteSalon, toggleFavoriteSalon, searchedCategories } =
-    useOptionalApp();
+    useMarketplaceApp();
   const { isAuthenticated, user } = useOptionalAuth();
   const { config } = useMarketplaceContent();
   const isLoggedIn = Boolean(isAuthenticated && user);

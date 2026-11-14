@@ -15,6 +15,7 @@ export const DEFAULT_BUNDLE_BUDGETS = {
   maxInitialTotalGzipBytes: 200_000,
   maxSingleChunkRawBytes: 480_000,
   requiredLazyChunkPrefixes: [
+    'AppContext-',
     'ErpLayout-',
     'AdminDashboard-',
     'BookingPortalView-',

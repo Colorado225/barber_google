@@ -210,10 +210,7 @@ export const SignupPage: React.FC<SignupPageProps> = ({
             className="mb-5 flex items-start gap-3 border-l-2 border-[#a98a52] bg-[#e6dece] px-4 py-3 text-sm leading-5 text-[#514a3c]"
           >
             <Mail aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-[#80683d]" />
-            <p>
-              Après votre inscription, vérifiez votre boîte e-mail (et les indésirables) pour confirmer votre
-              adresse avant de vous connecter.
-            </p>
+            <p>Utilisez une adresse e-mail accessible : elle pourra servir à récupérer votre compte.</p>
           </div>
 
           {maintenanceMode && (

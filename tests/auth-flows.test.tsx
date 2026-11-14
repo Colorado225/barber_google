@@ -286,6 +286,46 @@ test('LoginPage : redirige vers /verifier-email si le compte n’est pas confirm
   cleanup();
 });
 
+test('SignupPage : une session immédiate ouvre l’application, sinon la confirmation reste prise en charge', async () => {
+  for (const status of ['authenticated', 'confirmation-required'] as const) {
+    ensureDom('http://localhost/inscription');
+    render(
+      <MemoryRouter initialEntries={['/inscription']}>
+        <AuthContext.Provider value={makeAuthValue({ signUp: async () => ({ status }) })}>
+          <Routes>
+            <Route
+              path="/inscription"
+              element={
+                <SignupPage
+                  supabaseConfigured
+                  loadPlatformStatus={async () => ({
+                    defaultCurrency: 'XOF',
+                    maintenanceMode: false,
+                    autoApproveSalons: true,
+                  })}
+                />
+              }
+            />
+            <Route path="/app" element={<div>APP_SCREEN</div>} />
+            <Route path="/verifier-email" element={<div>VERIFY_SCREEN</div>} />
+          </Routes>
+        </AuthContext.Provider>
+      </MemoryRouter>,
+    );
+    fireEvent.change(screen.getByLabelText(/Nom complet/i), { target: { value: 'Test User' } });
+    fireEvent.change(screen.getByLabelText(/Adresse e-mail/i), { target: { value: 'test@example.com' } });
+    fireEvent.change(screen.getByLabelText(/^Mot de passe$/i), { target: { value: 'MonMotDePasse2026!' } });
+    fireEvent.change(screen.getByLabelText(/Confirmer le mot de passe/i), {
+      target: { value: 'MonMotDePasse2026!' },
+    });
+    fireEvent.submit(screen.getByRole('button', { name: /Créer mon compte/i }).closest('form')!);
+    await waitFor(() =>
+      assert.ok(screen.getByText(status === 'authenticated' ? 'APP_SCREEN' : 'VERIFY_SCREEN')),
+    );
+    cleanup();
+  }
+});
+
 test('SignupPage : signale un compte déjà existant sans rediriger vers /verifier-email', async () => {
   ensureDom('http://localhost/inscription');
 

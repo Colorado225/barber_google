@@ -4,7 +4,7 @@ import React from 'react';
 import { JSDOM } from 'jsdom';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { AuthContext, type AuthContextType } from '../src/context/AuthContext';
-import { AppProvider } from '../src/context/AppContext';
+import { MarketplaceProvider } from '../src/context/MarketplaceProvider';
 import { Navbar } from '../src/components/common/Navbar';
 import { MarketplaceHome } from '../src/components/marketplace/MarketplaceHome';
 import {
@@ -141,7 +141,7 @@ const GUEST_AUTH: AuthContextType = {
 function Harness({ initialPath = '/' }: { initialPath?: string }) {
   return (
     <AuthContext.Provider value={GUEST_AUTH}>
-      <AppProvider initialSalons={TEST_SALONS}>
+      <MarketplaceProvider initialSalons={TEST_SALONS}>
         <MemoryRouter initialEntries={[initialPath]}>
           <Navbar />
           <Routes>
@@ -151,7 +151,7 @@ function Harness({ initialPath = '/' }: { initialPath?: string }) {
             <Route path="/reservation" element={<div data-testid="booking-page">Réservation</div>} />
           </Routes>
         </MemoryRouter>
-      </AppProvider>
+      </MarketplaceProvider>
     </AuthContext.Provider>
   );
 }
@@ -233,6 +233,10 @@ test('filtre fourchette de prix dans le header : visible sur / et filtre les sal
 
   const minSlider = screen.getByTestId('price-range-min') as HTMLInputElement;
   const maxSlider = screen.getByTestId('price-range-max') as HTMLInputElement;
+  assert.ok(within(priceFilter).getByText('Prix moyen ou tarif d’entrée'));
+  assert.equal(minSlider.getAttribute('aria-describedby'), 'price-range-explanation');
+  assert.equal(maxSlider.getAttribute('aria-describedby'), 'price-range-explanation');
+  assert.match(document.getElementById('price-range-explanation')?.textContent ?? '', /tarif le plus bas/);
   const priceLabel = screen.getByTestId('marketplace-price-label');
   const listView = () => screen.getByTestId('marketplace-list-view');
 
@@ -254,7 +258,7 @@ test('filtre fourchette de prix dans le header : visible sur / et filtre les sal
   // Le badge de filtre actif s'affiche et réinitialise le filtre au clic
   const salonsSection = document.getElementById('salons-section');
   assert.ok(salonsSection);
-  const chipReset = within(salonsSection).getByRole('button', { name: /Prix moyen :/i });
+  const chipReset = within(salonsSection).getByRole('button', { name: /Prix moyen ou tarif d’entrée :/i });
   fireEvent.click(chipReset);
 
   assert.ok(within(listView()).getByText('Studio Fade Cocody'));

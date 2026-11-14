@@ -149,3 +149,17 @@ test('si dist/ est présent localement, le build réel respecte tous les budgets
     'Aucun chunk ERP, Admin, Motion ou QRCode ne doit être téléchargé au chargement initial /',
   );
 });
+
+test('le fournisseur ERP est séparé du chargement initial de la marketplace', (t) => {
+  const distDir = path.join(ROOT_DIR, 'dist');
+  if (!fs.existsSync(path.join(distDir, 'index.html'))) {
+    t.skip('Build absent ; lancer npm run build pour vérifier le bundle réel.');
+    return;
+  }
+  const result = analyzeBuildDirectory(distDir);
+  assert.ok(result.lazyIsolation.present.includes('AppContext-'), 'Le chunk ERP doit exister');
+  assert.ok(
+    !result.lazyIsolation.leakedToInitial.includes('AppContext-'),
+    'Le fournisseur ERP ne doit pas être préchargé sur /',
+  );
+});

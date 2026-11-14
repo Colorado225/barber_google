@@ -4,7 +4,7 @@ import React from 'react';
 import { JSDOM } from 'jsdom';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { AuthContext, type AuthContextType, type AuthUser } from '../src/context/AuthContext';
-import { AppProvider } from '../src/context/AppContext';
+import { MarketplaceProvider } from '../src/context/MarketplaceProvider';
 import { Navbar } from '../src/components/common/Navbar';
 import { ToastContainer } from '../src/components/common/ToastContainer';
 import { MarketplaceHome } from '../src/components/marketplace/MarketplaceHome';
@@ -161,7 +161,7 @@ function makeAuthValue(user: AuthUser | null): AuthContextType {
 function Harness({ user, initialPath = '/' }: { user: AuthUser | null; initialPath?: string }) {
   return (
     <AuthContext.Provider value={makeAuthValue(user)}>
-      <AppProvider initialSalons={SAMPLE_SALONS}>
+      <MarketplaceProvider initialSalons={SAMPLE_SALONS}>
         <MemoryRouter initialEntries={[initialPath]}>
           <Navbar />
           <Routes>
@@ -171,7 +171,7 @@ function Harness({ user, initialPath = '/' }: { user: AuthUser | null; initialPa
           </Routes>
           <ToastContainer />
         </MemoryRouter>
-      </AppProvider>
+      </MarketplaceProvider>
     </AuthContext.Provider>
   );
 }

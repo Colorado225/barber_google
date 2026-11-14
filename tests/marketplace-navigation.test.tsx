@@ -28,8 +28,10 @@ function renderMarketplace(registration?: boolean) {
 test('visiteur par défaut et non inscrit : navigation privée masquée, inscription disponible', () => {
   for (const registered of [undefined, false]) {
     const html = renderMarketplace(registered);
+    // La FAQ publique peut mentionner « Mes réservations » sans créer d'accès ERP.
+    // Vérifier un éventuel lien de navigation plutôt qu'une simple occurrence de texte.
+    assert.doesNotMatch(html, /<a\b[^>]*href=["']\/mes-reservations["']/i);
     for (const label of [
-      'Mes réservations',
       'Pour les professionnels',
       'Admin Total',
       'Accéder à l&#x27;ERP Pro',
@@ -45,12 +47,8 @@ test('visiteur par défaut et non inscrit : navigation privée masquée, inscrip
 
 test('un indicateur historique local ne rétablit pas les accès ERP', () => {
   const html = renderMarketplace(true);
-  for (const label of [
-    'Mes réservations',
-    'Pour les professionnels',
-    'Admin Total',
-    'Barber Cuts Business ERP',
-  ]) {
+  assert.doesNotMatch(html, /<a\b[^>]*href=["']\/mes-reservations["']/i);
+  for (const label of ['Pour les professionnels', 'Admin Total', 'Barber Cuts Business ERP']) {
     assert.ok(!html.includes(label), `Accès restauré depuis le navigateur : ${label}`);
   }
 });
