@@ -110,6 +110,12 @@ export type AdminDashboardTab =
   | 'subscriptions'
   | 'settings';
 
+const ADMIN_NAVIGATION_GROUPS: Array<{ label: string; tabs: AdminDashboardTab[] }> = [
+  { label: 'Supervision', tabs: ['overview', 'salons', 'reviews', 'notifications', 'audit'] },
+  { label: 'Marketplace', tabs: ['marketplace-sections', 'marketplace-config'] },
+  { label: 'Offre & plateforme', tabs: ['pricing', 'subscriptions', 'settings'] },
+];
+
 export const AdminDashboard: React.FC = () => {
   usePageSeo(ADMIN_SEO);
   const { addToast, formatPrice, refreshMarketplace } = useMarketplaceApp();
@@ -429,6 +435,13 @@ export const AdminDashboard: React.FC = () => {
     { id: 'settings', label: 'Paramètres Globaux', icon: Settings },
   ];
 
+  const groupedAdminNavItems = ADMIN_NAVIGATION_GROUPS.map((group) => ({
+    label: group.label,
+    items: group.tabs
+      .map((tab) => adminNavItems.find((item) => item.id === tab))
+      .filter((item): item is (typeof adminNavItems)[number] => Boolean(item)),
+  })).filter((group) => group.items.length > 0);
+
   const selectAdminTab = (nextTab: AdminDashboardTab) => {
     setActiveTab(nextTab);
     setIsMobileNavigationOpen(false);
@@ -523,7 +536,7 @@ export const AdminDashboard: React.FC = () => {
       )}
 
       {/* Main Layout Body */}
-      <div className="flex-1 flex flex-col md:flex-row min-w-0">
+      <div className="flex-1 flex min-w-0 flex-col md:flex-row md:items-start">
         {/* Navigation Sidebar / mobile drawer — same active tab and server-backed panels. */}
         <aside
           role={isMobileNavigationOpen ? 'dialog' : undefined}
@@ -533,7 +546,7 @@ export const AdminDashboard: React.FC = () => {
             isMobileNavigationOpen
               ? 'fixed inset-y-0 left-0 z-50 flex w-[min(20rem,calc(100vw-3rem))] shadow-2xl'
               : 'hidden'
-          } md:static md:z-auto md:flex md:w-64 md:shadow-none bg-[#0a0a0d] border-r border-[#1a1a22] overflow-y-auto p-4 flex-col shrink-0 space-y-6`}
+          } md:sticky md:top-[4.25rem] md:self-start md:z-auto md:flex md:h-[calc(100dvh-4.25rem)] md:w-72 md:shadow-none bg-[#0a0a0d] border-r border-[#1a1a22] overflow-y-auto p-4 flex-col shrink-0 space-y-6`}
         >
           <div className="flex items-center justify-between md:hidden">
             <span className="text-xs font-bold uppercase tracking-wider text-stone-400">
@@ -553,37 +566,45 @@ export const AdminDashboard: React.FC = () => {
             <div className="text-[10px] uppercase font-extrabold tracking-wider text-stone-500 px-3">
               Navigation Plateforme
             </div>
-            <nav className="space-y-1">
-              {adminNavItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = activeTab === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => selectAdminTab(item.id)}
-                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                      isActive
-                        ? 'bg-[#C9A45C] text-[#101010] shadow-sm'
-                        : 'text-stone-400 hover:text-white hover:bg-[#121217]'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <Icon className="w-4 h-4 shrink-0" />
-                      <span>{item.label}</span>
-                    </div>
-                    {item.count !== undefined && (
-                      <span
-                        className={`text-[10px] font-extrabold px-1.5 py-0.2 rounded-full ${
-                          isActive ? 'bg-[#101010] text-[#C9A45C]' : 'bg-[#181820] text-stone-300'
+            <nav aria-label="Navigation plateforme" className="space-y-5">
+              {groupedAdminNavItems.map((group) => (
+                <section key={group.label} aria-label={group.label} className="space-y-1">
+                  <p className="px-3 pb-1 text-[10px] font-extrabold uppercase tracking-[0.14em] text-stone-500">
+                    {group.label}
+                  </p>
+                  {group.items.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = activeTab === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        aria-current={isActive ? 'page' : undefined}
+                        onClick={() => selectAdminTab(item.id)}
+                        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          isActive
+                            ? 'bg-[#C9A45C] text-[#101010] shadow-sm'
+                            : 'text-stone-400 hover:text-white hover:bg-[#121217]'
                         }`}
                       >
-                        {item.count}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
+                        <div className="flex items-center gap-2.5">
+                          <Icon className="w-4 h-4 shrink-0" />
+                          <span>{item.label}</span>
+                        </div>
+                        {item.count !== undefined && (
+                          <span
+                            className={`text-[10px] font-extrabold px-1.5 py-0.2 rounded-full ${
+                              isActive ? 'bg-[#101010] text-[#C9A45C]' : 'bg-[#181820] text-stone-300'
+                            }`}
+                          >
+                            {item.count}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </section>
+              ))}
             </nav>
           </div>
 
@@ -639,7 +660,7 @@ export const AdminDashboard: React.FC = () => {
         </aside>
 
         {/* Dynamic Content Panel */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto space-y-6">
+        <main className="min-w-0 flex-1 space-y-6 p-4 sm:p-6 lg:p-8">
           {loadError && (
             <div
               role="alert"

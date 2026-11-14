@@ -445,6 +445,12 @@ Avant de considérer le lot mobile terminé :
 - `Switch` possède désormais une cible tactile de 44 × 44 px, en conservant son input natif et ses callbacks.
 - Les toasts sont ancrés horizontalement dans le viewport mobile, respectent la safe area basse et conservent leur largeur maximale sur desktop ; leur bouton de fermeture a une cible tactile dédiée.
 
+### Phase 1 — desktop : layout professionnel
+
+- `ErpLayout.tsx` conserve une sidebar latérale de 288 px sur desktop (`md:w-72`), sticky sur toute la hauteur du viewport. La navigation est désormais groupée en Pilotage, Opérations, Visibilité & analyse et Configuration, sans changer `navItems`, le filtrage des permissions, l’état actif, le sélecteur de salon ni les handlers de navigation.
+- `AdminDashboard.tsx` emploie le même principe avec une sidebar sticky décalée sous la navbar globale, une hauteur contrôlée et trois groupes : Supervision, Marketplace et Offre & plateforme. Les panneaux et appels serveur existants restent inchangés.
+- La suite structurelle vérifie les groupes, les largeurs/offsets sticky, le sélecteur de salon, l’état actif et le filtrage RBAC avant d’autoriser ces changements de présentation.
+
 ### Restant avant qualification mobile complète
 
 - Empiler et vérifier les grilles de formulaires ERP avant `sm` ; limiter le sticky booking après test réel.

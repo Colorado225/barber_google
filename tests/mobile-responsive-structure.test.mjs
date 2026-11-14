@@ -13,20 +13,41 @@ test('les navigations ERP et administration ont un drawer mobile qui réutilise 
   assert.match(erp, /isMobileNavigationOpen/);
   assert.match(erp, /const handleSelectTab = \(nextTab: ErpTab\)/);
   assert.match(erp, /onClick=\{\(\) => handleSelectTab\(item\.id\)\}/);
-  assert.match(erp, /md:static md:z-auto md:flex md:w-64/);
+  assert.match(erp, /md:sticky md:top-0 md:self-start md:z-auto md:flex md:h-dvh md:w-72/);
   assert.match(erp, /Ouvrir la navigation ERP/);
   assert.match(erp, /setIsMobileNavigationOpen\(false\);\s*setMode\('marketplace'\)/);
 
   assert.match(admin, /isMobileNavigationOpen/);
   assert.match(admin, /const selectAdminTab = \(nextTab: AdminDashboardTab\)/);
   assert.match(admin, /onClick=\{\(\) => selectAdminTab\(item\.id\)\}/);
-  assert.match(admin, /md:static md:z-auto md:flex md:w-64/);
+  assert.match(admin, /md:sticky md:top-\[4\.25rem\] md:self-start md:z-auto md:flex/);
   assert.match(admin, /Actions rapides/);
   assert.match(admin, /Ouvrir la navigation administration/);
 
   const adminHeader = admin.match(/<header className="([^"]+)"/);
   assert.ok(adminHeader, 'Le header d’administration doit être présent');
   assert.doesNotMatch(adminHeader[1], /sticky|top-0/, 'Le header admin ne doit pas doubler la navbar sticky');
+});
+
+test('le layout desktop garde une sidebar sticky, catégorisée et reliée aux permissions existantes', () => {
+  const erp = source('src/components/erp/ErpLayout.tsx');
+  const admin = source('src/components/admin/AdminDashboard.tsx');
+
+  assert.match(erp, /const ERP_NAVIGATION_GROUPS/);
+  assert.match(erp, /label: 'Pilotage'/);
+  assert.match(erp, /label: 'Opérations'/);
+  assert.match(erp, /const groupedVisibleNavItems = ERP_NAVIGATION_GROUPS/);
+  assert.match(erp, /navItems\.filter\(\(i\) => !i\.permission \|\| canSee\(i\.permission\)\)/);
+  assert.match(erp, /aria-current=\{isActive \? 'page' : undefined\}/);
+  assert.match(erp, /md:sticky md:top-0 md:self-start md:z-auto md:flex md:h-dvh md:w-72/);
+  assert.match(erp, /data-testid="erp-salon-switcher"/);
+
+  assert.match(admin, /const ADMIN_NAVIGATION_GROUPS/);
+  assert.match(admin, /label: 'Supervision'/);
+  assert.match(admin, /label: 'Marketplace'/);
+  assert.match(admin, /const groupedAdminNavItems = ADMIN_NAVIGATION_GROUPS/);
+  assert.match(admin, /md:sticky md:top-\[4\.25rem\] md:self-start md:z-auto md:flex/);
+  assert.match(admin, /md:h-\[calc\(100dvh-4\.25rem\)\] md:w-72/);
 });
 
 test('les tableaux P0 disposent tous d’un conteneur horizontal accessible sur écran étroit', () => {

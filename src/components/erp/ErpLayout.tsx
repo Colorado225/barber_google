@@ -107,6 +107,26 @@ const TAB_PATHS: Record<ErpTab, string> = {
   saas: 'abonnement',
 };
 
+/** Desktop information architecture; permission filtering is still applied afterwards. */
+const ERP_NAVIGATION_GROUPS: Array<{ label: string; tabs: ErpTab[] }> = [
+  {
+    label: 'Pilotage',
+    tabs: ['dashboard', 'calendar', 'walk_in', 'online_requests', 'notifications'],
+  },
+  {
+    label: 'Opérations',
+    tabs: ['cash', 'crm', 'services', 'staff', 'loyalty', 'expenses', 'inventory'],
+  },
+  {
+    label: 'Visibilité & analyse',
+    tabs: ['marketplace_showcase', 'reports', 'qr_code'],
+  },
+  {
+    label: 'Configuration',
+    tabs: ['storefront', 'saas'],
+  },
+];
+
 function readTabFromPathname(pathname?: string): ErpTab {
   const path = pathname ?? (typeof window !== 'undefined' ? window.location.pathname : '');
   const segment = path.split('/app/')[1]?.split('/')[0]?.trim();
@@ -214,6 +234,12 @@ export const ErpLayout: React.FC = () => {
   const visibleActiveTab = visibleNavItems.some((item) => item.id === activeTab)
     ? activeTab
     : (visibleNavItems[0]?.id ?? 'dashboard');
+  const groupedVisibleNavItems = ERP_NAVIGATION_GROUPS.map((group) => ({
+    label: group.label,
+    items: group.tabs
+      .map((tab) => visibleNavItems.find((item) => item.id === tab))
+      .filter((item): item is (typeof navItems)[number] => Boolean(item)),
+  })).filter((group) => group.items.length > 0);
 
   const initialUrlSalonRef = useRef<string | null>(
     typeof window !== 'undefined' ? readErpSalonFromSearch(window.location.search) : null,
@@ -429,7 +455,7 @@ export const ErpLayout: React.FC = () => {
           isMobileNavigationOpen
             ? 'fixed inset-y-0 left-0 z-50 flex w-[min(20rem,calc(100vw-3rem))] shadow-2xl'
             : 'hidden'
-        } md:static md:z-auto md:flex md:w-64 md:shadow-none bg-[#121214] border-r border-[#222226] flex-col shrink-0`}
+        } md:sticky md:top-0 md:self-start md:z-auto md:flex md:h-dvh md:w-72 md:overflow-hidden md:shadow-none bg-[#121214] border-r border-[#222226] overflow-y-auto flex-col shrink-0`}
       >
         <div className="flex items-center justify-between px-4 pt-4 md:hidden">
           <span className="text-xs font-bold uppercase tracking-wider text-stone-400">Navigation ERP</span>
@@ -471,7 +497,7 @@ export const ErpLayout: React.FC = () => {
                 <div
                   role="listbox"
                   aria-label="Changer d’établissement"
-                  className="absolute left-4 right-4 top-18 bg-[#18181b] border border-[#2d2d33] rounded-xl shadow-2xl p-1.5 z-50 animate-in fade-in zoom-in-95"
+                  className="absolute left-4 right-4 top-[4.5rem] bg-[#18181b] border border-[#2d2d33] rounded-xl shadow-2xl p-1.5 z-50 animate-in fade-in zoom-in-95"
                   onMouseLeave={() => setSalonDropdownOpen(false)}
                 >
                   <div className="px-2.5 py-1 text-[10px] uppercase font-bold text-stone-500">
@@ -518,49 +544,61 @@ export const ErpLayout: React.FC = () => {
           )}
         </div>
 
-        {/* Navigation Items */}
-        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-          {visibleNavItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = visibleActiveTab === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => handleSelectTab(item.id)}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                  isActive
-                    ? 'bg-[#C9A45C] text-[#101010] shadow-sm font-bold'
-                    : 'text-stone-400 hover:text-white hover:bg-[#1a1a1d]'
-                }`}
-              >
-                <Icon className={`w-4 h-4 ${isActive ? 'text-[#101010]' : 'text-stone-400'}`} />
-                <span className="flex-1 text-left">{item.label}</span>
-                {navBadge(item.id) > 0 && (
-                  <span
-                    data-testid={
-                      item.id === 'notifications' && hasCriticalNotificationAlert
-                        ? 'notifications-critical-badge'
-                        : undefined
-                    }
-                    title={
-                      item.id === 'notifications' && hasCriticalNotificationAlert
-                        ? 'Alerte : échecs répétés sur les notifications'
-                        : undefined
-                    }
-                    className={`ml-auto rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                      item.id === 'notifications' && hasCriticalNotificationAlert
-                        ? 'bg-red-500 text-white'
-                        : isActive
-                          ? 'bg-[#101010] text-[#C9A45C]'
-                          : 'bg-[#C9A45C] text-[#101010]'
+        {/* Navigation Items: grouped on desktop without changing the permission-filtered source. */}
+        <nav
+          aria-label="Navigation de l’espace professionnel"
+          className="flex-1 min-h-0 overflow-y-auto p-3 space-y-5"
+        >
+          {groupedVisibleNavItems.map((group) => (
+            <section key={group.label} aria-label={group.label} className="space-y-1">
+              <p className="px-3.5 pb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-stone-500">
+                {group.label}
+              </p>
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                const isActive = visibleActiveTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    aria-current={isActive ? 'page' : undefined}
+                    onClick={() => handleSelectTab(item.id)}
+                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                      isActive
+                        ? 'bg-[#C9A45C] text-[#101010] shadow-sm font-bold'
+                        : 'text-stone-400 hover:text-white hover:bg-[#1a1a1d]'
                     }`}
                   >
-                    {navBadge(item.id)}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+                    <Icon className={`w-4 h-4 ${isActive ? 'text-[#101010]' : 'text-stone-400'}`} />
+                    <span className="flex-1 text-left">{item.label}</span>
+                    {navBadge(item.id) > 0 && (
+                      <span
+                        data-testid={
+                          item.id === 'notifications' && hasCriticalNotificationAlert
+                            ? 'notifications-critical-badge'
+                            : undefined
+                        }
+                        title={
+                          item.id === 'notifications' && hasCriticalNotificationAlert
+                            ? 'Alerte : échecs répétés sur les notifications'
+                            : undefined
+                        }
+                        className={`ml-auto rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                          item.id === 'notifications' && hasCriticalNotificationAlert
+                            ? 'bg-red-500 text-white'
+                            : isActive
+                              ? 'bg-[#101010] text-[#C9A45C]'
+                              : 'bg-[#C9A45C] text-[#101010]'
+                        }`}
+                      >
+                        {navBadge(item.id)}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </section>
+          ))}
         </nav>
 
         {/* Sidebar Footer: Cash Register status indicator */}
@@ -593,7 +631,7 @@ export const ErpLayout: React.FC = () => {
       </aside>
 
       {/* MAIN ERP WORKSPACE */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+      <div className="flex-1 flex min-w-0 flex-col md:min-h-screen">
         {/* Top Header */}
         <header className="h-16 bg-[#121214] border-b border-[#222226] px-3 sm:px-6 flex items-center justify-between shrink-0">
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
@@ -673,7 +711,7 @@ export const ErpLayout: React.FC = () => {
         </header>
 
         {/* Dynamic Tab Body */}
-        <main key={activeSalon.id} className="p-4 sm:p-6 lg:p-8 flex-1">
+        <main key={activeSalon.id} className="w-full flex-1 p-4 sm:p-6 lg:p-8">
           {syncError && (
             <div
               role="alert"
