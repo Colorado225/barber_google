@@ -264,23 +264,24 @@ export const FinanceExpensesView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Période & Fuseau des indicateurs financiers */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-[#161619] border border-[#27272c] rounded-2xl px-4 py-3 text-xs">
+      <div className="flex flex-col gap-3 rounded-2xl border border-[#27272c] bg-[#161619] px-4 py-3 text-xs min-[480px]:flex-row min-[480px]:items-center min-[480px]:justify-between">
         <div className="text-stone-300">
           <span className="font-semibold text-white">Périmètre comparé :</span> {kpiWindow.label} · Fuseau{' '}
-          <span className="text-[#E5C378] font-mono">{salonTimezone}</span>
+          <span className="font-mono text-[#E5C378]">{salonTimezone}</span>
           {kpiScope === '12m' && scopedTransactions.length >= 500 && (
-            <span className="ml-2 text-amber-300">
+            <span className="mt-1 block text-amber-300 min-[480px]:ml-2 min-[480px]:mt-0 min-[480px]:inline">
               (fenêtre plafonnée à 500 paiements chargés ; passez sur « Mois en cours » pour le total serveur)
             </span>
           )}
         </div>
-        <div className="flex bg-[#111113] p-1 rounded-xl border border-[#27272c]">
+        <div className="grid w-full grid-cols-2 rounded-xl border border-[#27272c] bg-[#111113] p-1 min-[480px]:w-auto">
           <button
             type="button"
             onClick={() => setKpiScope('month')}
-            className={`px-3 py-1 rounded-lg font-semibold ${
+            aria-pressed={kpiScope === 'month'}
+            className={`min-h-11 rounded-lg px-2 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A45C] ${
               kpiScope === 'month' ? 'bg-[#C9A45C] text-[#101010]' : 'text-stone-400 hover:text-white'
             }`}
           >
@@ -289,7 +290,8 @@ export const FinanceExpensesView: React.FC = () => {
           <button
             type="button"
             onClick={() => setKpiScope('12m')}
-            className={`px-3 py-1 rounded-lg font-semibold ${
+            aria-pressed={kpiScope === '12m'}
+            className={`min-h-11 rounded-lg px-2 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A45C] ${
               kpiScope === '12m' ? 'bg-[#C9A45C] text-[#101010]' : 'text-stone-400 hover:text-white'
             }`}
           >
@@ -299,8 +301,8 @@ export const FinanceExpensesView: React.FC = () => {
       </div>
 
       {/* Financial Overview Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="p-5 rounded-2xl bg-[#161619] border border-[#27272c]">
+      <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-3 sm:gap-4">
+        <div className="rounded-2xl border border-[#27272c] bg-[#161619] p-4 sm:p-5">
           <span className="text-xs font-semibold text-stone-400">Encaissements Nets Confirmés</span>
           <div className="text-2xl font-extrabold text-emerald-400 mt-1 flex items-center gap-1.5">
             <TrendingUp className="w-5 h-5 text-emerald-400" />
@@ -313,7 +315,7 @@ export const FinanceExpensesView: React.FC = () => {
           </span>
         </div>
 
-        <div className="p-5 rounded-2xl bg-[#161619] border border-[#27272c]">
+        <div className="rounded-2xl border border-[#27272c] bg-[#161619] p-4 sm:p-5">
           <span className="text-xs font-semibold text-stone-400">Dépenses Nettes Décaissées</span>
           <div className="text-2xl font-extrabold text-red-400 mt-1 flex items-center gap-1.5">
             <TrendingDown className="w-5 h-5 text-red-400" />
@@ -325,7 +327,7 @@ export const FinanceExpensesView: React.FC = () => {
           </span>
         </div>
 
-        <div className="p-5 rounded-2xl bg-[#161619] border border-[#27272c]">
+        <div className="rounded-2xl border border-[#27272c] bg-[#161619] p-4 sm:p-5">
           <span className="text-xs font-semibold text-stone-400">Résultat d'Exploitation</span>
           <div
             className={`text-2xl font-extrabold mt-1 ${netBalance >= 0 ? 'text-[#E5C378]' : 'text-red-400'}`}
@@ -339,10 +341,10 @@ export const FinanceExpensesView: React.FC = () => {
       </div>
 
       {/* Expense Controls Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#161619] border border-[#27272c] rounded-2xl p-4">
+      <div className="flex flex-col gap-4 rounded-2xl border border-[#27272c] bg-[#161619] p-4 min-[480px]:flex-row min-[480px]:items-center min-[480px]:justify-between">
         <div>
-          <h3 className="font-bold text-white text-base">Suivi des Dépenses, Justificatifs & Corrections</h3>
-          <p className="text-xs text-stone-400 mt-0.5">
+          <h3 className="text-base font-bold text-white">Suivi des Dépenses, Justificatifs & Corrections</h3>
+          <p className="mt-0.5 text-xs text-stone-400">
             Journal audité : aucune suppression silencieuse. Toute annulation ou rectification crée une
             écriture liée.
           </p>
@@ -352,19 +354,24 @@ export const FinanceExpensesView: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsModalOpen(true)}
-            className="bg-[#C9A45C] hover:bg-[#d8b56d] text-[#101010] font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer shrink-0"
+            className="flex min-h-11 w-full shrink-0 items-center justify-center gap-1.5 rounded-xl bg-[#C9A45C] px-4 text-sm font-bold text-[#101010] shadow-md transition-colors hover:bg-[#d8b56d] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4d28c] min-[480px]:w-auto"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="h-4 w-4" aria-hidden="true" />
             <span>Enregistrer une dépense</span>
           </button>
         )}
       </div>
 
       {/* Expenses List Table */}
-      <div className="bg-[#161619] border border-[#27272c] rounded-2xl overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-stone-300">
-            <thead className="bg-[#111113] border-b border-[#26262a] text-[11px] uppercase tracking-wider text-stone-400 font-semibold">
+      <div className="overflow-hidden rounded-2xl border border-[#27272c] bg-[#161619] shadow-sm">
+        <div
+          role="region"
+          aria-label="Liste des dépenses, défilement horizontal"
+          tabIndex={0}
+          className="md:overflow-x-auto"
+        >
+          <table className="block w-full text-left text-xs text-stone-300 md:table md:min-w-[760px]">
+            <thead className="sr-only border-b border-[#26262a] bg-[#111113] text-[11px] font-semibold uppercase tracking-wider text-stone-400 md:table-header-group">
               <tr>
                 <th className="p-3.5">Date</th>
                 <th className="p-3.5">Libellé & Fournisseur</th>
@@ -374,10 +381,10 @@ export const FinanceExpensesView: React.FC = () => {
                 <th className="p-3.5 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#222226]">
+            <tbody className="block divide-y divide-[#222226] md:table-row-group">
               {salonExpenses.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="text-center py-8 text-stone-500">
+                <tr className="block md:table-row">
+                  <td colSpan={6} className="block py-8 text-center text-stone-500 md:table-cell">
                     Aucune dépense enregistrée.
                   </td>
                 </tr>
@@ -391,56 +398,67 @@ export const FinanceExpensesView: React.FC = () => {
                   return (
                     <tr
                       key={exp.id}
-                      className={`hover:bg-[#1a1a1e] transition-colors ${
+                      className={`block space-y-3 p-4 transition-colors hover:bg-[#1a1a1e] md:table-row md:space-y-0 md:p-0 ${
                         !isActiveExpense ? 'opacity-75' : ''
                       }`}
                     >
-                      <td className="p-3.5 font-mono text-stone-400 whitespace-nowrap">{exp.date}</td>
-                      <td className="p-3.5">
-                        <div className="font-bold text-white">{exp.title}</div>
+                      <td className="flex items-center justify-between font-mono text-stone-400 md:table-cell md:p-3.5 md:whitespace-nowrap">
+                        <span className="text-[10px] font-sans font-semibold uppercase tracking-wide text-stone-500 md:hidden">
+                          Date
+                        </span>
+                        {exp.date}
+                      </td>
+                      <td className="block md:table-cell md:p-3.5">
+                        <div className="break-words font-bold text-white">{exp.title}</div>
                         {supplierName && (
                           <div className="text-[11px] text-[#E5C378]">Fournisseur : {supplierName}</div>
                         )}
                         {exp.reason && <div className="text-[11px] text-amber-300">Motif : {exp.reason}</div>}
-                        {exp.notes && <div className="text-[11px] text-stone-500 italic">{exp.notes}</div>}
+                        {exp.notes && <div className="text-[11px] italic text-stone-500">{exp.notes}</div>}
                       </td>
-                      <td className="p-3.5 space-y-1">
-                        <div>
-                          <span className="text-[10px] bg-[#222226] text-stone-300 px-2 py-0.5 rounded border border-[#2d2d33]">
-                            {CATEGORY_LABELS[exp.category] || exp.category}
-                          </span>
-                        </div>
+                      <td className="flex flex-wrap items-center gap-2 md:table-cell md:space-y-1 md:p-3.5">
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-stone-500 md:hidden">
+                          Catégorie
+                        </span>
+                        <span className="rounded border border-[#2d2d33] bg-[#222226] px-2 py-0.5 text-[10px] text-stone-300">
+                          {CATEGORY_LABELS[exp.category] || exp.category}
+                        </span>
                         {isReversal ? (
-                          <span className="inline-block text-[10px] px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                          <span className="inline-block rounded border border-amber-500/30 bg-amber-500/15 px-2 py-0.5 text-[10px] text-amber-300">
                             Contrepassation
                           </span>
                         ) : exp.status === 'reversed' ? (
-                          <span className="inline-block text-[10px] px-2 py-0.5 rounded bg-red-500/15 text-red-300 border border-red-500/30">
+                          <span className="inline-block rounded border border-red-500/30 bg-red-500/15 px-2 py-0.5 text-[10px] text-red-300">
                             Annulée
                           </span>
                         ) : exp.status === 'superseded' ? (
-                          <span className="inline-block text-[10px] px-2 py-0.5 rounded bg-stone-800 text-stone-300 border border-stone-700">
+                          <span className="inline-block rounded border border-stone-700 bg-stone-800 px-2 py-0.5 text-[10px] text-stone-300">
                             Corrigée
                           </span>
                         ) : null}
                       </td>
-                      <td className="p-3.5 text-stone-400 text-[11px] space-y-1">
-                        <div className="font-semibold">{exp.receiptRef || '—'}</div>
+                      <td className="flex flex-col gap-1 text-[11px] text-stone-400 md:table-cell md:space-y-1 md:p-3.5">
+                        <div className="flex items-center justify-between gap-2 md:block">
+                          <span className="text-[10px] font-semibold uppercase tracking-wide text-stone-500 md:hidden">
+                            Justificatif
+                          </span>
+                          <span className="font-semibold">{exp.receiptRef || '—'}</span>
+                        </div>
                         {exp.attachmentPath ? (
                           <button
                             type="button"
                             onClick={() => handleOpenAttachment(exp.attachmentPath!)}
-                            className="inline-flex items-center gap-1 text-[11px] text-[#E5C378] hover:underline cursor-pointer"
+                            className="inline-flex min-h-10 items-center gap-1 self-start text-left text-xs text-[#E5C378] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A45C]"
                           >
-                            <Paperclip className="w-3 h-3" />
-                            <span>{exp.attachmentName || 'Ouvrir justificatif'}</span>
-                            <ExternalLink className="w-3 h-3" />
+                            <Paperclip className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                            <span className="break-all">{exp.attachmentName || 'Ouvrir justificatif'}</span>
+                            <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                           </button>
                         ) : (
                           canManage &&
                           isActiveExpense && (
-                            <label className="inline-flex items-center gap-1 text-[11px] text-stone-400 hover:text-white cursor-pointer">
-                              <Upload className="w-3 h-3" />
+                            <label className="inline-flex min-h-11 cursor-pointer items-center gap-1 self-start text-xs text-stone-400 hover:text-white focus-within:outline-none focus-within:ring-2 focus-within:ring-[#C9A45C]">
+                              <Upload className="h-3.5 w-3.5" aria-hidden="true" />
                               <span>{attachingExpenseId === exp.id ? 'Envoi...' : 'Joindre photo/PDF'}</span>
                               <input
                                 type="file"
@@ -458,22 +476,29 @@ export const FinanceExpensesView: React.FC = () => {
                         )}
                       </td>
                       <td
-                        className={`p-3.5 font-extrabold whitespace-nowrap ${
+                        className={`flex items-center justify-between font-extrabold md:table-cell md:p-3.5 md:whitespace-nowrap ${
                           signed < 0 ? 'text-emerald-400' : 'text-red-400'
                         }`}
                       >
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-stone-500 md:hidden">
+                          Montant
+                        </span>
                         {signed < 0 ? `+${formatPrice(Math.abs(signed))}` : `-${formatPrice(signed)}`}
                       </td>
-                      <td className="p-3.5 text-right">
+                      <td className="flex items-center justify-between gap-3 border-t border-[#27272c] pt-3 md:table-cell md:border-0 md:p-3.5 md:text-right">
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-stone-500 md:hidden">
+                          Actions
+                        </span>
                         {canManage && isActiveExpense ? (
-                          <div className="inline-flex items-center gap-1">
+                          <div className="inline-flex items-center gap-2">
                             <button
                               type="button"
                               onClick={() => openCorrectModal(exp)}
                               title="Corriger via écriture liée"
-                              className="p-1.5 rounded-lg text-stone-300 hover:text-white bg-[#222226] border border-[#2d2d33] cursor-pointer"
+                              aria-label={`Corriger la dépense ${exp.title}`}
+                              className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-[#2d2d33] bg-[#222226] text-stone-300 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A45C]"
                             >
-                              <Edit3 className="w-3.5 h-3.5" />
+                              <Edit3 className="h-4 w-4" aria-hidden="true" />
                             </button>
                             <button
                               type="button"
@@ -482,9 +507,10 @@ export const FinanceExpensesView: React.FC = () => {
                                 setReverseReason('');
                               }}
                               title="Contrepasser (annulation auditée)"
-                              className="p-1.5 rounded-lg text-stone-400 hover:text-amber-300 bg-[#111113] border border-[#28282d] cursor-pointer"
+                              aria-label={`Contrepasser la dépense ${exp.title}`}
+                              className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-[#28282d] bg-[#111113] text-stone-400 transition-colors hover:text-amber-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A45C]"
                             >
-                              <RotateCcw className="w-3.5 h-3.5" />
+                              <RotateCcw className="h-4 w-4" aria-hidden="true" />
                             </button>
                           </div>
                         ) : (
@@ -502,27 +528,33 @@ export const FinanceExpensesView: React.FC = () => {
 
       {/* Journal d'audit des dépenses */}
       {expenseEvents.length > 0 && (
-        <div className="bg-[#161619] border border-[#27272c] rounded-2xl p-4 space-y-3">
+        <div className="space-y-3 rounded-2xl border border-[#27272c] bg-[#161619] p-4">
           <div className="flex items-center gap-2 text-xs font-bold text-white">
-            <History className="w-4 h-4 text-[#C9A45C]" />
+            <History className="h-4 w-4 text-[#C9A45C]" aria-hidden="true" />
             <span>Journal d’audit des dépenses ({expenseEvents.length})</span>
           </div>
-          <div className="space-y-1.5 max-h-56 overflow-y-auto text-xs">
+          <div className="max-h-56 space-y-1.5 overflow-y-auto text-xs">
             {expenseEvents.slice(0, 20).map((ev) => (
               <div
                 key={ev.id}
-                className="flex flex-wrap items-center justify-between gap-2 bg-[#111113] border border-[#242429] rounded-xl px-3 py-2"
+                className="flex flex-col gap-2 rounded-xl border border-[#242429] bg-[#111113] px-3 py-2 min-[420px]:flex-row min-[420px]:items-center min-[420px]:justify-between"
               >
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-[11px] text-stone-500">
-                    {ev.createdAt.slice(0, 16).replace('T', ' ')}
-                  </span>
-                  <span className="px-2 py-0.5 rounded bg-[#222226] text-[10px] font-semibold text-stone-200">
-                    {ev.eventType}
-                  </span>
-                  {ev.reason && <span className="text-stone-300">« {ev.reason} »</span>}
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-[11px] text-stone-500">
+                      {ev.createdAt.slice(0, 16).replace('T', ' ')}
+                    </span>
+                    <span className="rounded bg-[#222226] px-2 py-0.5 text-[10px] font-semibold text-stone-200">
+                      {ev.eventType}
+                    </span>
+                  </div>
+                  {ev.reason && (
+                    <span className="mt-1 block break-words text-stone-300">« {ev.reason} »</span>
+                  )}
                 </div>
-                <span className="font-bold text-[#E5C378]">{formatPrice(ev.amount)}</span>
+                <span className="self-start font-bold text-[#E5C378] min-[420px]:self-auto">
+                  {formatPrice(ev.amount)}
+                </span>
               </div>
             ))}
           </div>
@@ -531,14 +563,15 @@ export const FinanceExpensesView: React.FC = () => {
 
       {/* ADD EXPENSE MODAL */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center overflow-y-auto p-4">
-          <div className="w-full max-w-md bg-[#161619] border border-[#2b2b30] rounded-3xl max-h-[calc(100dvh-2rem)] overflow-y-auto p-6 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/85 p-3 pt-8 backdrop-blur-md sm:items-center sm:p-4">
+          <div className="max-h-[calc(100dvh-0.75rem)] w-full max-w-md space-y-4 overflow-y-auto rounded-3xl border border-[#2b2b30] bg-[#161619] p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:max-h-[calc(100dvh-2rem)] sm:p-6">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold text-white">Enregistrer une dépense</h3>
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="text-stone-400 hover:text-white"
+                aria-label="Fermer"
+                className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-stone-400 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A45C]"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -553,17 +586,17 @@ export const FinanceExpensesView: React.FC = () => {
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="Ex: Facture CIE Électricité Octobre"
-                  className="w-full bg-[#111113] border border-[#28282d] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#C9A45C]"
+                  className="min-h-11 w-full rounded-xl border border-[#28282d] bg-[#111113] px-3 text-base text-white outline-none focus:border-[#C9A45C] focus:ring-1 focus:ring-[#C9A45C] sm:text-xs"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2">
                 <div>
                   <label className="text-xs font-semibold text-stone-300 block mb-1">Catégorie</label>
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value as ExpenseCategory)}
-                    className="w-full bg-[#111113] border border-[#28282d] rounded-xl px-3 py-2 text-xs text-stone-200 focus:outline-none focus:border-[#C9A45C]"
+                    className="min-h-11 w-full rounded-xl border border-[#28282d] bg-[#111113] px-3 text-base text-stone-200 outline-none focus:border-[#C9A45C] focus:ring-1 focus:ring-[#C9A45C] sm:text-xs"
                   >
                     {Object.entries(CATEGORY_LABELS).map(([k, v]) => (
                       <option key={k} value={k}>
@@ -582,12 +615,12 @@ export const FinanceExpensesView: React.FC = () => {
                     step="1"
                     value={amount}
                     onChange={(e) => setAmount(Number(e.target.value))}
-                    className="w-full bg-[#111113] border border-[#28282d] rounded-xl px-3 py-2 text-xs font-bold text-red-400 focus:outline-none focus:border-[#C9A45C]"
+                    className="min-h-11 w-full rounded-xl border border-[#28282d] bg-[#111113] px-3 text-base font-bold text-red-400 outline-none focus:border-[#C9A45C] focus:ring-1 focus:ring-[#C9A45C] sm:text-xs"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2">
                 <div>
                   <label className="text-xs font-semibold text-stone-300 block mb-1">Date *</label>
                   <input
@@ -595,7 +628,7 @@ export const FinanceExpensesView: React.FC = () => {
                     required
                     value={spentOn}
                     onChange={(e) => setSpentOn(e.target.value)}
-                    className="w-full bg-[#111113] border border-[#28282d] rounded-xl px-3 py-2 text-xs text-white"
+                    className="min-h-11 w-full rounded-xl border border-[#28282d] bg-[#111113] px-3 text-base text-white outline-none focus:border-[#C9A45C] focus:ring-1 focus:ring-[#C9A45C] sm:text-xs"
                   />
                 </div>
                 <div>
@@ -603,7 +636,7 @@ export const FinanceExpensesView: React.FC = () => {
                   <select
                     value={supplierId}
                     onChange={(e) => setSupplierId(e.target.value)}
-                    className="w-full bg-[#111113] border border-[#28282d] rounded-xl px-3 py-2 text-xs text-stone-200"
+                    className="min-h-11 w-full rounded-xl border border-[#28282d] bg-[#111113] px-3 text-base text-stone-200 outline-none focus:border-[#C9A45C] focus:ring-1 focus:ring-[#C9A45C] sm:text-xs"
                   >
                     <option value="">— Aucun —</option>
                     {activeSuppliers.map((sup) => (
@@ -624,7 +657,7 @@ export const FinanceExpensesView: React.FC = () => {
                   value={receiptRef}
                   onChange={(e) => setReceiptRef(e.target.value)}
                   placeholder="Ex: FAC-2026-014"
-                  className="w-full bg-[#111113] border border-[#28282d] rounded-xl px-3 py-2 text-xs text-white"
+                  className="min-h-11 w-full rounded-xl border border-[#28282d] bg-[#111113] px-3 text-base text-white outline-none focus:border-[#C9A45C] focus:ring-1 focus:ring-[#C9A45C] sm:text-xs"
                 />
               </div>
 
@@ -636,7 +669,7 @@ export const FinanceExpensesView: React.FC = () => {
                   type="file"
                   accept="image/jpeg,image/png,image/webp,application/pdf"
                   onChange={(e) => setPendingFile(e.target.files?.[0] ?? null)}
-                  className="w-full bg-[#111113] border border-[#28282d] rounded-xl px-3 py-2 text-xs text-stone-300"
+                  className="min-h-11 w-full rounded-xl border border-[#28282d] bg-[#111113] px-3 text-base text-stone-300 outline-none focus:border-[#C9A45C] focus:ring-1 focus:ring-[#C9A45C] sm:text-xs"
                 />
               </div>
 
@@ -647,7 +680,7 @@ export const FinanceExpensesView: React.FC = () => {
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Ex: Reçu #9842"
-                  className="w-full bg-[#111113] border border-[#28282d] rounded-xl px-3 py-2 text-xs text-white"
+                  className="min-h-11 w-full rounded-xl border border-[#28282d] bg-[#111113] px-3 text-base text-white outline-none focus:border-[#C9A45C] focus:ring-1 focus:ring-[#C9A45C] sm:text-xs"
                 />
               </div>
 
@@ -655,7 +688,7 @@ export const FinanceExpensesView: React.FC = () => {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full bg-[#C9A45C] hover:bg-[#d8b56d] disabled:opacity-50 text-[#101010] font-bold text-xs py-3 rounded-xl transition-all shadow-md cursor-pointer"
+                  className="min-h-11 w-full rounded-xl bg-[#C9A45C] py-3 text-sm font-bold text-[#101010] shadow-md transition-colors hover:bg-[#d8b56d] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4d28c] disabled:opacity-50"
                 >
                   {submitting ? 'Enregistrement...' : 'Enregistrer la dépense'}
                 </button>
@@ -667,14 +700,15 @@ export const FinanceExpensesView: React.FC = () => {
 
       {/* MODAL CORRECTION AUDITÉE */}
       {correctTarget && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center overflow-y-auto p-4">
-          <div className="w-full max-w-md bg-[#161619] border border-[#2b2b30] rounded-3xl max-h-[calc(100dvh-2rem)] overflow-y-auto p-6 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/85 p-3 pt-8 backdrop-blur-md sm:items-center sm:p-4">
+          <div className="max-h-[calc(100dvh-0.75rem)] w-full max-w-md space-y-4 overflow-y-auto rounded-3xl border border-[#2b2b30] bg-[#161619] p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:max-h-[calc(100dvh-2rem)] sm:p-6">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold text-white">Corriger une dépense</h3>
               <button
                 type="button"
                 onClick={() => setCorrectTarget(null)}
-                className="text-stone-400 hover:text-white"
+                aria-label="Fermer"
+                className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-stone-400 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A45C]"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -695,7 +729,7 @@ export const FinanceExpensesView: React.FC = () => {
                   value={corrReason}
                   onChange={(e) => setCorrReason(e.target.value)}
                   placeholder="Ex: Erreur de saisie du montant sur la facture"
-                  className="w-full bg-[#111113] border border-[#28282d] rounded-xl px-3 py-2 text-xs text-white"
+                  className="min-h-11 w-full rounded-xl border border-[#28282d] bg-[#111113] px-3 text-base text-white outline-none focus:border-[#C9A45C] focus:ring-1 focus:ring-[#C9A45C] sm:text-xs"
                 />
               </div>
               <div>
@@ -705,16 +739,16 @@ export const FinanceExpensesView: React.FC = () => {
                   required
                   value={corrTitle}
                   onChange={(e) => setCorrTitle(e.target.value)}
-                  className="w-full bg-[#111113] border border-[#28282d] rounded-xl px-3 py-2 text-xs text-white"
+                  className="min-h-11 w-full rounded-xl border border-[#28282d] bg-[#111113] px-3 text-base text-white outline-none focus:border-[#C9A45C] focus:ring-1 focus:ring-[#C9A45C] sm:text-xs"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2">
                 <div>
                   <label className="text-xs font-semibold text-stone-300 block mb-1">Catégorie</label>
                   <select
                     value={corrCategory}
                     onChange={(e) => setCorrCategory(e.target.value as ExpenseCategory)}
-                    className="w-full bg-[#111113] border border-[#28282d] rounded-xl px-3 py-2 text-xs text-white"
+                    className="min-h-11 w-full rounded-xl border border-[#28282d] bg-[#111113] px-3 text-base text-white outline-none focus:border-[#C9A45C] focus:ring-1 focus:ring-[#C9A45C] sm:text-xs"
                   >
                     {Object.entries(CATEGORY_LABELS).map(([k, v]) => (
                       <option key={k} value={k}>
@@ -731,11 +765,11 @@ export const FinanceExpensesView: React.FC = () => {
                     min="1"
                     value={corrAmount}
                     onChange={(e) => setCorrAmount(Number(e.target.value))}
-                    className="w-full bg-[#111113] border border-[#28282d] rounded-xl px-3 py-2 text-xs text-white"
+                    className="min-h-11 w-full rounded-xl border border-[#28282d] bg-[#111113] px-3 text-base text-white outline-none focus:border-[#C9A45C] focus:ring-1 focus:ring-[#C9A45C] sm:text-xs"
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2">
                 <div>
                   <label className="text-xs font-semibold text-stone-300 block mb-1">Date *</label>
                   <input
@@ -743,7 +777,7 @@ export const FinanceExpensesView: React.FC = () => {
                     required
                     value={corrDate}
                     onChange={(e) => setCorrDate(e.target.value)}
-                    className="w-full bg-[#111113] border border-[#28282d] rounded-xl px-3 py-2 text-xs text-white"
+                    className="min-h-11 w-full rounded-xl border border-[#28282d] bg-[#111113] px-3 text-base text-white outline-none focus:border-[#C9A45C] focus:ring-1 focus:ring-[#C9A45C] sm:text-xs"
                   />
                 </div>
                 <div>
@@ -751,7 +785,7 @@ export const FinanceExpensesView: React.FC = () => {
                   <select
                     value={corrSupplierId}
                     onChange={(e) => setCorrSupplierId(e.target.value)}
-                    className="w-full bg-[#111113] border border-[#28282d] rounded-xl px-3 py-2 text-xs text-white"
+                    className="min-h-11 w-full rounded-xl border border-[#28282d] bg-[#111113] px-3 text-base text-white outline-none focus:border-[#C9A45C] focus:ring-1 focus:ring-[#C9A45C] sm:text-xs"
                   >
                     <option value="">— Aucun —</option>
                     {activeSuppliers.map((s) => (
@@ -765,7 +799,7 @@ export const FinanceExpensesView: React.FC = () => {
               <button
                 type="submit"
                 disabled={submitting || corrReason.trim().length < 3}
-                className="w-full bg-[#C9A45C] hover:bg-[#d8b56d] disabled:opacity-50 text-[#101010] font-bold text-xs py-3 rounded-xl cursor-pointer"
+                className="min-h-11 w-full rounded-xl bg-[#C9A45C] py-3 text-sm font-bold text-[#101010] transition-colors hover:bg-[#d8b56d] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4d28c] disabled:opacity-50"
               >
                 {submitting ? 'Correction...' : 'Valider la correction auditée'}
               </button>
@@ -776,14 +810,15 @@ export const FinanceExpensesView: React.FC = () => {
 
       {/* MODAL CONTREPASSATION */}
       {reverseTarget && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center overflow-y-auto p-4">
-          <div className="w-full max-w-md bg-[#161619] border border-[#2b2b30] rounded-3xl max-h-[calc(100dvh-2rem)] overflow-y-auto p-6 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/85 p-3 pt-8 backdrop-blur-md sm:items-center sm:p-4">
+          <div className="max-h-[calc(100dvh-0.75rem)] w-full max-w-md space-y-4 overflow-y-auto rounded-3xl border border-[#2b2b30] bg-[#161619] p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:max-h-[calc(100dvh-2rem)] sm:p-6">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold text-white">Contrepasser la dépense</h3>
               <button
                 type="button"
                 onClick={() => setReverseTarget(null)}
-                className="text-stone-400 hover:text-white"
+                aria-label="Fermer"
+                className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-stone-400 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A45C]"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -804,13 +839,13 @@ export const FinanceExpensesView: React.FC = () => {
                   value={reverseReason}
                   onChange={(e) => setReverseReason(e.target.value)}
                   placeholder="Ex: Facture annulée / Saisie en double"
-                  className="w-full bg-[#111113] border border-[#28282d] rounded-xl px-3 py-2 text-xs text-white"
+                  className="min-h-11 w-full rounded-xl border border-[#28282d] bg-[#111113] px-3 text-base text-white outline-none focus:border-[#C9A45C] focus:ring-1 focus:ring-[#C9A45C] sm:text-xs"
                 />
               </div>
               <button
                 type="submit"
                 disabled={submitting || reverseReason.trim().length < 3}
-                className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-[#101010] font-bold text-xs py-3 rounded-xl cursor-pointer"
+                className="min-h-11 w-full rounded-xl bg-amber-500 py-3 text-sm font-bold text-[#101010] transition-colors hover:bg-amber-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-200 disabled:opacity-50"
               >
                 {submitting ? 'Contrepassation...' : 'Confirmer la contrepassation'}
               </button>

@@ -201,6 +201,44 @@ test('la fidélité reste mobile, isolée et délègue ses écritures au domaine
   assert.match(clientsDomain, /domainCache\.invalidate\(salonId, 'workspace'\)/);
 });
 
+test('les dépenses et le bilan restent tactiles sans contourner le domaine finance', () => {
+  const erp = source('src/components/erp/ErpLayout.tsx');
+  const expenses = source('src/components/erp/FinanceExpensesView.tsx');
+  const financeDomain = source('src/context/domains/FinanceDomainContext.tsx');
+
+  assert.match(erp, /id: 'expenses'[\s\S]+permission: 'expenses\.read'/);
+  assert.match(erp, /visibleActiveTab === 'expenses' && <FinanceExpensesView \/>/);
+
+  assert.match(expenses, /const canManage = hasPermission\('expenses\.manage', activeSalon\?\.id\)/);
+  assert.match(expenses, /expenses\.filter\(\(e\) => e\.salonId === activeSalon\.id\)/);
+  assert.match(
+    expenses,
+    /transactions\.filter\(\(t\) => t\.salonId === activeSalon\.id && t\.status === 'completed'\)/,
+  );
+  assert.match(expenses, /suppliers\.filter\(\(s\) => s\.salonId === activeSalon\.id && s\.isActive\)/);
+  assert.match(expenses, /grid grid-cols-1 gap-3 min-\[420px\]:grid-cols-3/);
+  assert.match(expenses, /role="region"[\s\S]+Liste des dépenses, défilement horizontal/);
+  assert.match(expenses, /block w-full text-left text-xs text-stone-300 md:table md:min-w-\[760px\]/);
+  assert.match(expenses, /block space-y-3 p-4[\s\S]+md:table-row/);
+  assert.match(expenses, /min-h-11 min-w-11 items-center justify-center/);
+  assert.match(expenses, /max-h-\[calc\(100dvh-0\.75rem\)\]/);
+  assert.match(expenses, /safe-area-inset-bottom/);
+  assert.match(expenses, /grid grid-cols-1 gap-3 min-\[420px\]:grid-cols-2/);
+  assert.match(expenses, /await addExpense\(\{/);
+  assert.match(expenses, /await attachExpenseReceipt\(expenseId, uploaded\)/);
+  assert.match(expenses, /await correctExpense\(\{/);
+  assert.match(expenses, /await reverseExpense\(reverseTarget\.id, reverseReason\.trim\(\)\)/);
+  assert.doesNotMatch(expenses, /salonApi\(|api\.expenses\./);
+
+  assert.match(financeDomain, /api\.expenses\.create\(/);
+  assert.match(financeDomain, /api\.expenses\.attachReceipt\(expenseId, attachment\)/);
+  assert.match(financeDomain, /api\.expenses\.reverse\(expenseId, trimmed\)/);
+  assert.match(financeDomain, /api\.expenses\.correct\(input\)/);
+  assert.match(financeDomain, /domainCache\.invalidate\(salonId, 'finance'\)/);
+  assert.match(financeDomain, /domainCache\.invalidate\(salonId, 'dashboard'\)/);
+  assert.match(financeDomain, /domainCache\.invalidate\(salonId, 'workspace'\)/);
+});
+
 test('les prestations et l’équipe privilégient des fiches tactiles sans contourner le domaine rendez-vous', () => {
   const erp = source('src/components/erp/ErpLayout.tsx');
   const services = source('src/components/erp/ServicesView.tsx');
@@ -288,7 +326,11 @@ test('les modales métier longues P0 restent défilables dans un viewport mobile
       1,
       /max-h-\[calc\(100dvh-0\.75rem\)\][\s\S]+overflow-y-auto/g,
     ],
-    ['src/components/erp/FinanceExpensesView.tsx', 3, /max-h-\[calc\(100dvh-2rem\)\] overflow-y-auto/g],
+    [
+      'src/components/erp/FinanceExpensesView.tsx',
+      3,
+      /max-h-\[calc\(100dvh-0\.75rem\)\][^"]+overflow-y-auto/g,
+    ],
     ['src/components/erp/InventoryView.tsx', 4, /max-h-\[calc\(100dvh-2rem\)\] overflow-y-auto/g],
   ];
 

@@ -468,6 +468,175 @@ test('FinanceExpensesView : contrepassation et correction auditée sans suppress
   });
 });
 
+test('FinanceExpensesView : le rendu mobile isole le salon, respecte expenses.manage et réutilise le domaine finance', async () => {
+  ensureDom();
+  cleanup();
+
+  const primaryExpense: Expense = {
+    id: 'exp-mobile-primary',
+    salonId: SALON_ID,
+    title: 'Facture CIE mobile',
+    category: 'electricity',
+    amount: 12000,
+    date: '2026-11-12',
+    entryKind: 'expense',
+    status: 'active',
+  };
+  const otherExpense: Expense = {
+    ...primaryExpense,
+    id: 'exp-mobile-other',
+    salonId: 'salon-other',
+    title: 'Dépense autre salon',
+  };
+  const expenseState = [primaryExpense, otherExpense];
+  const createCalls: Array<{ title: string; amount: number; salonId?: string }> = [];
+  const reverseCalls: Array<{ id: string; reason: string }> = [];
+  const correctionCalls: Array<{ originalExpenseId: string; title: string; amount: number; reason: string }> =
+    [];
+  const resolvedSalonIds: string[] = [];
+
+  const expensesApiFactory = (salonId: string) => {
+    resolvedSalonIds.push(salonId);
+    return {
+      workspace: async () => ({
+        salon: {
+          id: SALON_ID,
+          name: 'Salon Dépenses Test',
+          status: 'active',
+          is_published: true,
+          timezone: 'Africa/Abidjan',
+        },
+        branches: [{ id: BRANCH_ID, name: 'Plateau', timezone: 'Africa/Abidjan' }],
+        clients: [],
+        services: [],
+        staff: [],
+        expenses: [...expenseState],
+        stock: [],
+        suppliers: [],
+        rewards: [],
+        reviews: [],
+      }),
+      appointments: { list: async () => [] },
+      payments: { list: async () => [] },
+      cash: { sessions: async () => [] },
+      reports: { summary: async () => null },
+      loyalty: { program: async () => null, accounts: async () => [], ledger: async () => [] },
+      notifications: { list: async () => [], health: async () => null },
+      suppliers: { list: async () => [] },
+      stock: { list: async () => [], movements: async () => [] },
+      expenses: {
+        list: async () => [...expenseState],
+        events: async () => [],
+        create: async (input: { title: string; amount: number }) => {
+          createCalls.push({ ...input, salonId });
+          return {
+            ...primaryExpense,
+            id: 'exp-mobile-created',
+            title: input.title,
+            amount: input.amount,
+          };
+        },
+        reverse: async (id: string, reason: string) => {
+          reverseCalls.push({ id, reason });
+          return { ...primaryExpense, id: 'exp-mobile-reversal', entryKind: 'expense_reversal' as const };
+        },
+        correct: async (input: {
+          originalExpenseId: string;
+          title: string;
+          amount: number;
+          reason: string;
+        }) => {
+          correctionCalls.push(input);
+          return { ...primaryExpense, id: 'exp-mobile-corrected', title: input.title, amount: input.amount };
+        },
+      },
+    } as unknown as SalonApiClient;
+  };
+
+  const readOnlyView = render(
+    <AuthContext.Provider value={buildAuth(['expenses.read'])}>
+      <AppProvider apiClientFactory={expensesApiFactory}>
+        <ActiveSalonGate>
+          <FinanceExpensesView />
+        </ActiveSalonGate>
+      </AppProvider>
+    </AuthContext.Provider>,
+  );
+
+  await waitFor(() => {
+    assert.ok(readOnlyView.getByText('Facture CIE mobile'));
+    assert.equal(readOnlyView.queryByText('Dépense autre salon'), null);
+    assert.equal(readOnlyView.queryByRole('button', { name: 'Enregistrer une dépense' }), null);
+    assert.equal(readOnlyView.queryByTitle('Corriger via écriture liée'), null);
+    assert.equal(readOnlyView.queryByTitle('Contrepasser (annulation auditée)'), null);
+  });
+
+  cleanup();
+  const writeView = render(
+    <AuthContext.Provider value={buildAuth(['expenses.read', 'expenses.manage'])}>
+      <AppProvider apiClientFactory={expensesApiFactory}>
+        <ActiveSalonGate>
+          <FinanceExpensesView />
+        </ActiveSalonGate>
+      </AppProvider>
+    </AuthContext.Provider>,
+  );
+
+  await waitFor(() => {
+    assert.ok(writeView.getByText('Facture CIE mobile'));
+    assert.ok(writeView.getByRole('button', { name: 'Enregistrer une dépense' }));
+  });
+
+  fireEvent.click(writeView.getAllByTitle('Corriger via écriture liée')[0]);
+  fireEvent.change(writeView.getByPlaceholderText(/Erreur de saisie/i), {
+    target: { value: 'Montant TTC corrigé' },
+  });
+  fireEvent.change(writeView.getByDisplayValue('12000'), { target: { value: '13000' } });
+  fireEvent.submit(writeView.getByText('Valider la correction auditée').closest('form')!);
+  await waitFor(() => {
+    assert.equal(correctionCalls.length, 1);
+    assert.deepEqual(
+      {
+        originalExpenseId: correctionCalls[0].originalExpenseId,
+        title: correctionCalls[0].title,
+        amount: correctionCalls[0].amount,
+        reason: correctionCalls[0].reason,
+      },
+      {
+        originalExpenseId: primaryExpense.id,
+        title: primaryExpense.title,
+        amount: 13000,
+        reason: 'Montant TTC corrigé',
+      },
+    );
+  });
+
+  fireEvent.click(writeView.getAllByTitle('Contrepasser (annulation auditée)')[0]);
+  fireEvent.change(writeView.getByPlaceholderText(/Facture annulée/i), {
+    target: { value: 'Facture annulée mobile' },
+  });
+  fireEvent.submit(writeView.getByText('Confirmer la contrepassation').closest('form')!);
+  await waitFor(() => {
+    assert.deepEqual(reverseCalls, [{ id: primaryExpense.id, reason: 'Facture annulée mobile' }]);
+  });
+
+  fireEvent.click(writeView.getByRole('button', { name: 'Enregistrer une dépense' }));
+  fireEvent.change(writeView.getByPlaceholderText(/Facture CIE Électricité/i), {
+    target: { value: 'Achat mobile' },
+  });
+  fireEvent.change(writeView.getByDisplayValue('10000'), { target: { value: '4500' } });
+  fireEvent.submit(writeView.getByText('Enregistrer la dépense').closest('form')!);
+  await waitFor(() => {
+    assert.equal(createCalls.length, 1);
+    assert.deepEqual(
+      { title: createCalls[0].title, amount: createCalls[0].amount, salonId: createCalls[0].salonId },
+      { title: 'Achat mobile', amount: 4500, salonId: SALON_ID },
+    );
+    assert.ok(resolvedSalonIds.length > 0);
+    assert.ok(resolvedSalonIds.every((id) => id === SALON_ID));
+  });
+});
+
 test('FinanceExpensesView : correction auditée conserve l’écriture initiale et crée l’écriture rectifiée', async () => {
   ensureDom();
   cleanup();
