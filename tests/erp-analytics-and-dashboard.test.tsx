@@ -5,6 +5,7 @@ import { JSDOM } from 'jsdom';
 import { AppProvider, useOptionalApp, type SalonApiClient } from '../src/context/AppContext';
 import { AuthContext, type AuthContextType, type SalonMembership } from '../src/context/AuthContext';
 import { CashRegisterView } from '../src/components/erp/CashRegisterView';
+import { ClientsView } from '../src/components/erp/ClientsView';
 import { DashboardView } from '../src/components/erp/DashboardView';
 import { PlanningView } from '../src/components/erp/PlanningView';
 import { ReportsView } from '../src/components/erp/ReportsView';
@@ -27,7 +28,7 @@ import {
   zonedDayRangeToUtcBounds,
   zonedTimeString,
 } from '../src/lib/businessTime';
-import type { Appointment, Expense, PaymentTransaction, Service, StaffMember } from '../src/types';
+import type { Appointment, Client, Expense, PaymentTransaction, Service, StaffMember } from '../src/types';
 
 function ensureDom() {
   const existing = (globalThis as { __erpAnalyticsDom?: JSDOM }).__erpAnalyticsDom;
@@ -948,6 +949,175 @@ test('PlanningView : la chronologie tactile utilise la transition serveur exista
   await waitFor(() => {
     assert.ok(within(view.container).getByRole('dialog', { name: 'Nouveau rendez-vous' }));
     assert.ok(within(view.container).getByLabelText(/Nom du client/));
+  });
+});
+
+test('ClientsView : les fiches mobiles utilisent les mutations CRM existantes sans charger la fidélité', async () => {
+  ensureDom();
+  cleanup();
+
+  const existingClient: Client = {
+    id: 'client-crm-mobile',
+    salonId: SALON_ID,
+    name: 'Awa CRM',
+    phone: '+2250700000002',
+    email: 'awa@crm.test',
+    segment: 'active',
+    totalSpent: 12000,
+    visitsCount: 3,
+    lastVisit: '12/11/2026',
+    favoriteService: 'Coupe signature',
+    notes: 'Préférence sans attente',
+  };
+  const otherSalonClient: Client = {
+    ...existingClient,
+    id: 'client-other-salon',
+    salonId: 'salon-other',
+    name: 'Client autre salon',
+  };
+  const clientCreates: Array<{
+    name: string;
+    phone: string;
+    email: string;
+    segment: string;
+    favoriteService: string;
+    notes: string;
+  }> = [];
+  const clientUpdates: Array<{ id: string; name: string }> = [];
+  const clientDeletes: string[] = [];
+
+  const clientsApiFactory = () =>
+    ({
+      workspace: async () => ({
+        salon: {
+          id: SALON_ID,
+          name: 'Salon CRM Test',
+          status: 'active',
+          is_published: true,
+          timezone: 'Africa/Abidjan',
+        },
+        branches: [{ id: BRANCH_ID, name: 'Plateau', timezone: 'Africa/Abidjan' }],
+        clients: [existingClient, otherSalonClient],
+        services: [],
+        staff: [],
+        expenses: [],
+        stock: [],
+        suppliers: [],
+        rewards: [],
+        reviews: [],
+      }),
+      clients: {
+        create: async (data: (typeof clientCreates)[number]) => {
+          clientCreates.push(data);
+          return {
+            ...existingClient,
+            id: 'client-created-mobile',
+            name: data.name,
+            phone: data.phone,
+            email: data.email,
+            segment: data.segment as Client['segment'],
+            favoriteService: data.favoriteService,
+            notes: data.notes,
+            totalSpent: 0,
+            visitsCount: 0,
+            lastVisit: undefined,
+          };
+        },
+        update: async (id: string, data: (typeof clientCreates)[number]) => {
+          clientUpdates.push({ id, name: data.name });
+          return {
+            ...existingClient,
+            id,
+            name: data.name,
+            phone: data.phone,
+            email: data.email,
+            segment: data.segment as Client['segment'],
+            favoriteService: data.favoriteService,
+            notes: data.notes,
+          };
+        },
+        remove: async (id: string) => {
+          clientDeletes.push(id);
+        },
+      },
+      appointments: { list: async () => [] },
+      payments: { list: async () => [] },
+      cash: { sessions: async () => [] },
+      reports: { summary: async () => null },
+      loyalty: {
+        program: async () => {
+          throw new Error('La fiche CRM ne doit pas charger le programme de fidélité');
+        },
+        accounts: async () => {
+          throw new Error('La fiche CRM ne doit pas charger les comptes fidélité');
+        },
+        ledger: async () => {
+          throw new Error('La fiche CRM ne doit pas charger le journal fidélité');
+        },
+      },
+      notifications: { list: async () => [], health: async () => null },
+      suppliers: { list: async () => [] },
+      stock: { list: async () => [], movements: async () => [] },
+      expenses: { list: async () => [], events: async () => [] },
+    }) as unknown as SalonApiClient;
+
+  const view = render(
+    <AuthContext.Provider value={buildAuth(['*'], 'owner')}>
+      <AppProvider apiClientFactory={clientsApiFactory}>
+        <ActiveSalonGate>
+          <ClientsView />
+        </ActiveSalonGate>
+      </AppProvider>
+    </AuthContext.Provider>,
+  );
+
+  await waitFor(() => {
+    const mobileList = within(view.container).getByTestId('clients-mobile-list');
+    assert.ok(within(mobileList).getByText('Awa CRM'));
+    assert.equal(within(mobileList).queryByText('Client autre salon'), null);
+    assert.ok(within(mobileList).getByText(/12[\s\u00a0\u202f]000 FCFA/));
+  });
+
+  fireEvent.click(within(view.container).getByRole('button', { name: 'Nouveau client' }));
+  const createDialog = within(view.container).getByRole('dialog', { name: 'Nouveau client' });
+  fireEvent.change(within(createDialog).getByLabelText(/Nom complet/), { target: { value: 'Mariam CRM' } });
+  fireEvent.change(within(createDialog).getByLabelText(/Téléphone/), { target: { value: '+2250700000003' } });
+  fireEvent.change(within(createDialog).getByLabelText(/E-mail/), { target: { value: 'mariam@crm.test' } });
+  fireEvent.click(within(createDialog).getByRole('button', { name: 'Créer' }));
+
+  await waitFor(() => {
+    assert.deepEqual(clientCreates, [
+      {
+        name: 'Mariam CRM',
+        phone: '+2250700000003',
+        email: 'mariam@crm.test',
+        segment: 'new',
+        favoriteService: '',
+        notes: '',
+      },
+    ]);
+  });
+
+  const mobileList = within(view.container).getByTestId('clients-mobile-list');
+  fireEvent.click(within(mobileList).getByRole('button', { name: 'Modifier le client Awa CRM' }));
+  const editDialog = within(view.container).getByRole('dialog', { name: 'Modifier le client' });
+  fireEvent.change(within(editDialog).getByLabelText(/Nom complet/), {
+    target: { value: 'Awa CRM modifiée' },
+  });
+  fireEvent.click(within(editDialog).getByRole('button', { name: 'Enregistrer' }));
+
+  await waitFor(() => {
+    assert.deepEqual(clientUpdates, [{ id: existingClient.id, name: 'Awa CRM modifiée' }]);
+  });
+
+  const refreshedMobileList = within(view.container).getByTestId('clients-mobile-list');
+  const editedClientCard = within(refreshedMobileList).getByText('Awa CRM modifiée').closest('article');
+  assert.ok(editedClientCard);
+  fireEvent.click(within(editedClientCard).getByRole('button', { name: 'Supprimer' }));
+  fireEvent.click(within(editedClientCard).getByRole('button', { name: 'Confirmer ?' }));
+
+  await waitFor(() => {
+    assert.deepEqual(clientDeletes, [existingClient.id]);
   });
 });
 

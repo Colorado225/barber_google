@@ -40,6 +40,9 @@ const emptyForm: FormState = {
   notes: '',
 };
 
+const formatClientTotal = (client: Client) =>
+  client.totalSpent === undefined ? '—' : `${client.totalSpent.toLocaleString('fr-FR')} FCFA`;
+
 export const ClientsView: React.FC = () => {
   const { activeSalon, clients, addClient, updateClient, deleteClient, addToast } = useApp();
 
@@ -119,103 +122,178 @@ export const ClientsView: React.FC = () => {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between gap-4">
+    <div className="space-y-5 p-4 sm:space-y-6 sm:p-6">
+      <div className="flex flex-col gap-3 min-[480px]:flex-row min-[480px]:items-center min-[480px]:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-[#f7f6f2] flex items-center gap-2">
-            <Users className="w-6 h-6 text-[#C9A45C]" />
+          <h1 className="flex items-center gap-2 text-2xl font-bold text-[#f7f6f2]">
+            <Users className="h-6 w-6 text-[#C9A45C]" />
             Clients
           </h1>
-          <p className="text-[#a9a9a9] mt-1">Gestion de la clientèle</p>
+          <p className="mt-1 text-[#a9a9a9]">Gestion de la clientèle</p>
         </div>
         <button
+          type="button"
           onClick={openCreate}
-          className="flex items-center gap-2 px-4 py-2 bg-[#C9A45C] text-[#101010] rounded-lg font-semibold hover:bg-[#d4b26a] cursor-pointer shrink-0"
+          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#C9A45C] px-4 text-sm font-bold text-[#101010] transition-colors hover:bg-[#d4b26a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white min-[480px]:w-auto"
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="h-4 w-4" aria-hidden="true" />
           Nouveau client
         </button>
       </div>
 
-      <div className="flex-1 relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-[#a9a9a9]" />
+      <div className="relative">
+        <Search
+          className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[#a9a9a9]"
+          aria-hidden="true"
+        />
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Rechercher un client..."
           aria-label="Rechercher un client"
-          className="w-full pl-10 pr-4 py-2 bg-[#151516] border border-[#2a2a2b] rounded-lg text-[#f7f6f2] focus:outline-none focus:border-[#C9A45C]"
+          className="min-h-11 w-full rounded-xl border border-[#2a2a2b] bg-[#151516] py-2 pl-10 pr-4 text-sm text-[#f7f6f2] focus:outline-none focus:border-[#C9A45C]"
         />
       </div>
 
-      <div className="bg-[#151516] rounded-xl border border-[#2a2a2b] overflow-hidden">
+      <div className="rounded-xl border border-[#2a2a2b] bg-[#151516]">
         {rows.length === 0 ? (
-          <div className="p-6 text-center py-12 text-[#a9a9a9]">
-            <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
+          <div className="px-4 py-12 text-center text-[#a9a9a9] sm:p-6 sm:py-12">
+            <Users className="mx-auto mb-4 h-12 w-12 opacity-50" />
             <p>{salonClients.length === 0 ? 'Aucun client' : 'Aucun résultat'}</p>
-            <p className="text-sm mt-1">
+            <p className="mt-1 text-sm">
               {salonClients.length === 0
                 ? 'Ajoutez votre premier client'
                 : 'Aucun client ne correspond à cette recherche'}
             </p>
           </div>
         ) : (
-          <div
-            className="overflow-x-auto"
-            tabIndex={0}
-            role="region"
-            aria-label="Liste des clients, défilement horizontal"
-          >
-            <table className="w-full min-w-[720px] text-sm">
-              <thead>
-                <tr className="border-b border-[#2a2a2b] text-left">
-                  {['Client', 'Segment', 'Visites', 'Dépensé', 'Dernière visite', ''].map((h) => (
-                    <th
-                      key={h}
-                      className="px-4 py-3 text-[11px] uppercase tracking-wider text-[#a9a9a9] font-bold"
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((client) => (
-                  <tr key={client.id} className="border-b border-[#232326] last:border-0 hover:bg-[#18181b]">
-                    <td className="px-4 py-3">
-                      <span className="font-semibold text-[#f7f6f2]">{client.name}</span>
-                      <div className="text-[11px] text-[#a9a9a9]">{client.phone}</div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[#232328] text-stone-300">
-                        {SEGMENT_LABELS[client.segment]}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-[#a9a9a9]">{client.visitsCount ?? '—'}</td>
-                    <td className="px-4 py-3 text-[#E5C378] font-semibold">
-                      {client.totalSpent === undefined
-                        ? '—'
-                        : `${client.totalSpent.toLocaleString('fr-FR')} FCFA`}
-                    </td>
-                    <td className="px-4 py-3 text-[#a9a9a9] text-xs">{client.lastVisit || '—'}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => openEdit(client)}
-                          title="Modifier"
-                          className="text-stone-400 hover:text-white p-1 rounded cursor-pointer"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                        <ConfirmDelete onConfirm={() => deleteClient(client.id)} />
+          <>
+            <section
+              data-testid="clients-mobile-list"
+              aria-label="Liste des clients"
+              className="space-y-3 p-3 md:hidden"
+            >
+              {rows.map((client) => (
+                <article
+                  key={client.id}
+                  className="rounded-xl border border-[#2a2a2b] bg-[#19191b] p-3 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h2 className="truncate font-semibold text-[#f7f6f2]">{client.name}</h2>
+                      <p className="mt-0.5 text-xs text-[#a9a9a9]">{client.phone}</p>
+                      {client.email && (
+                        <p className="mt-0.5 truncate text-xs text-stone-500">{client.email}</p>
+                      )}
+                    </div>
+                    <span className="shrink-0 rounded-full bg-[#232328] px-2 py-1 text-[11px] font-semibold text-stone-300">
+                      {SEGMENT_LABELS[client.segment]}
+                    </span>
+                  </div>
+
+                  <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 border-y border-[#2a2a2b] py-3 text-xs">
+                    <div>
+                      <dt className="text-stone-500">Visites</dt>
+                      <dd className="mt-0.5 font-semibold text-[#f7f6f2]">{client.visitsCount ?? '—'}</dd>
+                    </div>
+                    <div className="text-right">
+                      <dt className="text-stone-500">Dépensé</dt>
+                      <dd className="mt-0.5 font-semibold text-[#E5C378]">{formatClientTotal(client)}</dd>
+                    </div>
+                    <div className="col-span-2 flex items-baseline justify-between gap-3">
+                      <dt className="shrink-0 text-stone-500">Dernière visite</dt>
+                      <dd className="truncate text-right text-[#a9a9a9]">{client.lastVisit || '—'}</dd>
+                    </div>
+                    {client.favoriteService && (
+                      <div className="col-span-2 flex items-baseline justify-between gap-3">
+                        <dt className="shrink-0 text-stone-500">Préférence</dt>
+                        <dd className="truncate text-right text-[#a9a9a9]">{client.favoriteService}</dd>
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    )}
+                  </dl>
+
+                  {client.notes && <p className="mt-3 text-xs text-stone-400">{client.notes}</p>}
+
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => openEdit(client)}
+                      aria-label={`Modifier le client ${client.name}`}
+                      className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-[#303036] bg-[#1c1c20] text-stone-300 transition-colors hover:bg-[#28282e] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A45C]"
+                    >
+                      <Pencil className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                    <ConfirmDelete
+                      onConfirm={() => deleteClient(client.id)}
+                      className="min-h-11 border-[#5e2020] px-3 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A45C]"
+                    />
+                  </div>
+                </article>
+              ))}
+            </section>
+
+            <div className="hidden md:block">
+              <div
+                className="overflow-x-auto"
+                tabIndex={0}
+                role="region"
+                aria-label="Liste des clients, défilement horizontal"
+              >
+                <table className="w-full min-w-[720px] text-sm">
+                  <thead>
+                    <tr className="border-b border-[#2a2a2b] text-left">
+                      {['Client', 'Segment', 'Visites', 'Dépensé', 'Dernière visite', ''].map((h) => (
+                        <th
+                          key={h}
+                          className="px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-[#a9a9a9]"
+                        >
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((client) => (
+                      <tr
+                        key={client.id}
+                        className="border-b border-[#232326] last:border-0 hover:bg-[#18181b]"
+                      >
+                        <td className="px-4 py-3">
+                          <span className="font-semibold text-[#f7f6f2]">{client.name}</span>
+                          <div className="text-[11px] text-[#a9a9a9]">{client.phone}</div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="rounded-full bg-[#232328] px-2 py-0.5 text-[11px] font-semibold text-stone-300">
+                            {SEGMENT_LABELS[client.segment]}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-[#a9a9a9]">{client.visitsCount ?? '—'}</td>
+                        <td className="px-4 py-3 font-semibold text-[#E5C378]">
+                          {formatClientTotal(client)}
+                        </td>
+                        <td className="px-4 py-3 text-xs text-[#a9a9a9]">{client.lastVisit || '—'}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => openEdit(client)}
+                              title="Modifier le client"
+                              aria-label={`Modifier le client ${client.name}`}
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition-colors hover:bg-[#242429] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A45C]"
+                            >
+                              <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                            </button>
+                            <ConfirmDelete onConfirm={() => deleteClient(client.id)} />
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
         )}
       </div>
 
@@ -236,7 +314,7 @@ export const ClientsView: React.FC = () => {
             />
           </Field>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 min-[480px]:grid-cols-2">
             <Field label="Téléphone" required>
               <input
                 className={inputClass}

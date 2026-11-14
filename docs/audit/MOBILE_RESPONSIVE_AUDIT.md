@@ -513,9 +513,27 @@ Avant de considérer le lot mobile terminé :
 - Aucun contrôle financier n’est recréé dans l’interface : permissions existantes, validation de solde/référence/session espèces, idempotence, RPC, invalidation finance/dashboard/loyalty et rechargement restent dans le domaine finance.
 - Validation automatisée ajoutée : le test d’intégration `CashRegisterView` ouvre une session depuis la modal et confirme l’appel du domaine finance, suivi de l’état de session affiché. Le test structurel mobile couvre les permissions, handlers de caisse, hauteur/safe area des modales et l’encaissement global.
 
+### Phase 2 — 5.4 Clients CRM : diagnostic avant adaptation
+
+**Périmètre vérifié (sans changement métier)** : route ERP `crm` dans `ErpLayout`, `ClientsView`, `FormModal`, `ClientsDomainContext`, `salonApi.clients` et les tests de domaines/cache/RBAC déjà présents.
+
+- L’onglet actif `crm` monte uniquement `ClientsView`. `LoyaltyView` est une destination séparée et ne doit pas être modifiée ou couplée à la liste CRM sans décision explicite de navigation.
+- La vue filtre déjà la liste par `activeSalon.id`, recherche localement dans les données du salon et délègue création, modification et suppression aux handlers du domaine clients. Le tableau de 720 px est accessible avec un scroll horizontal, mais ne donne pas de lecture priorisée ni d’actions tactiles faciles sous `md`.
+- L’en-tête, l’action « Nouveau client », la recherche et les boutons d’édition/suppression sont compacts. Le formulaire de fiche client emploie encore une grille téléphone/segment à deux colonnes fixes avant 480 px.
+- `ClientsDomainContext` appelle les endpoints clients existants et invalide le workspace après mutation ; il conserve le salon actif dans chaque appel. Toute variante mobile doit réemployer `addClient`, `updateClient` et `deleteClient`, sans précharger, déplacer ou recalculer les données client hors de ce domaine.
+- Les comptes, points et écritures de fidélité sont chargés et mutés par un contrat séparé, avec permissions `loyalty.*`, cache et journal append-only ; ce lot CRM ne modifie ni ces règles, ni les routes, ni les RPC/RLS.
+
+### Phase 2 — 5.4 Clients CRM : réalisation
+
+- Sous `md`, le tableau CRM est remplacé visuellement par des fiches client compactes : identité, contact, segment, visites, montant cumulé, dernière visite, préférence éventuelle et notes restent lisibles sans défilement horizontal. Le tableau accessible de 720 px est conservé à partir de `md`, avec sa région de défilement et ses actions desktop.
+- L’en-tête, la recherche et l’action « Nouveau client » se replient avant 480 px. Les actions mobile de modification et suppression ont une cible d’au moins 44 px ; la suppression conserve la confirmation en deux temps de `ConfirmDelete`.
+- Le formulaire existant est conservé dans `FormModal`, déjà transformé en feuille basse défilable avec safe area. Son groupe téléphone/segment s’empile avant 480 px, puis retrouve ses deux colonnes ; aucun payload de création ou de mise à jour n’a été modifié.
+- Les deux présentations filtrent toujours uniquement les clients de `activeSalon.id`, réemploient `addClient`, `updateClient` et `deleteClient`, et n’accèdent à aucune donnée de fidélité. Cache, synchronisation, permissions, endpoints clients, RPC/RLS et navigation ne changent pas.
+- Validation automatisée ajoutée : le test d’intégration `ClientsView` couvre la fiche mobile, l’isolation par salon, création, modification et suppression via les mutations CRM mockées, et échoue si l’écran charge les endpoints fidélité. Le test structurel confirme les fiches sous `md`, le tableau desktop, les zones tactiles, le formulaire adaptatif, les trois handlers clients conservés et l’absence de couplage aux données de fidélité. Les tests existants du domaine confirment toujours les endpoints clients et l’invalidation `workspace`.
+
 ### Restant avant qualification mobile complète
 
-- Vérifier manuellement 320/360/375/390/430 px, puis 768/1024/1280+ px, avec faible hauteur et clavier virtuel, notamment le planning, la caisse, la barre basse ERP, le sheet Plus, le changement de salon, le drawer admin, les actions caisse/RDV, les modales longues, tables, toast et booking. Aucun navigateur automatisé n’est disponible dans cet environnement.
+- Vérifier manuellement 320/360/375/390/430 px, puis 768/1024/1280+ px, avec faible hauteur et clavier virtuel, notamment le planning, la caisse, les clients CRM, la barre basse ERP, le sheet Plus, le changement de salon, le drawer admin, les actions caisse/RDV, les modales longues, tables, toast et booking. Aucun navigateur automatisé n’est disponible dans cet environnement.
 - Évaluer séparément les modales calendrier riches non montées et le sticky booking marketplace, sans les substituer à la vue ERP active sans décision de câblage.
 - Aucune modification de route, de rôle/permission, de contexte, de RPC, de migration, de RLS ou de cycle Realtime n’a été effectuée dans ce lot.
-- Le build est valide, mais `npm run perf:check` reste non conforme au budget initial existant : 171,53 kB gzip de JavaScript initial pour un budget de 166,02 kB. Cette non-conformité P2 doit être résolue avant de déclarer une CI entièrement verte.
+- Le build est valide, mais `npm run perf:check` reste non conforme au budget initial existant : 171,54 kB gzip de JavaScript initial pour un budget de 166,02 kB. Cette non-conformité P2 doit être résolue avant de déclarer une CI entièrement verte.

@@ -143,6 +143,33 @@ test('le planning actif rend une chronologie tactile sans changer les mutations 
   assert.match(formModal, /min-h-11 rounded-xl bg-\[#C9A45C\]/);
 });
 
+test('le CRM privilégie des fiches tactiles sans contourner le domaine clients ou la fidélité', () => {
+  const clients = source('src/components/erp/ClientsView.tsx');
+  const clientsDomain = source('src/context/domains/ClientsDomainContext.tsx');
+  const loyalty = source('src/components/erp/LoyaltyView.tsx');
+
+  assert.match(clients, /data-testid="clients-mobile-list"/);
+  assert.match(clients, /aria-label="Liste des clients"/);
+  assert.match(clients, /className="space-y-3 p-3 md:hidden"/);
+  assert.match(clients, /className="hidden md:block"/);
+  assert.match(clients, /aria-label="Liste des clients, défilement horizontal"/);
+  assert.match(clients, /min-h-11 min-w-11/);
+  assert.match(clients, /min-h-11 border-\[#5e2020\] px-3/);
+  assert.match(clients, /grid grid-cols-1 gap-3 min-\[480px\]:grid-cols-2/);
+
+  assert.match(clients, /clients\.filter\(\(c\) => c\.salonId === activeSalon\.id\)/);
+  assert.match(clients, /addClient\(\{/);
+  assert.match(clients, /updateClient\(editing\.id,/);
+  assert.match(clients, /deleteClient\(client\.id\)/);
+  assert.doesNotMatch(clients, /loyalty(?:Accounts|Ledger|Transactions|Rewards|Settings)/);
+
+  assert.match(clientsDomain, /api\.clients\.create\(/);
+  assert.match(clientsDomain, /api\.clients\.update\(/);
+  assert.match(clientsDomain, /api\.clients\.remove\(/);
+  assert.match(clientsDomain, /domainCache\.invalidate\(salonId, 'workspace'\)/);
+  assert.match(loyalty, /hasPermission\('loyalty\.write'/);
+});
+
 test('la caisse et l’encaissement restent tactiles sans contourner le domaine finance', () => {
   const cash = source('src/components/erp/CashRegisterView.tsx');
   const payment = source('src/components/erp/NewPaymentModal.tsx');
