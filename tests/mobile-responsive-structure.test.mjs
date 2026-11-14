@@ -170,6 +170,37 @@ test('le CRM privilégie des fiches tactiles sans contourner le domaine clients 
   assert.match(loyalty, /hasPermission\('loyalty\.write'/);
 });
 
+test('la fidélité reste mobile, isolée et délègue ses écritures au domaine clients', () => {
+  const erp = source('src/components/erp/ErpLayout.tsx');
+  const loyalty = source('src/components/erp/LoyaltyView.tsx');
+  const clientsDomain = source('src/context/domains/ClientsDomainContext.tsx');
+
+  assert.match(erp, /id: 'loyalty'[\s\S]+permission: 'loyalty\.read'/);
+  assert.match(erp, /visibleActiveTab === 'loyalty' && <LoyaltyView \/>/);
+
+  assert.match(loyalty, /const canWrite = hasPermission\('loyalty\.write', activeSalon\.id\)/);
+  assert.match(loyalty, /loyaltyRewards\.filter\(\(r\) => r\.salonId === activeSalon\.id && r\.isActive\)/);
+  assert.match(loyalty, /loyaltyAccounts\.filter\(\(a\) => a\.salonId === activeSalon\.id\)/);
+  assert.match(loyalty, /loyaltyTransactions\.filter\(\(t\) => t\.salonId === activeSalon\.id\)/);
+  assert.match(loyalty, /space-y-5 p-4 sm:space-y-6 sm:p-6/);
+  assert.match(loyalty, /grid grid-cols-1 gap-3 min-\[420px\]:grid-cols-3/);
+  assert.match(loyalty, /min-h-11 w-full items-center justify-center[\s\S]+min-\[480px\]:w-auto/);
+  assert.match(loyalty, /grid gap-3 min-\[420px\]:grid-cols-2 lg:grid-cols-5/);
+  assert.match(loyalty, /min-\[480px\]:grid-cols-\[minmax\(7rem,0\.4fr\)_minmax\(0,1fr\)_auto\]/);
+  assert.match(loyalty, /flex flex-col gap-2 p-3 min-\[420px\]:flex-row/);
+  assert.match(loyalty, /updateLoyaltySettings\(\{/);
+  assert.match(loyalty, /redeemRewardForClient\(clientId, rewardChoice\)/);
+  assert.match(loyalty, /creditPointsToClient\(clientId, points, adjustReason\.trim\(\)\)/);
+  assert.match(loyalty, /refreshLoyalty\(\)/);
+  assert.doesNotMatch(loyalty, /salonApi\(|api\.loyalty\./);
+
+  assert.match(clientsDomain, /api\.loyalty\.setProgram\(updates\)/);
+  assert.match(clientsDomain, /api\.loyalty\.redeem\(clientId, rewardId\)/);
+  assert.match(clientsDomain, /api\.loyalty\.adjust\(clientId, points, reason\)/);
+  assert.match(clientsDomain, /domainCache\.invalidate\(salonId, 'loyalty'\)/);
+  assert.match(clientsDomain, /domainCache\.invalidate\(salonId, 'workspace'\)/);
+});
+
 test('les prestations et l’équipe privilégient des fiches tactiles sans contourner le domaine rendez-vous', () => {
   const erp = source('src/components/erp/ErpLayout.tsx');
   const services = source('src/components/erp/ServicesView.tsx');

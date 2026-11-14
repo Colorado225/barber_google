@@ -549,6 +549,26 @@ Avant de considérer le lot mobile terminé :
 - `StaffSchedulePanel` devient une feuille basse défilable sur petit écran et faible hauteur, avec safe area, fermeture/suppressions tactiles et grilles de saisie adaptatives. Les appels à `salonApi(...).staff` pour chargement, ajout, suppression et rechargement restent strictement identiques ; les contraintes de disponibilité restent côté serveur.
 - Validation automatisée ajoutée : le test d’intégration rend les deux listes mobiles, vérifie l’isolation par salon et exerce activation/création/modification/suppression via les handlers catalogue et équipe mockés. Le test structurel couvre routes/permissions, fiches mobile, tables desktop, formulaires, feuille horaires et les endpoints/invalidation du domaine rendez-vous.
 
+### Phase 2 — 5.6 Fidélité : diagnostic avant adaptation
+
+**Périmètre vérifié (sans changement métier)** : onglet ERP `loyalty` dans `ErpLayout`, `LoyaltyView`, `ClientsDomainContext`, `salonApi.loyalty`, migrations programme/comptes/journal et tests SQL du parcours client.
+
+- `ErpLayout` lazy-charge `LoyaltyView` seulement lorsque l’onglet `loyalty` est visible sous la permission `loyalty.read`. Les routes `/app/fidelite`, la sélection `?salon=`, le shell mobile et la garde de lecture restent hors périmètre visuel.
+- `LoyaltyView` filtre comptes, récompenses et journal sur `activeSalon.id`, distingue l’affichage et les contrôles `loyalty.write`, puis délègue sans calcul local au domaine : `updateLoyaltySettings`, `redeemRewardForClient`, `creditPointsToClient` et `refreshLoyalty`.
+- Le domaine charge le programme, comptes et journal via son cache `loyalty`. Après paramétrage, consommation ou ajustement, il conserve invalidation/rechargement, mises à jour de cache et toasts. La consommation est atomique, l’ajustement est tracé et le navigateur ne doit jamais fabriquer un solde, un palier ou une réussite locale.
+- Les migrations réservent la lecture aux membres `loyalty.read`, et paramétrage/consommation/ajustement à `loyalty.write`. Les points automatiques dépendent exclusivement des triggers serveur de rendez-vous terminé et payé ; le journal est append-only, les récompenses plafonnées au solde et les seuils validés par la base. Ces règles et les RPC restent inchangés.
+- L’écran unique empile actuellement réglages à cinq colonnes, actions compte compactes, panneaux consommation/ajustement en `flex-wrap`, cartes récompenses et journal dense. Les contrôles sont sous-dimensionnés sous 480 px et les longues interactions deviennent difficiles à atteindre sur faible hauteur ; l’adaptation doit rester limitée aux espacements, grille, ordre visuel, cibles tactiles et lecture mobile.
+
+### Phase 2 — 5.6 Fidélité : réalisation
+
+- La page et son en-tête utilisent maintenant des espacements mobiles réduits ; l’action d’actualisation occupe toute la largeur avant 480 px puis reprend sa taille naturelle. Les trois KPI passent à une colonne avant 420 px, sans retirer de total ni modifier leurs sources.
+- La règle d’attribution se replie d’une colonne vers deux dès 420 px, puis cinq sur grand écran. Les entrées numériques et les actions programme/enregistrement atteignent au moins 44 px, gardent un focus visible et préservent exactement `updateLoyaltySettings`.
+- Chaque solde client réorganise identité, palier, solde et actions sans compresser les libellés. Consommation et ajustement s’ouvrent dans le flux, empilent leurs champs/actions sous 480 px et récupèrent leur disposition compacte au-dessus ; les appels demeurent `redeemRewardForClient` et `creditPointsToClient` avec les validations existantes.
+- Les récompenses deviennent une colonne jusqu’à 479 px. Le journal privilégie les retours à la ligne pour nom, motif et date, puis réaligne montant et contenu dès 420 px, ce qui évite les troncatures horizontales sans toucher au journal append-only.
+- Validation automatisée ajoutée : le test structurel vérifie route/permission, filtrage du salon, breakpoints, cibles tactiles, délégation au domaine et absence d’accès API direct. Le test d’intégration rend les états lecture/écriture, prouve l’isolation par salon, masque les actions sans `loyalty.write` et exerce paramétrage, consommation et ajustement à travers les mutations du domaine mockées.
+- Validation du 14 novembre 2026 : `typecheck`, lint, format, build et contrôle de diff sont verts ; structure mobile 11/11 et suite TypeScript/TSX 159/159. Le contrôle combiné DB/MJS conserve le seul échec P2 préexistant de budget gzip (171,55 kB au lieu de 166,02 kB), sans modification artificielle de ce seuil.
+- Aucun changement de route, de provider, de cache, de synchronisation, de RPC, de migration, de RLS, de condition de permission, de sélection de salon ou de logique d’attribution n’a été effectué.
+
 ### Restant avant qualification mobile complète
 
 - Vérifier manuellement 320/360/375/390/430 px, puis 768/1024/1280+ px, avec faible hauteur et clavier virtuel, notamment le planning, la caisse, les clients CRM, les prestations, l’équipe et leurs horaires, la barre basse ERP, le sheet Plus, le changement de salon, le drawer admin, les actions caisse/RDV, les modales longues, tables, toast et booking. Aucun navigateur automatisé n’est disponible dans cet environnement.

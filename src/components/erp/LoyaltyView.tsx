@@ -122,27 +122,28 @@ export const LoyaltyView: React.FC = () => {
   };
 
   return (
-    <section className="space-y-5">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Heart className="h-6 w-6 text-[#C9A45C]" />
+    <section className="space-y-5 p-4 sm:space-y-6 sm:p-6">
+      <header className="flex flex-col gap-3 min-[480px]:flex-row min-[480px]:items-center min-[480px]:justify-between">
+        <div className="flex items-start gap-3">
+          <Heart className="mt-0.5 h-6 w-6 shrink-0 text-[#C9A45C]" aria-hidden="true" />
           <div>
             <h1 className="text-xl font-bold text-white">Fidélité</h1>
-            <p className="text-sm text-stone-400">
+            <p className="mt-1 text-sm text-stone-400">
               Points attribués automatiquement sur prestation terminée <strong>et</strong> encaissée —{' '}
               {activeSalon.name}
             </p>
           </div>
         </div>
         <button
+          type="button"
           onClick={() => void refreshLoyalty()}
-          className="inline-flex items-center gap-2 rounded-xl border border-[#2a2a2b] bg-[#161619] px-3 py-2 text-xs font-semibold text-stone-300 hover:text-white"
+          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#2a2a2b] bg-[#161619] px-3 text-sm font-semibold text-stone-300 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A45C] min-[480px]:w-auto"
         >
-          <RefreshCw className="h-4 w-4" /> Actualiser
+          <RefreshCw className="h-4 w-4" aria-hidden="true" /> Actualiser
         </button>
       </header>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-3">
         <div className="rounded-xl border border-[#27272c] bg-[#161619] p-4">
           <p className="text-xs text-stone-400">Clients fidélisés</p>
           <p className="mt-1 text-2xl font-bold text-white">{accounts.length}</p>
@@ -162,20 +163,21 @@ export const LoyaltyView: React.FC = () => {
       </div>
 
       {canWrite && (
-        <div className="rounded-xl border border-[#27272c] bg-[#161619] p-5 space-y-4">
-          <div className="flex items-center justify-between gap-3">
+        <div className="space-y-4 rounded-xl border border-[#27272c] bg-[#161619] p-4 sm:p-5">
+          <div className="flex flex-col gap-3 min-[480px]:flex-row min-[480px]:items-center min-[480px]:justify-between">
             <h2 className="flex items-center gap-2 text-sm font-bold text-white">
               <Settings2 className="h-4 w-4" /> Règle d’attribution
             </h2>
             <button
+              type="button"
               onClick={() => void toggleProgram()}
               disabled={saving}
-              className="rounded-xl bg-[#232328] px-3 py-1.5 text-xs font-semibold text-stone-300 hover:text-white disabled:opacity-50"
+              className="min-h-11 w-full rounded-xl bg-[#232328] px-3 text-sm font-semibold text-stone-300 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A45C] disabled:opacity-50 min-[480px]:w-auto"
             >
               {settings?.programEnabled === false ? 'Activer le programme' : 'Désactiver'}
             </button>
           </div>
-          <div className="grid gap-3 sm:grid-cols-5">
+          <div className="grid gap-3 min-[420px]:grid-cols-2 lg:grid-cols-5">
             {[
               {
                 label: 'Points / 100 FCFA',
@@ -200,20 +202,21 @@ export const LoyaltyView: React.FC = () => {
                   min={0}
                   value={value(field.val, field.fallback)}
                   onChange={(e) => field.set(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-[#2d2d33] bg-[#121214] px-3 py-2 text-sm text-white"
+                  className="mt-1 min-h-11 w-full rounded-lg border border-[#2d2d33] bg-[#121214] px-3 text-base text-white outline-none focus:border-[#C9A45C] focus:ring-1 focus:ring-[#C9A45C] sm:text-sm"
                 />
               </label>
             ))}
           </div>
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col gap-3 min-[480px]:flex-row min-[480px]:items-center min-[480px]:justify-between">
             <p className="text-[11px] text-stone-500">
               Exemple : une prestation de 4 000 FCFA à {settings?.pointsPer100Fcfa ?? 1} point(s)/100 FCFA
               crédite {40 * (settings?.pointsPer100Fcfa ?? 1)} points.
             </p>
             <button
+              type="button"
               onClick={() => void saveSettings()}
               disabled={saving}
-              className="rounded-xl bg-[#C9A45C] px-4 py-2 text-xs font-bold text-[#101010] hover:bg-[#d8b46c] disabled:opacity-50"
+              className="min-h-11 w-full rounded-xl bg-[#C9A45C] px-4 text-sm font-bold text-[#101010] transition-colors hover:bg-[#d8b46c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4d28c] disabled:opacity-50 min-[480px]:w-auto"
             >
               {saving ? 'Enregistrement…' : 'Enregistrer'}
             </button>
@@ -237,38 +240,42 @@ export const LoyaltyView: React.FC = () => {
                 key={account.clientId}
                 className="rounded-xl border border-[#2a2a2b] bg-[#151516] p-4 space-y-3"
               >
-                <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-col gap-3 min-[480px]:flex-row min-[480px]:items-center min-[480px]:justify-between">
                   <div>
                     <p className="text-sm font-bold text-white">{clientName(account.clientId)}</p>
                     <p className="text-[11px] text-stone-500">
                       {account.totalEarned} gagnés · {account.totalRedeemed} utilisés
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span
                       className={`rounded-full border px-2.5 py-1 text-[10px] font-bold ${TIER_TONE[account.tier]}`}
                     >
                       {TIER_LABEL[account.tier]}
                     </span>
-                    <span className="text-lg font-bold text-[#E5C378]">{account.pointsBalance} pts</span>
+                    <span className="mr-auto text-lg font-bold text-[#E5C378] min-[480px]:mr-0">
+                      {account.pointsBalance} pts
+                    </span>
                     {canWrite && (
                       <>
                         <button
+                          type="button"
                           onClick={() => {
                             setRedeemFor(redeemFor === account.clientId ? null : account.clientId);
                             setRewardChoice('');
                           }}
-                          className="rounded-xl bg-[#232328] px-3 py-1.5 text-[11px] font-semibold text-stone-300 hover:text-white"
+                          className="min-h-10 rounded-xl bg-[#232328] px-3 text-xs font-semibold text-stone-300 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A45C]"
                         >
                           Récompense
                         </button>
                         <button
+                          type="button"
                           onClick={() => {
                             setAdjustFor(adjustFor === account.clientId ? null : account.clientId);
                             setAdjustPoints('');
                             setAdjustReason('');
                           }}
-                          className="rounded-xl bg-[#232328] px-3 py-1.5 text-[11px] font-semibold text-stone-300 hover:text-white"
+                          className="min-h-10 rounded-xl bg-[#232328] px-3 text-xs font-semibold text-stone-300 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A45C]"
                         >
                           Ajuster
                         </button>
@@ -278,13 +285,13 @@ export const LoyaltyView: React.FC = () => {
                 </div>
 
                 {redeemFor === account.clientId && (
-                  <div className="flex flex-wrap items-end gap-2 rounded-lg border border-[#2d2d33] bg-[#111113] p-3">
-                    <label className="flex-1 text-xs text-stone-400">
+                  <div className="flex flex-col gap-3 rounded-lg border border-[#2d2d33] bg-[#111113] p-3 min-[480px]:flex-row min-[480px]:items-end">
+                    <label className="w-full flex-1 text-xs text-stone-400">
                       Récompense à consommer
                       <select
                         value={rewardChoice}
                         onChange={(e) => setRewardChoice(e.target.value)}
-                        className="mt-1 w-full rounded-lg border border-[#2d2d33] bg-[#121214] px-3 py-2 text-sm text-white"
+                        className="mt-1 min-h-11 w-full rounded-lg border border-[#2d2d33] bg-[#121214] px-3 text-base text-white outline-none focus:border-[#C9A45C] focus:ring-1 focus:ring-[#C9A45C] sm:text-sm"
                       >
                         <option value="">Choisir…</option>
                         {rewards.map((reward) => (
@@ -300,9 +307,10 @@ export const LoyaltyView: React.FC = () => {
                       </select>
                     </label>
                     <button
+                      type="button"
                       onClick={() => void doRedeem(account.clientId)}
                       disabled={!rewardChoice}
-                      className="rounded-xl bg-[#C9A45C] px-4 py-2 text-xs font-bold text-[#101010] disabled:opacity-50"
+                      className="min-h-11 w-full rounded-xl bg-[#C9A45C] px-4 text-sm font-bold text-[#101010] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4d28c] disabled:opacity-50 min-[480px]:w-auto"
                     >
                       Valider
                     </button>
@@ -310,27 +318,28 @@ export const LoyaltyView: React.FC = () => {
                 )}
 
                 {adjustFor === account.clientId && (
-                  <div className="flex flex-wrap items-end gap-2 rounded-lg border border-[#2d2d33] bg-[#111113] p-3">
+                  <div className="grid gap-3 rounded-lg border border-[#2d2d33] bg-[#111113] p-3 min-[480px]:grid-cols-[minmax(7rem,0.4fr)_minmax(0,1fr)_auto] min-[480px]:items-end">
                     <label className="text-xs text-stone-400">
                       Points (+/-)
                       <input
                         type="number"
                         value={adjustPoints}
                         onChange={(e) => setAdjustPoints(e.target.value)}
-                        className="mt-1 w-28 rounded-lg border border-[#2d2d33] bg-[#121214] px-3 py-2 text-sm text-white"
+                        className="mt-1 min-h-11 w-full rounded-lg border border-[#2d2d33] bg-[#121214] px-3 text-base text-white outline-none focus:border-[#C9A45C] focus:ring-1 focus:ring-[#C9A45C] sm:text-sm"
                       />
                     </label>
-                    <label className="flex-1 text-xs text-stone-400">
+                    <label className="text-xs text-stone-400">
                       Motif (obligatoire, tracé)
                       <input
                         value={adjustReason}
                         onChange={(e) => setAdjustReason(e.target.value)}
-                        className="mt-1 w-full rounded-lg border border-[#2d2d33] bg-[#121214] px-3 py-2 text-sm text-white"
+                        className="mt-1 min-h-11 w-full rounded-lg border border-[#2d2d33] bg-[#121214] px-3 text-base text-white outline-none focus:border-[#C9A45C] focus:ring-1 focus:ring-[#C9A45C] sm:text-sm"
                       />
                     </label>
                     <button
+                      type="button"
                       onClick={() => void doAdjust(account.clientId)}
-                      className="rounded-xl bg-[#C9A45C] px-4 py-2 text-xs font-bold text-[#101010]"
+                      className="min-h-11 w-full rounded-xl bg-[#C9A45C] px-4 text-sm font-bold text-[#101010] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f4d28c] min-[480px]:w-auto"
                     >
                       Appliquer
                     </button>
@@ -352,9 +361,9 @@ export const LoyaltyView: React.FC = () => {
             consommation des points.
           </p>
         ) : (
-          <ul className="grid gap-3 sm:grid-cols-2">
+          <ul className="grid gap-3 min-[480px]:grid-cols-2">
             {rewards.map((reward) => (
-              <li key={reward.id} className="rounded-xl border border-[#27272c] bg-[#161619] p-5">
+              <li key={reward.id} className="rounded-xl border border-[#27272c] bg-[#161619] p-4 sm:p-5">
                 <h3 className="font-semibold text-white">{reward.name}</h3>
                 <p className="mt-1 text-sm text-stone-400">{reward.description}</p>
                 <p className="mt-3 text-xs text-[#C9A45C]">
@@ -375,21 +384,24 @@ export const LoyaltyView: React.FC = () => {
         ) : (
           <ul className="divide-y divide-[#222226] rounded-xl border border-[#27272c] bg-[#161619]">
             {ledger.map((entry) => (
-              <li key={entry.id} className="flex items-center justify-between gap-3 p-3">
+              <li
+                key={entry.id}
+                className="flex flex-col gap-2 p-3 min-[420px]:flex-row min-[420px]:items-center min-[420px]:justify-between"
+              >
                 <div className="min-w-0">
-                  <p className="truncate text-xs font-semibold text-white">{entry.clientName}</p>
-                  <p className="truncate text-[11px] text-stone-500">
+                  <p className="break-words text-xs font-semibold text-white">{entry.clientName}</p>
+                  <p className="mt-0.5 break-words text-[11px] leading-relaxed text-stone-500">
                     {KIND_LABEL[entry.type] ?? entry.type} · {entry.description} ·{' '}
                     {formatDate(entry.createdAt, salonTimezone)}
                   </p>
                 </div>
                 <span
-                  className={`flex shrink-0 items-center gap-1 text-xs font-bold ${entry.points > 0 ? 'text-emerald-300' : 'text-red-300'}`}
+                  className={`flex shrink-0 items-center gap-1 self-start text-sm font-bold min-[420px]:self-auto ${entry.points > 0 ? 'text-emerald-300' : 'text-red-300'}`}
                 >
                   {entry.points > 0 ? (
-                    <TrendingUp className="h-3.5 w-3.5" />
+                    <TrendingUp className="h-3.5 w-3.5" aria-hidden="true" />
                   ) : (
-                    <TrendingDown className="h-3.5 w-3.5" />
+                    <TrendingDown className="h-3.5 w-3.5" aria-hidden="true" />
                   )}
                   {entry.points > 0 ? '+' : ''}
                   {entry.points}

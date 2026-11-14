@@ -7,6 +7,7 @@ import { AuthContext, type AuthContextType, type SalonMembership } from '../src/
 import { CashRegisterView } from '../src/components/erp/CashRegisterView';
 import { ClientsView } from '../src/components/erp/ClientsView';
 import { DashboardView } from '../src/components/erp/DashboardView';
+import { LoyaltyView } from '../src/components/erp/LoyaltyView';
 import { PlanningView } from '../src/components/erp/PlanningView';
 import { ServicesView } from '../src/components/erp/ServicesView';
 import { StaffView } from '../src/components/erp/StaffView';
@@ -34,6 +35,10 @@ import type {
   Appointment,
   Client,
   Expense,
+  LoyaltyAccount,
+  LoyaltyLedgerEntry,
+  LoyaltyReward,
+  LoyaltySettings,
   PaymentTransaction,
   Service,
   ServiceCategory,
@@ -1129,6 +1134,209 @@ test('ClientsView : les fiches mobiles utilisent les mutations CRM existantes sa
 
   await waitFor(() => {
     assert.deepEqual(clientDeletes, [existingClient.id]);
+  });
+});
+
+test('LoyaltyView : l’interface mobile isole le salon, respecte loyalty.write et délègue les mutations au domaine', async () => {
+  ensureDom();
+  cleanup();
+
+  const primaryClient: Client = {
+    id: 'client-loyalty-mobile',
+    salonId: SALON_ID,
+    name: 'Awa Fidélité',
+    phone: '+2250700000010',
+    email: 'awa@loyalty.test',
+    segment: 'active',
+    totalSpent: 36000,
+    visitsCount: 6,
+    favoriteService: 'Coupe signature',
+    notes: '',
+  };
+  const otherClient: Client = {
+    ...primaryClient,
+    id: 'client-loyalty-other',
+    salonId: 'salon-other',
+    name: 'Client fidélité autre salon',
+  };
+  const settings: LoyaltySettings = {
+    salonId: SALON_ID,
+    pointsPer100Fcfa: 1,
+    welcomeBonus: 25,
+    silverThreshold: 100,
+    goldThreshold: 250,
+    vipThreshold: 500,
+    programEnabled: true,
+  };
+  const primaryReward: LoyaltyReward = {
+    id: 'reward-loyalty-mobile',
+    salonId: SALON_ID,
+    name: 'Soin barbe offert',
+    description: 'Une taille de barbe offerte',
+    pointsCost: 60,
+    category: 'free_service',
+    isActive: true,
+    timesRedeemed: 2,
+    createdAt: '2026-11-12T09:00:00.000Z',
+  };
+  const otherReward: LoyaltyReward = {
+    ...primaryReward,
+    id: 'reward-loyalty-other',
+    salonId: 'salon-other',
+    name: 'Récompense autre salon',
+  };
+  const primaryAccount: LoyaltyAccount = {
+    salonId: SALON_ID,
+    clientId: primaryClient.id,
+    pointsBalance: 125,
+    totalEarned: 175,
+    totalRedeemed: 50,
+    tier: 'silver',
+    updatedAt: '2026-11-12T09:00:00.000Z',
+  };
+  const otherAccount: LoyaltyAccount = {
+    ...primaryAccount,
+    salonId: 'salon-other',
+    clientId: otherClient.id,
+    pointsBalance: 900,
+  };
+  const primaryLedger: LoyaltyLedgerEntry = {
+    id: 'ledger-loyalty-mobile',
+    salonId: SALON_ID,
+    clientId: primaryClient.id,
+    appointmentId: 'apt-loyalty-mobile',
+    rewardId: null,
+    kind: 'earned_service',
+    points: 50,
+    balanceAfter: 125,
+    reason: 'Prestation encaissée',
+    createdAt: '2026-11-12T09:00:00.000Z',
+  };
+  const otherLedger: LoyaltyLedgerEntry = {
+    ...primaryLedger,
+    id: 'ledger-loyalty-other',
+    salonId: 'salon-other',
+    clientId: otherClient.id,
+    reason: 'Mouvement autre salon',
+  };
+  const setProgramCalls: Partial<LoyaltySettings>[] = [];
+  const redeemCalls: Array<{ clientId: string; rewardId: string }> = [];
+  const adjustCalls: Array<{ clientId: string; points: number; reason: string }> = [];
+  const resolvedSalonIds: string[] = [];
+
+  const loyaltyApiFactory = (salonId: string) => {
+    resolvedSalonIds.push(salonId);
+    return {
+      workspace: async () => ({
+        salon: {
+          id: SALON_ID,
+          name: 'Salon Fidélité Test',
+          status: 'active',
+          is_published: true,
+          timezone: 'Africa/Abidjan',
+        },
+        branches: [{ id: BRANCH_ID, name: 'Plateau', timezone: 'Africa/Abidjan' }],
+        clients: [primaryClient, otherClient],
+        services: [],
+        staff: [],
+        expenses: [],
+        stock: [],
+        suppliers: [],
+        rewards: [primaryReward, otherReward],
+        reviews: [],
+      }),
+      appointments: { list: async () => [] },
+      payments: { list: async () => [] },
+      cash: { sessions: async () => [] },
+      reports: { summary: async () => null },
+      loyalty: {
+        program: async () => settings,
+        accounts: async () => [primaryAccount, otherAccount],
+        ledger: async () => [primaryLedger, otherLedger],
+        setProgram: async (updates: Partial<LoyaltySettings>) => {
+          setProgramCalls.push(updates);
+          return { ...settings, ...updates };
+        },
+        redeem: async (clientId: string, rewardId: string) => {
+          redeemCalls.push({ clientId, rewardId });
+          return { points_balance: 65 };
+        },
+        adjust: async (clientId: string, points: number, reason: string) => {
+          adjustCalls.push({ clientId, points, reason });
+          return { points_balance: 75 };
+        },
+      },
+      notifications: { list: async () => [], health: async () => null },
+      suppliers: { list: async () => [] },
+      stock: { list: async () => [], movements: async () => [] },
+      expenses: { list: async () => [], events: async () => [] },
+    } as unknown as SalonApiClient;
+  };
+
+  const readOnlyView = render(
+    <AuthContext.Provider value={buildAuth(['loyalty.read'], 'manager')}>
+      <AppProvider apiClientFactory={loyaltyApiFactory}>
+        <ActiveSalonGate>
+          <LoyaltyView />
+        </ActiveSalonGate>
+      </AppProvider>
+    </AuthContext.Provider>,
+  );
+
+  await waitFor(() => {
+    assert.ok(within(readOnlyView.container).getAllByText('Awa Fidélité').length >= 1);
+    assert.ok(within(readOnlyView.container).getByText('Soin barbe offert'));
+    assert.equal(within(readOnlyView.container).queryByText('Client fidélité autre salon'), null);
+    assert.equal(within(readOnlyView.container).queryByText('Récompense autre salon'), null);
+    assert.equal(within(readOnlyView.container).queryByText('Mouvement autre salon'), null);
+    assert.equal(within(readOnlyView.container).queryByRole('button', { name: 'Récompense' }), null);
+    assert.equal(within(readOnlyView.container).queryByText('Règle d’attribution'), null);
+  });
+  assert.deepEqual([...setProgramCalls], []);
+
+  cleanup();
+  const writeView = render(
+    <AuthContext.Provider value={buildAuth(['loyalty.read', 'loyalty.write'], 'manager')}>
+      <AppProvider apiClientFactory={loyaltyApiFactory}>
+        <ActiveSalonGate>
+          <LoyaltyView />
+        </ActiveSalonGate>
+      </AppProvider>
+    </AuthContext.Provider>,
+  );
+
+  await waitFor(() => {
+    assert.ok(within(writeView.container).getAllByText('Awa Fidélité').length >= 1);
+    assert.ok(within(writeView.container).getByRole('button', { name: 'Récompense' }));
+  });
+
+  fireEvent.change(within(writeView.container).getByLabelText('Points / 100 FCFA'), {
+    target: { value: '3' },
+  });
+  fireEvent.click(within(writeView.container).getByRole('button', { name: 'Enregistrer' }));
+  await waitFor(() => {
+    assert.equal(setProgramCalls.filter((call) => call.pointsPer100Fcfa === 3).length, 1);
+  });
+
+  fireEvent.click(within(writeView.container).getByRole('button', { name: 'Récompense' }));
+  fireEvent.change(within(writeView.container).getByLabelText('Récompense à consommer'), {
+    target: { value: primaryReward.id },
+  });
+  fireEvent.click(within(writeView.container).getByRole('button', { name: 'Valider' }));
+  await waitFor(() => {
+    assert.deepEqual(redeemCalls, [{ clientId: primaryClient.id, rewardId: primaryReward.id }]);
+  });
+
+  fireEvent.click(within(writeView.container).getByRole('button', { name: 'Ajuster' }));
+  fireEvent.change(within(writeView.container).getByLabelText('Points (+/-)'), { target: { value: '10' } });
+  fireEvent.change(within(writeView.container).getByLabelText('Motif (obligatoire, tracé)'), {
+    target: { value: 'Geste commercial' },
+  });
+  fireEvent.click(within(writeView.container).getByRole('button', { name: 'Appliquer' }));
+  await waitFor(() => {
+    assert.deepEqual(adjustCalls, [{ clientId: primaryClient.id, points: 10, reason: 'Geste commercial' }]);
+    assert.ok(resolvedSalonIds.length > 0);
+    assert.ok(resolvedSalonIds.every((id) => id === SALON_ID));
   });
 });
 
